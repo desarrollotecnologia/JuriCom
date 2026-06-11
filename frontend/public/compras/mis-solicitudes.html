@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Contratos · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .detail-section h3 {
+                color: var(--color-primary-dark);
+                font-size: 0.95rem;
+                margin: 18px 0 10px;
+                padding-bottom: 6px;
+                border-bottom: 1px solid var(--color-border);
+            }
+            .detail-section p {
+                font-size: 0.9rem;
+                margin-bottom: 6px;
+            }
+            .detail-section .label {
+                color: var(--color-text-muted);
+                display: inline-block;
+                min-width: 130px;
+            }
+            .juridica-actions {
+                background: var(--color-primary-light);
+                padding: 16px;
+                border-radius: var(--radius-md);
+                margin-top: 16px;
+            }
+            .juridica-actions h3 {
+                color: var(--color-primary-dark);
+                margin-bottom: 12px;
+                font-size: 1rem;
+            }
+            .action-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+            @media (max-width: 600px) {
+                .action-grid { grid-template-columns: 1fr; }
+            }
+            .file-upload {
+                background: white;
+                padding: 12px;
+                border-radius: 8px;
+                border: 1px dashed var(--color-border);
+            }
+            .file-upload label {
+                display: block;
+                font-size: 0.85rem;
+                font-weight: 600;
+                color: var(--color-primary-dark);
+                margin-bottom: 6px;
+            }
+            .file-upload .status {
+                font-size: 0.78rem;
+                margin-top: 4px;
+            }
+            .file-upload .status.ok { color: var(--color-success); }
+            .file-upload .status.pending { color: var(--color-warning); }
+            .poliza-required-banner {
+                background: #fff7ed;
+                border-left: 4px solid var(--color-warning);
+                padding: 12px 14px;
+                border-radius: 6px;
+                color: #92400e;
+                font-size: 0.9rem;
+                margin-bottom: 16px;
+            }
+            table.clickable-rows tbody tr.contrato-vencimiento-alerta {
+                background: #fef2f2;
+                border-left: 4px solid var(--color-danger);
+            }
+            table.clickable-rows tbody tr.contrato-vencimiento-alerta:hover {
+                background: #fee2e2;
+            }
+            .vigencia-alert {
+                background: #fef2f2;
+                border-left: 4px solid var(--color-danger);
+                padding: 12px 14px;
+                border-radius: 6px;
+                color: #991b1b;
+                font-size: 0.9rem;
+                margin-bottom: 16px;
+            }
+            .edit-contract-form {
+                display: none;
+                background: white;
+                border: 1px solid var(--color-border);
+                border-radius: 8px;
+                padding: 12px;
+                margin-bottom: 14px;
+            }
+            .edit-contract-form textarea {
+                min-height: 58px;
+                resize: vertical;
+            }
+            /* ----------- Otrosíes ----------- */
+            .otrosi-section {
+                background: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                padding: 16px;
+                border-radius: var(--radius-md);
+                margin-top: 16px;
+            }
+            .otrosi-section h3 {
+                color: #166534;
+                font-size: 1rem;
+                margin-bottom: 10px;
+            }
+            .otrosi-list {
+                list-style: none;
+                padding: 0;
+                margin: 0 0 12px;
+            }
+            .otrosi-item {
+                background: white;
+                border-left: 4px solid #16a34a;
+                padding: 10px 12px;
+                border-radius: 6px;
+                margin-bottom: 8px;
+                font-size: 0.88rem;
+            }
+            .otrosi-item .otrosi-head {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-weight: 600;
+                color: #166534;
+                margin-bottom: 4px;
+            }
+            .otrosi-item .otrosi-desc {
+                color: var(--color-text-muted);
+                font-size: 0.85rem;
+                margin-top: 4px;
+            }
+            .otrosi-empty {
+                color: var(--color-text-muted);
+                font-size: 0.85rem;
+                font-style: italic;
+                margin-bottom: 12px;
+            }
+            .otrosi-form {
+                background: white;
+                border: 1px dashed #86efac;
+                padding: 12px;
+                border-radius: 8px;
+            }
+            .otrosi-form .row {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+            @media (max-width: 600px) {
+                .otrosi-form .row { grid-template-columns: 1fr; }
+            }
+            .otrosi-form label {
+                display: block;
+                font-size: 0.82rem;
+                font-weight: 600;
+                color: #166534;
+                margin: 8px 0 4px;
+            }
+            .otrosi-form input, .otrosi-form select, .otrosi-form textarea {
+                width: 100%;
+                font-size: 0.9rem;
+                padding: 6px 8px;
+                border: 1px solid var(--color-border);
+                border-radius: 4px;
+            }
+            .otrosi-form textarea { min-height: 60px; resize: vertical; }
+            .otrosi-disabled-msg {
+                color: var(--color-text-muted);
+                font-style: italic;
+                font-size: 0.85rem;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1 id="page-title">Contratos</h1>
+                        <p class="muted" id="page-subtitle"></p>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <div id="buzon-btn-slot"></div>
+                        <button
+                            class="btn btn-secondary"
+                            id="btn-notificar"
+                            style="display: none;"
+                            title="Enviar correo de advertencia con contratos pendientes"
+                        >
+                            ✉ Notificar pendientes
+                        </button>
+                        <button
+                            class="btn btn-secondary"
+                            id="btn-vencimientos"
+                            style="display: none;"
+                            title="Enviar correo con contratos cuya notificación fue programada por Jurídica"
+                        >
+                            ⚠ Notificar programados
+                        </button>
+                        <a
+                            href="/app/compras/solicitud-radicar.html"
+                            class="btn btn-primary"
+                            id="btn-new"
+                            style="display: none;"
+                        >
+                            + Radicar nuevo
+                        </a>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card">
+                    <div class="search-bar">
+                        <input
+                            type="text"
+                            id="search-input"
+                            placeholder="Buscar por código (JC-0001), proveedor o NIT..."
+                            autocomplete="off"
+                        />
+                        <select id="filter-estado">
+                            <option value="">Todos los estados</option>
+                            <option value="en_proceso">En proceso</option>
+                            <option value="activo">Activo</option>
+                            <option value="finalizado">Finalizado</option>
+                        </select>
+                        <span class="info" id="result-count"></span>
+                    </div>
+
+                    <table class="clickable-rows">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Proveedor</th>
+                                <th>NIT</th>
+                                <th>Valor</th>
+                                <th>Plazo</th>
+                                <th>Vence</th>
+                                <th>Notificación</th>
+                                <th>Aprobación</th>
+                                <th>Estado</th>
+                                <th>Otrosíes</th>
+                                <th>Faltantes</th>
+                                <th>Radicado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contratos-tbody">
+                            <tr>
+                                <td colspan="12" class="muted">Cargando...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+
+        <!-- Modal detalle -->
+        <div class="modal-overlay" id="modal-detail">
+            <div class="modal" style="max-width: 780px;">
+                <h2 id="detail-title">Detalle del contrato</h2>
+                <div id="detail-content" class="mt-2"></div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="btn-detail-close">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { renderBuzonBtn } from "/static/js/components/buzon-btn.js";
+            import { api, ApiError } from "/static/js/api/client.js";
+            import { API_BASE } from "/static/js/utils/config.js";
+            import {
+                escapeHtml,
+                formatDate,
+                formatMoney,
+                formatPlazo,
+            } from "/static/js/utils/format.js";
+
+            session.requireAuth();
+            renderSidebar();
+            renderBuzonBtn();
+
+            const user = session.getUser();
+            const puedeRadicar = ["compras", "admin"].includes(user.role);
+            const esJuridica = ["juridica", "admin"].includes(user.role);
+            const puedeAplicarOtrosi = esJuridica || user.role === "compras";
+
+            document.getElementById("page-subtitle").textContent =
+                user.role === "compras"
+                    ? "Solicitudes que has radicado."
+                    : "Todas las solicitudes radicadas en el sistema.";
+            if (puedeRadicar) {
+                document.getElementById("btn-new").style.display = "inline-flex";
+            }
+            if (esJuridica) {
+                document.getElementById("btn-notificar").style.display = "inline-flex";
+                document.getElementById("btn-vencimientos").style.display = "inline-flex";
+            }
+
+            const tbody = document.getElementById("contratos-tbody");
+            const modal = document.getElementById("modal-detail");
+            const detailContent = document.getElementById("detail-content");
+            const searchInput = document.getElementById("search-input");
+            const filterEstado = document.getElementById("filter-estado");
+            const resultCount = document.getElementById("result-count");
+            const alertError = document.getElementById("alert-error");
+            const alertSuccess = document.getElementById("alert-success");
+
+            const TIPO_LABEL = {
+                camara_comercio: "Cámara de comercio",
+                cotizacion: "Cotización",
+                cedula_rep_legal: "Cédula rep. legal",
+                correo_aprobacion_gerencia: "Aprobación gerencia",
+                correo_aprobacion_lider: "Aprobación líder",
+                opcional: "Archivo opcional",
+                poliza: "Póliza",
+                borrador_firmado: "Borrador firmado",
+                otrosi: "Otrosí firmado",
+            };
+
+            const ESTADO_LABEL = {
+                en_proceso: "Pendiente",
+                activo: "Activo",
+                finalizado: "Finalizado",
+            };
+
+            const APROBACION_LABEL = {
+                pendiente_lider: "Pendiente líder",
+                pendiente_gerencia: "Pendiente gerencia",
+                aprobado: "Aprobado",
+                rechazado: "Rechazado",
+            };
+
+            const TIPO_OTROSI_LABEL = {
+                prorroga: "Prórroga",
+                adicion: "Adición",
+                modificacion: "Modificación",
+                otro: "Otro",
+            };
+
+            const UNIDAD_PLAZO_LABEL = {
+                dias: "días",
+                meses: "meses",
+                anios: "años",
+            };
+
+            function showError(msg) {
+                alertSuccess.classList.remove("show");
+                alertError.textContent = msg;
+                alertError.classList.add("show");
+                setTimeout(() => alertError.classList.remove("show"), 6000);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+            function showSuccess(msg) {
+                alertError.classList.remove("show");
+                alertSuccess.textContent = msg;
+                alertSuccess.classList.add("show");
+                setTimeout(() => alertSuccess.classList.remove("show"), 5000);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+
+            let timer = null;
+            function debouncedLoad() {
+                clearTimeout(timer);
+                timer = setTimeout(load, 300);
+            }
+            searchInput.addEventListener("input", debouncedLoad);
+            filterEstado.addEventListener("change", load);
+
+            async function load() {
+                const params = new URLSearchParams();
+                if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
+                if (filterEstado.value) params.set("estado", filterEstado.value);
+                const url = "/contratos" + (params.toString() ? `?${params}` : "");
+
+                try {
+                    const items = await api.get(url);
+                    resultCount.textContent = `${items.length} resultado(s)`;
+                    if (items.length === 0) {
+                        tbody.innerHTML =
+                            '<tr><td colspan="12" class="muted">No se encontraron contratos.</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = items
+                        .map((c) => {
+                            const faltantes = [];
+                            if (c.requiere_poliza && !c.tiene_poliza) faltantes.push("Póliza");
+                            if (!c.tiene_borrador) faltantes.push("Borrador");
+                            const faltantesHtml =
+                                faltantes.length === 0
+                                    ? '<span class="muted">—</span>'
+                                    : faltantes
+                                          .map((f) => `<span class="badge badge-en_proceso" style="margin-right:4px;">${f}</span>`)
+                                          .join("");
+                            const otrosiCount = c.cantidad_otrosies ?? 0;
+                            const otrosiHtml = otrosiCount > 0
+                                ? `<span class="badge badge-activo" title="Tiene ${otrosiCount} otrosí(es) aplicado(s)">${otrosiCount}</span>`
+                                : '<span class="muted">—</span>';
+                            const venceHtml = c.fecha_fin
+                                ? `${formatDate(c.fecha_fin)}${c.alerta_vencimiento ? `<br><span class="badge badge-finalizado">${c.dias_para_vencer} días</span>` : ""}`
+                                : '<span class="muted">—</span>';
+                            const notificacionHtml = c.fecha_proxima_notificacion
+                                ? formatDate(c.fecha_proxima_notificacion)
+                                : '<span class="muted">Sin programar</span>';
+                            const aprobacionHtml = `<span class="badge badge-${c.estado_aprobacion === "aprobado" ? "activo" : "en_proceso"}">${APROBACION_LABEL[c.estado_aprobacion] || c.estado_aprobacion}</span>`;
+                            return `
+                                <tr data-id="${c.id}" tabindex="0" role="button"
+                                    class="${c.alerta_vencimiento ? "contrato-vencimiento-alerta" : ""}"
+                                    aria-label="Abrir contrato ${escapeHtml(c.codigo ?? '')}">
+                                    <td><span class="codigo-contrato">${escapeHtml(c.codigo ?? "—")}</span></td>
+                                    <td><strong>${escapeHtml(c.proveedor_contratista)}</strong></td>
+                                    <td>${escapeHtml(c.nit_proveedor)}</td>
+                                    <td>${formatMoney(c.valor, c.moneda)}</td>
+                                    <td>${formatPlazo(c.plazo_cantidad, c.plazo_unidad)}</td>
+                                    <td>${venceHtml}</td>
+                                    <td>${notificacionHtml}</td>
+                                    <td>${aprobacionHtml}</td>
+                                    <td><span class="badge badge-${c.estado}">${ESTADO_LABEL[c.estado] || c.estado}</span></td>
+                                    <td>${otrosiHtml}</td>
+                                    <td>${faltantesHtml}</td>
+                                    <td>${formatDate(c.created_at)}</td>
+                                </tr>
+                            `;
+                        })
+                        .join("");
+                } catch (err) {
+                    tbody.innerHTML = `<tr><td colspan="11" class="muted">Error: ${escapeHtml(err.message)}</td></tr>`;
+                }
+            }
+
+            tbody.addEventListener("click", async (e) => {
+                const row = e.target.closest("tr[data-id]");
+                if (!row) return;
+                await openDetail(row.dataset.id);
+            });
+            tbody.addEventListener("keydown", async (e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                const row = e.target.closest("tr[data-id]");
+                if (!row) return;
+                e.preventDefault();
+                await openDetail(row.dataset.id);
+            });
+
+            detailContent.addEventListener("click", async (e) => {
+                const link = e.target.closest("a[data-download-url]");
+                if (!link) return;
+                e.preventDefault();
+                await downloadArchivo(link.dataset.downloadUrl, link.dataset.filename);
+            });
+
+            async function downloadArchivo(path, filename) {
+                try {
+                    const response = await fetch(`${API_BASE}${path.replace("/api/v1", "")}`, {
+                        headers: {
+                            Authorization: `Bearer ${session.getToken()}`,
+                        },
+                    });
+                    if (!response.ok) {
+                        throw new Error(`No se pudo descargar el archivo (${response.status}).`);
+                    }
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = filename || "archivo";
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                } catch (err) {
+                    showError(err.message || "No se pudo descargar el archivo.");
+                }
+            }
+
+            async function openDetail(id) {
+                try {
+                    const c = await api.get(`/contratos/${id}`);
+                    renderDetail(c);
+                    modal.classList.add("show");
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            function renderDetail(c) {
+                document.getElementById("detail-title").textContent =
+                    `Contrato ${c.codigo || ""}`;
+
+                const archivosHtml = c.archivos
+                    .map(
+                        (a) => `
+                            <li>
+                                <strong>${TIPO_LABEL[a.tipo] || a.tipo}:</strong>
+                                <a href="#" data-download-url="/api/v1/archivos/${c.id}/${a.id}" data-filename="${escapeHtml(a.nombre_original)}">
+                                    ${escapeHtml(a.nombre_original)}
+                                </a>
+                                <span class="muted">(${(a.tamano_bytes / 1024).toFixed(1)} KB)</span>
+                            </li>
+                        `
+                    )
+                    .join("");
+
+                const polizaWarning =
+                    c.requiere_poliza && !c.tiene_poliza
+                        ? `<div class="poliza-required-banner">
+                              ⚠ Este contrato requiere PÓLIZA y aún no se ha adjuntado.
+                              ${esJuridica ? "Adjúntala más abajo." : "Espera a que Jurídica la adjunte."}
+                           </div>`
+                        : "";
+                const vigenciaWarning =
+                    c.alerta_vencimiento
+                        ? `<div class="vigencia-alert">
+                              Cuidado: este contrato vence en ${c.dias_para_vencer} día(s).
+                              Consulta con el líder del proceso y Jurídica si se va a renovar
+                              o si se dejará vencer.
+                           </div>`
+                        : "";
+
+                const juridicaActionsHtml = esJuridica
+                    ? buildJuridicaActions(c)
+                    : "";
+                const otrosiSectionHtml =
+                    puedeAplicarOtrosi || c.estado === "activo" || (c.otrosies || []).length > 0
+                        ? buildOtrosiSection(c)
+                        : "";
+
+                detailContent.innerHTML = `
+                    ${vigenciaWarning}
+                    ${polizaWarning}
+                    <div class="detail-section">
+                        <p>
+                            <span class="codigo-contrato">${escapeHtml(c.codigo ?? "—")}</span>
+                            &nbsp;
+                            <span class="badge badge-${c.estado}">
+                                ${ESTADO_LABEL[c.estado] || c.estado}
+                            </span>
+                        </p>
+
+                        <h3>Información general</h3>
+                        <p><span class="label">Compañía:</span> ${escapeHtml(c.compania)}</p>
+                        <p><span class="label">Proveedor:</span> <strong>${escapeHtml(c.proveedor_contratista)}</strong></p>
+                        <p><span class="label">NIT:</span> ${escapeHtml(c.nit_proveedor)}</p>
+                        <p><span class="label">Valor:</span> ${formatMoney(c.valor, c.moneda)}</p>
+                        <p><span class="label">Plazo:</span> ${formatPlazo(c.plazo_cantidad, c.plazo_unidad)}</p>
+                        <p><span class="label">Inicio:</span> ${c.fecha_inicio ? formatDate(c.fecha_inicio) : "Sin definir"}</p>
+                        <p><span class="label">Fin:</span> ${c.fecha_fin ? formatDate(c.fecha_fin) : "Sin definir"}</p>
+                        <p><span class="label">Volver a notificar:</span> ${c.fecha_proxima_notificacion ? formatDate(c.fecha_proxima_notificacion) : "Sin programar"}</p>
+                        <p><span class="label">Aprobación:</span> ${APROBACION_LABEL[c.estado_aprobacion] || c.estado_aprobacion}</p>
+                        <p><span class="label">Líder proceso:</span> ${escapeHtml(c.correo_lider_proceso || "—")}</p>
+                        <p><span class="label">Gerencia:</span> ${escapeHtml(c.correo_gerencia || "—")}</p>
+                        <p><span class="label">Renovación automática:</span> ${c.renovacion_automatica ? "Sí" : "No"}</p>
+                        <p><span class="label">Requiere póliza:</span> ${c.requiere_poliza ? "Sí" : "No"}</p>
+
+                        <h3>Descripción del servicio</h3>
+                        <p class="muted">${escapeHtml(c.descripcion_servicio)}</p>
+
+                        <h3>Obligaciones Colbeef</h3>
+                        <p class="muted">${escapeHtml(c.obligaciones_colbeef)}</p>
+
+                        <h3>Obligaciones del proveedor</h3>
+                        <p class="muted">${escapeHtml(c.obligaciones_proveedor)}</p>
+
+                        <h3>Condiciones de recibido satisfactorio</h3>
+                        <p class="muted">${escapeHtml(c.condiciones_recibido_satisfactorio)}</p>
+
+                        <h3>Archivos adjuntos (${c.archivos.length})</h3>
+                        <ul style="padding-left: 20px;">${archivosHtml}</ul>
+                    </div>
+
+                    ${otrosiSectionHtml}
+
+                    ${juridicaActionsHtml}
+                `;
+
+                if (puedeAplicarOtrosi) wireOtrosiForm(c);
+                if (esJuridica) wireJuridicaActions(c);
+            }
+
+            function buildJuridicaActions(c) {
+                const isFinalizado = c.estado === "finalizado";
+                const polizaStatus = c.tiene_poliza
+                    ? '<span class="status ok">✓ Adjuntada</span>'
+                    : (c.requiere_poliza
+                        ? '<span class="status pending">⚠ Pendiente (obligatoria)</span>'
+                        : '<span class="status">Opcional</span>');
+                const borradorStatus = c.tiene_borrador
+                    ? '<span class="status ok">✓ Adjuntado</span>'
+                    : '<span class="status pending">⚠ Pendiente</span>';
+
+                return `
+                    <div class="juridica-actions">
+                        <h3>🔒 Acciones de Jurídica</h3>
+
+                        <div style="margin-bottom:12px;">
+                            <a
+                                class="btn btn-sm btn-primary"
+                                href="/app/juridica/editar-contrato.html?codigo=${encodeURIComponent(c.codigo || "")}"
+                            >
+                                Abrir en Edición de contrato
+                            </a>
+                            <span class="hint" style="margin-left:8px;">
+                                Edita datos, vigencia, archivos y estado en el módulo aparte.
+                            </span>
+                        </div>
+
+                        <div class="edit-contract-form">
+                            <h3 style="margin-top:0;">Editar contrato y vigencia</h3>
+                            <div class="row-2">
+                                <div class="field">
+                                    <label>Proveedor</label>
+                                    <input id="edit-proveedor" value="${escapeHtml(c.proveedor_contratista)}" />
+                                </div>
+                                <div class="field">
+                                    <label>NIT</label>
+                                    <input id="edit-nit" value="${escapeHtml(c.nit_proveedor)}" />
+                                </div>
+                            </div>
+                            <div class="row-2">
+                                <div class="field">
+                                    <label>Valor</label>
+                                    <input id="edit-valor" type="number" step="0.01" min="0.01" value="${c.valor}" />
+                                </div>
+                                <div class="field">
+                                    <label>Moneda</label>
+                                    <select id="edit-moneda">
+                                        <option value="COP" ${c.moneda === "COP" ? "selected" : ""}>COP</option>
+                                        <option value="USD" ${c.moneda === "USD" ? "selected" : ""}>USD</option>
+                                        <option value="EUR" ${c.moneda === "EUR" ? "selected" : ""}>EUR</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row-2">
+                                <div class="field">
+                                    <label>Plazo</label>
+                                    <input id="edit-plazo-cantidad" type="number" min="1" value="${c.plazo_cantidad}" />
+                                </div>
+                                <div class="field">
+                                    <label>Unidad plazo</label>
+                                    <select id="edit-plazo-unidad">
+                                        <option value="dias" ${c.plazo_unidad === "dias" ? "selected" : ""}>Días</option>
+                                        <option value="meses" ${c.plazo_unidad === "meses" ? "selected" : ""}>Meses</option>
+                                        <option value="anios" ${c.plazo_unidad === "anios" ? "selected" : ""}>Años</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row-2">
+                                <div class="field">
+                                    <label>Fecha inicio</label>
+                                    <input id="edit-fecha-inicio" type="date" value="${c.fecha_inicio || ""}" />
+                                </div>
+                                <div class="field">
+                                    <label>Fecha fin</label>
+                                    <input id="edit-fecha-fin" type="date" value="${c.fecha_fin || ""}" />
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>Volver a notificar el</label>
+                                <input id="edit-fecha-proxima-notificacion" type="date" value="${c.fecha_proxima_notificacion || ""}" />
+                            </div>
+                            <div class="row-2">
+                                <div class="field">
+                                    <label>Renovación automática</label>
+                                    <select id="edit-renovacion">
+                                        <option value="false" ${!c.renovacion_automatica ? "selected" : ""}>No</option>
+                                        <option value="true" ${c.renovacion_automatica ? "selected" : ""}>Sí</option>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label>Requiere póliza</label>
+                                    <select id="edit-poliza">
+                                        <option value="false" ${!c.requiere_poliza ? "selected" : ""}>No</option>
+                                        <option value="true" ${c.requiere_poliza ? "selected" : ""}>Sí</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>Descripción del servicio</label>
+                                <textarea id="edit-descripcion">${escapeHtml(c.descripcion_servicio)}</textarea>
+                            </div>
+                            <div class="row-2">
+                                <div class="field">
+                                    <label>Obligaciones Colbeef</label>
+                                    <textarea id="edit-obligaciones-colbeef">${escapeHtml(c.obligaciones_colbeef)}</textarea>
+                                </div>
+                                <div class="field">
+                                    <label>Obligaciones proveedor</label>
+                                    <textarea id="edit-obligaciones-proveedor">${escapeHtml(c.obligaciones_proveedor)}</textarea>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>Condiciones recibido satisfactorio</label>
+                                <textarea id="edit-condiciones">${escapeHtml(c.condiciones_recibido_satisfactorio)}</textarea>
+                            </div>
+                            <button class="btn btn-sm btn-primary" id="btn-save-contrato">
+                                Guardar cambios del contrato
+                            </button>
+                        </div>
+
+                        <div class="field">
+                            <label>Estado del contrato</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <select id="select-estado" ${isFinalizado ? "" : ""}>
+                                    <option value="en_proceso" ${c.estado === "en_proceso" ? "selected" : ""}>En proceso</option>
+                                    <option value="activo" ${c.estado === "activo" ? "selected" : ""}>Activo</option>
+                                    <option value="finalizado" ${c.estado === "finalizado" ? "selected" : ""}>Finalizado</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary" id="btn-save-estado">Guardar estado</button>
+                            </div>
+                            <span class="hint">
+                                "Activo" requiere póliza adjuntada (si aplica). "Finalizado" cierra el contrato.
+                            </span>
+                        </div>
+
+                        <div class="action-grid mt-2">
+                            <div class="file-upload">
+                                <label>
+                                    📄 ${c.requiere_poliza ? "Póliza (obligatoria)" : "Póliza"}
+                                </label>
+                                <input type="file" id="file-poliza" accept="application/pdf,image/*" />
+                                <button class="btn btn-sm btn-primary mt-2" id="btn-upload-poliza" style="margin-top:8px;">
+                                    Subir póliza
+                                </button>
+                                ${polizaStatus}
+                            </div>
+                            <div class="file-upload">
+                                <label>📋 Borrador firmado</label>
+                                <input type="file" id="file-borrador" accept="application/pdf" />
+                                <button class="btn btn-sm btn-primary mt-2" id="btn-upload-borrador" style="margin-top:8px;">
+                                    Subir borrador
+                                </button>
+                                ${borradorStatus}
+                            </div>
+                        </div>
+                        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--color-border); text-align:right;">
+                            <button class="btn btn-sm btn-secondary" id="btn-delete-contrato" style="color:#991b1b;">
+                                Eliminar contrato
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function describeOtrosiEfecto(o) {
+                if (o.tipo === "prorroga") {
+                    const u = UNIDAD_PLAZO_LABEL[o.plazo_adicional_unidad] || o.plazo_adicional_unidad || "";
+                    return `+${o.plazo_adicional_cantidad ?? 0} ${u}`;
+                }
+                if (o.tipo === "adicion") {
+                    const v = Number(o.valor_adicional ?? 0);
+                    return `+${v.toLocaleString("es-CO", { minimumFractionDigits: 2 })}`;
+                }
+                if (o.tipo === "modificacion") {
+                    return "Cambió descripción del servicio";
+                }
+                return "Sin cambio en campos del contrato";
+            }
+
+            function buildOtrosiSection(c) {
+                const otrosies = c.otrosies || [];
+                const otrosiPendienteJuridica = otrosies.find((o) =>
+                    esJuridica
+                    && o.estado_aprobacion === "aprobado"
+                    && o.aprobado_gerencia_at
+                    && !o.archivo_id
+                );
+                const listHtml = otrosies.length === 0
+                    ? '<p class="otrosi-empty">Aún no se ha aplicado ningún otrosí a este contrato.</p>'
+                    : `<ul class="otrosi-list">
+                        ${otrosies.map((o) => `
+                            <li class="otrosi-item">
+                                <div class="otrosi-head">
+                                    <span>Otrosí #${o.numero} · ${TIPO_OTROSI_LABEL[o.tipo] || o.tipo}</span>
+                                    <span class="muted" style="font-weight:400;font-size:0.78rem;">${formatDate(o.created_at)}</span>
+                                </div>
+                                <div><strong>Efecto:</strong> ${escapeHtml(describeOtrosiEfecto(o))}</div>
+                                <div class="otrosi-desc">${escapeHtml(o.descripcion)}</div>
+                                ${o.archivo_id ? `
+                                    <div style="margin-top:6px;">
+                                        <a href="#" data-download-url="/api/v1/archivos/${c.id}/${o.archivo_id}" data-filename="otrosi-${o.numero}.pdf">📎 Descargar PDF del otrosí</a>
+                                    </div>` : ""}
+                            </li>
+                        `).join("")}
+                    </ul>`;
+
+                const puedeCrear = puedeAplicarOtrosi && c.estado === "activo";
+                const archivoFirmadoHtml = esJuridica
+                    ? `
+                        <label>PDF firmado del otrosí (solo Jurídica)</label>
+                        <input type="file" id="otrosi-archivo" accept="application/pdf" />
+                      `
+                    : "";
+                const tipoFormulario = otrosiPendienteJuridica?.tipo || "prorroga";
+                const descripcionFormulario = otrosiPendienteJuridica?.descripcion || "";
+                const formularioHtml = otrosiPendienteJuridica
+                    ? `
+                        <div class="otrosi-form">
+                            <p class="muted" style="margin-bottom:10px;">
+                                Datos enviados por Compras. Jurídica puede ajustar, cargar el firmado y aplicar el cambio.
+                            </p>
+                            <div class="row">
+                                <div>
+                                    <label>Tipo de otrosí *</label>
+                                    <select id="otrosi-tipo">
+                                        <option value="prorroga" ${tipoFormulario === "prorroga" ? "selected" : ""}>Prórroga</option>
+                                        <option value="adicion" ${tipoFormulario === "adicion" ? "selected" : ""}>Adición</option>
+                                        <option value="modificacion" ${tipoFormulario === "modificacion" ? "selected" : ""}>Modificación</option>
+                                        <option value="otro" ${tipoFormulario === "otro" ? "selected" : ""}>Otro</option>
+                                    </select>
+                                </div>
+                                <div id="otrosi-extra-wrap"></div>
+                            </div>
+                            <label>Descripción / motivo *</label>
+                            <textarea id="otrosi-descripcion">${escapeHtml(descripcionFormulario)}</textarea>
+                            ${archivoFirmadoHtml}
+                            <button
+                                class="btn btn-sm btn-primary"
+                                id="btn-aplicar-otrosi"
+                                data-otrosi-pendiente-id="${otrosiPendienteJuridica.id}"
+                                style="margin-top:10px;"
+                            >
+                                Cargar firmado y aplicar otrosí
+                            </button>
+                        </div>
+                      `
+                    : (puedeCrear && !esJuridica
+                    ? `
+                        <div class="otrosi-form">
+                            <div class="row">
+                                <div>
+                                    <label>Tipo de otrosí *</label>
+                                    <select id="otrosi-tipo">
+                                        <option value="prorroga">Prórroga</option>
+                                        <option value="adicion">Adición</option>
+                                        <option value="modificacion">Modificación</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+                                <div id="otrosi-extra-wrap"></div>
+                            </div>
+                            <label>Descripción / motivo *</label>
+                            <textarea id="otrosi-descripcion" placeholder="Explica por qué se solicita el otrosí"></textarea>
+                            ${archivoFirmadoHtml}
+                            <button class="btn btn-sm btn-primary" id="btn-aplicar-otrosi" style="margin-top:10px;">
+                                ${user.role === "compras" ? "Enviar solicitud de otrosí" : "Aplicar otrosí"}
+                            </button>
+                            ${user.role === "compras" ? `
+                                <p class="muted" style="margin-top:8px;font-size:0.82rem;">
+                                    La solicitud se enviará al líder del proceso y a gerencia. El PDF firmado lo carga Jurídica.
+                                </p>
+                            ` : ""}
+                        </div>
+                      `
+                    : (puedeAplicarOtrosi
+                        ? `<p class="otrosi-disabled-msg">
+                              ${esJuridica
+                                  ? "No hay otrosí pendiente de firmado para este contrato."
+                                  : `Para solicitar un otrosí, el contrato debe estar <strong>Activo</strong>. Estado actual: <strong>${ESTADO_LABEL[c.estado] || c.estado}</strong>.`
+                              }
+                           </p>`
+                        : ""));
+
+                return `
+                    <div class="otrosi-section">
+                        <h3>📑 Otrosíes (${otrosies.length})</h3>
+                        ${listHtml}
+                        ${formularioHtml}
+                    </div>
+                `;
+            }
+
+            function renderOtrosiExtraField(tipo, contrato, otrosi = null) {
+                const wrap = document.getElementById("otrosi-extra-wrap");
+                if (!wrap) return;
+                if (tipo === "prorroga") {
+                    const u = UNIDAD_PLAZO_LABEL[contrato.plazo_unidad] || contrato.plazo_unidad;
+                    wrap.innerHTML = `
+                        <label>Plazo adicional (en ${u}) *</label>
+                        <input type="number" min="1" id="otrosi-plazo" placeholder="Ej: 30" value="${otrosi?.plazo_adicional_cantidad || ""}" />
+                        <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">
+                            Se sumará al plazo actual (${contrato.plazo_cantidad} ${u}).
+                        </span>
+                    `;
+                } else if (tipo === "adicion") {
+                    wrap.innerHTML = `
+                        <label>Valor adicional (${contrato.moneda}) *</label>
+                        <input type="number" min="0.01" step="0.01" id="otrosi-valor" placeholder="Ej: 1000000" value="${otrosi?.valor_adicional || ""}" />
+                        <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">
+                            Se sumará al valor actual.
+                        </span>
+                    `;
+                } else if (tipo === "modificacion") {
+                    wrap.innerHTML = `
+                        <label>Nueva descripción del servicio *</label>
+                        <textarea id="otrosi-nueva-desc" placeholder="Texto que reemplazará la descripción actual">${escapeHtml(otrosi?.nueva_descripcion_servicio || "")}</textarea>
+                    `;
+                } else {
+                    wrap.innerHTML = `<p class="hint" style="font-size:0.8rem;color:var(--color-text-muted);margin-top:18px;">
+                        Sólo se registrará el otrosí en el historial (no modifica campos del contrato).
+                    </p>`;
+                }
+            }
+
+            function wireOtrosiForm(c) {
+                if (c.estado !== "activo") return;
+                const tipoSel = document.getElementById("otrosi-tipo");
+                if (!tipoSel) return;
+                const submitBtn = document.getElementById("btn-aplicar-otrosi");
+                const otrosiPendienteId = submitBtn?.dataset.otrosiPendienteId;
+                const otrosiPendiente = otrosiPendienteId
+                    ? (c.otrosies || []).find((o) => String(o.id) === String(otrosiPendienteId))
+                    : null;
+
+                renderOtrosiExtraField(tipoSel.value, c, otrosiPendiente);
+                tipoSel.addEventListener("change", () =>
+                    renderOtrosiExtraField(tipoSel.value, c, otrosiPendiente)
+                );
+
+                submitBtn.addEventListener("click", async () => {
+                    const tipo = tipoSel.value;
+                    const descripcion = document.getElementById("otrosi-descripcion").value.trim();
+                    if (!descripcion) {
+                        showError("La descripción / motivo del otrosí es obligatoria.");
+                        return;
+                    }
+                    const fd = new FormData();
+                    fd.append("tipo", tipo);
+                    fd.append("descripcion", descripcion);
+                    if (tipo === "prorroga") {
+                        const v = document.getElementById("otrosi-plazo")?.value;
+                        if (!v || Number(v) <= 0) {
+                            showError("Debes indicar el plazo adicional (mayor a 0).");
+                            return;
+                        }
+                        fd.append("plazo_adicional_cantidad", v);
+                    } else if (tipo === "adicion") {
+                        const v = document.getElementById("otrosi-valor")?.value;
+                        if (!v || Number(v) <= 0) {
+                            showError("Debes indicar el valor adicional (mayor a 0).");
+                            return;
+                        }
+                        fd.append("valor_adicional", v);
+                    } else if (tipo === "modificacion") {
+                        const v = document.getElementById("otrosi-nueva-desc")?.value.trim();
+                        if (!v) {
+                            showError("Debes escribir la nueva descripción del servicio.");
+                            return;
+                        }
+                        fd.append("nueva_descripcion_servicio", v);
+                    }
+                    const file = document.getElementById("otrosi-archivo")?.files[0];
+                    if (otrosiPendienteId && !file) {
+                        showError("Debes cargar el PDF firmado del otrosí.");
+                        return;
+                    }
+                    if (esJuridica && file) fd.append("archivo", file);
+
+                    try {
+                        const endpoint = otrosiPendienteId
+                            ? `/contratos/${c.id}/otrosi/${otrosiPendienteId}/finalizar`
+                            : `/contratos/${c.id}/otrosi`;
+                        await api.postForm(endpoint, fd);
+                        showSuccess(
+                            otrosiPendienteId
+                                ? `Otrosí firmado cargado y aplicado al contrato ${c.codigo}.`
+                                : user.role === "compras"
+                                ? `Solicitud de otrosí enviada para el contrato ${c.codigo}.`
+                                : `Otrosí aplicado correctamente al contrato ${c.codigo}.`
+                        );
+                        await openDetail(c.id);
+                        load();
+                    } catch (err) {
+                        showError(err.message);
+                    }
+                });
+            }
+
+            function wireJuridicaActions(c) {
+                document.getElementById("btn-save-contrato").addEventListener("click", async () => {
+                    const payload = {
+                        proveedor_contratista: document.getElementById("edit-proveedor").value.trim(),
+                        nit_proveedor: document.getElementById("edit-nit").value.trim(),
+                        descripcion_servicio: document.getElementById("edit-descripcion").value.trim(),
+                        obligaciones_colbeef: document.getElementById("edit-obligaciones-colbeef").value.trim(),
+                        obligaciones_proveedor: document.getElementById("edit-obligaciones-proveedor").value.trim(),
+                        valor: Number(document.getElementById("edit-valor").value),
+                        moneda: document.getElementById("edit-moneda").value,
+                        plazo_cantidad: Number(document.getElementById("edit-plazo-cantidad").value),
+                        plazo_unidad: document.getElementById("edit-plazo-unidad").value,
+                        renovacion_automatica: document.getElementById("edit-renovacion").value === "true",
+                        condiciones_recibido_satisfactorio: document.getElementById("edit-condiciones").value.trim(),
+                        requiere_poliza: document.getElementById("edit-poliza").value === "true",
+                        fecha_inicio: document.getElementById("edit-fecha-inicio").value || null,
+                        fecha_fin: document.getElementById("edit-fecha-fin").value || null,
+                        fecha_proxima_notificacion: document.getElementById("edit-fecha-proxima-notificacion").value || null,
+                    };
+                    if (!payload.proveedor_contratista || !payload.nit_proveedor || !payload.descripcion_servicio) {
+                        showError("Completa proveedor, NIT y descripción.");
+                        return;
+                    }
+                    try {
+                        await api.put(`/contratos/${c.id}`, payload);
+                        showSuccess("Contrato actualizado correctamente.");
+                        await openDetail(c.id);
+                        load();
+                    } catch (err) {
+                        showError(err.message);
+                    }
+                });
+
+                document.getElementById("btn-save-estado").addEventListener("click", async () => {
+                    const estado = document.getElementById("select-estado").value;
+                    try {
+                        const updated = await api.put(`/contratos/${c.id}/estado`, { estado });
+                        showSuccess(`Estado actualizado a "${ESTADO_LABEL[updated.estado]}".`);
+                        modal.classList.remove("show");
+                        load();
+                    } catch (err) {
+                        showError(err.message);
+                    }
+                });
+
+                document.getElementById("btn-upload-poliza").addEventListener("click", async () => {
+                    const file = document.getElementById("file-poliza").files[0];
+                    if (!file) { showError("Selecciona el archivo de la póliza."); return; }
+                    const fd = new FormData();
+                    fd.append("archivo", file);
+                    try {
+                        await api.postForm(`/contratos/${c.id}/poliza`, fd);
+                        showSuccess("Póliza adjuntada correctamente.");
+                        await openDetail(c.id);
+                        load();
+                    } catch (err) {
+                        showError(err.message);
+                    }
+                });
+
+                document.getElementById("btn-upload-borrador").addEventListener("click", async () => {
+                    const file = document.getElementById("file-borrador").files[0];
+                    if (!file) { showError("Selecciona el archivo del borrador."); return; }
+                    const fd = new FormData();
+                    fd.append("archivo", file);
+                    try {
+                        await api.postForm(`/contratos/${c.id}/borrador`, fd);
+                        showSuccess("Borrador firmado adjuntado correctamente.");
+                        await openDetail(c.id);
+                        load();
+                    } catch (err) {
+                        showError(err.message);
+                    }
+                });
+
+                document.getElementById("btn-delete-contrato").addEventListener("click", async () => {
+                    const ok = confirm(
+                        `¿Seguro que deseas eliminar el contrato ${c.codigo}? Esta acción no se puede deshacer.`
+                    );
+                    if (!ok) return;
+                    try {
+                        await api.delete(`/contratos/${c.id}`);
+                        showSuccess(`Contrato ${c.codigo} eliminado correctamente.`);
+                        modal.classList.remove("show");
+                        load();
+                    } catch (err) {
+                        showError(err.message);
+                    }
+                });
+            }
+
+            document.getElementById("btn-detail-close").addEventListener("click", () =>
+                modal.classList.remove("show")
+            );
+
+            // Botón notificar pendientes
+            document.getElementById("btn-notificar").addEventListener("click", async () => {
+                if (!confirm("¿Enviar correo con resumen de contratos en proceso a Jurídica?")) return;
+                try {
+                    const result = await api.post("/notifications/pendientes");
+                    if (result.enviado) {
+                        showSuccess(result.mensaje);
+                    } else {
+                        showError(result.mensaje || "No se pudo enviar el correo.");
+                    }
+                } catch (err) {
+                    showError(err.message);
+                }
+            });
+
+            document.getElementById("btn-vencimientos").addEventListener("click", async () => {
+                if (!confirm("¿Enviar correo con contratos programados para notificar hoy?")) return;
+                try {
+                    const result = await api.post("/notifications/vencimientos");
+                    if (result.enviado) {
+                        showSuccess(result.mensaje);
+                    } else {
+                        showError(result.mensaje || "No se pudo enviar el correo.");
+                    }
+                } catch (err) {
+                    showError(err.message);
+                }
+            });
+
+            // Soporta apertura directa por querystring (?contrato=ID) desde correos.
+            const urlParams = new URLSearchParams(window.location.search);
+            const directoId = urlParams.get("contrato");
+
+            load().then(() => {
+                if (directoId) openDetail(directoId);
+            });
+        </script>
+    </body>
+</html>

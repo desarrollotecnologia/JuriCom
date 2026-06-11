@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Radicar Solicitud · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .form-section {
+                margin-bottom: 28px;
+            }
+            .form-section h3 {
+                color: var(--color-primary-dark);
+                margin-bottom: 16px;
+                padding-bottom: 8px;
+                border-bottom: 2px solid var(--color-primary-light);
+            }
+            .file-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 16px;
+            }
+            .file-card {
+                background: var(--color-surface-2);
+                padding: 14px;
+                border-radius: var(--radius-md);
+                border: 1px dashed var(--color-border);
+            }
+            .file-card.required {
+                border-color: var(--color-primary);
+                background: #f0f6ff;
+            }
+            .file-card .tag {
+                font-size: 0.7rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 6px;
+                display: inline-block;
+            }
+            .file-card.required .tag {
+                color: var(--color-danger);
+            }
+            .file-card.optional .tag {
+                color: var(--color-text-muted);
+            }
+            .file-card-double {
+                grid-column: span 2;
+            }
+            .file-card-double .field-title {
+                font-size: 0.95rem;
+                font-weight: 600;
+                color: var(--color-primary-dark);
+                margin: 4px 0 12px;
+            }
+            .file-card-double .sub-field {
+                margin-bottom: 12px;
+            }
+            .file-card-double .sub-field:last-child {
+                margin-bottom: 0;
+            }
+            .file-card-double .sub-field label {
+                display: block;
+                font-size: 0.85rem;
+                color: var(--color-text);
+                margin-bottom: 6px;
+            }
+            .approval-card {
+                background: #f0f6ff;
+                border: 1px solid var(--color-primary);
+                border-radius: var(--radius-md);
+                padding: 16px;
+                margin-bottom: 20px;
+            }
+            .approval-card .tag {
+                color: var(--color-danger);
+                font-size: 0.7rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            @media (max-width: 720px) {
+                .file-card-double {
+                    grid-column: span 1;
+                }
+            }
+            .input-group {
+                display: grid;
+                grid-template-columns: 2fr 1fr;
+                gap: 8px;
+            }
+            .row-3 {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 16px;
+            }
+            @media (max-width: 900px) {
+                .row-3 {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .compania-fixed {
+                background: var(--color-surface-2);
+                padding: 10px 14px;
+                border-radius: var(--radius-md);
+                border: 1px solid var(--color-border);
+                font-weight: 500;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Radicar Solicitud de Contrato</h1>
+                        <p class="muted">
+                            Completa los datos del contrato y adjunta los documentos
+                            requeridos.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <form id="form-contrato" class="card" enctype="multipart/form-data">
+                    <!-- ===== Contrato ===== -->
+                    <div class="form-section">
+                        <h3>1. Contrato</h3>
+
+                        <div class="field">
+                            <label>Compañía</label>
+                            <div class="compania-fixed">Colbeef</div>
+                            <span class="hint">
+                                La compañía siempre es Colbeef (valor por defecto del sistema).
+                            </span>
+                        </div>
+
+                        <div class="row-3">
+                            <div class="field">
+                                <label>
+                                    Proveedor / Contratista
+                                    <span class="required">*</span>
+                                </label>
+                                <input type="text" name="proveedor_contratista" required />
+                            </div>
+                            <div class="field">
+                                <label>
+                                    NIT del proveedor <span class="required">*</span>
+                                </label>
+                                <input type="text" name="nit_proveedor" required />
+                            </div>
+                            <div class="field">
+                                <label>
+                                    Líder / jefe responsable <span class="required">*</span>
+                                </label>
+                                <select id="lider-jefe-colbeef" name="lider_jefe_id" required>
+                                    <option value="">Selecciona un líder o jefe</option>
+                                    <option value="1977852">
+                                        RINCON SARMIENTO CARLOS ANDRES - DIRECTOR NEGOCIOS GANADEROS
+                                    </option>
+                                    <option value="80424220">
+                                        HERNANDEZ URZOLA ROBERTO CARLOS - DIRECTOR COMERCIAL
+                                    </option>
+                                    <option value="13542263">
+                                        SERRANO ARDILA DIEGO FERNANDO - DIRECTOR ADMINISTRATIVO Y FINANCIERO
+                                    </option>
+                                    <option value="37747995">
+                                        GOMEZ MARTINEZ NIDIA ROCIO - DIRECTORA DE ASUNTOS CORPORATIVOS
+                                    </option>
+                                    <option value="1098673651">
+                                        PINEDA TRIANA VIVIANA ANDREA - JEFE DE TESORERIA Y CARTERA
+                                    </option>
+                                    <option value="79249780">
+                                        ARDILA JIMENEZ DIEGO SIGIFREDO - GERENTE GENERAL
+                                    </option>
+                                    <option value="1127947335">
+                                        RINCON BOTELLO YERSON JAVIER - LIDER DE BENEFICIO
+                                    </option>
+                                    <option value="91536323">
+                                        DIAZ HIGUERA LUIS FERNANDO - JEFE DE VENTAS
+                                    </option>
+                                    <option value="73579178">
+                                        LARA LUNA LEONARDO LUIS - JEFE DE TECNOLOGIA
+                                    </option>
+                                    <option value="1098660251">
+                                        ARENAS SARMIENTO FAUSTO ANDRES - LIDER CRECIMIENTO COMERCIAL
+                                    </option>
+                                    <option value="91477701">
+                                        VARGAS DURAN ROBINSON - LIDER DE DESPOSTE
+                                    </option>
+                                    <option value="1098763171">
+                                        SUAREZ QUIÑONES JEFFERSON ALEXANDER - LIDER SST
+                                    </option>
+                                    <option value="1056908061">
+                                        SEGURA BARRERA MARIA FILOMENA - DIRECTORA DE PLANTA
+                                    </option>
+                                    <option value="1098661407">
+                                        VERA MORA CINDY LEOMAR - JEFE DE GESTION HUMANA
+                                    </option>
+                                    <option value="63560912">
+                                        RUBIANO LEMUS YUDY ANDREA - JEFE DE CALIDAD
+                                    </option>
+                                    <option value="1102387740">
+                                        LIZARAZO PARADA DIEGO FERNANDO - LIDER DE PLANILLAJE
+                                    </option>
+                                    <option value="43536705">
+                                        OSORIO ESTRADA LILIANA MARIA - JEFE DE CONTABILIDAD
+                                    </option>
+                                    <option value="1098738467">
+                                        ROMERO PEDRAZA SERGIO OMAR - JEFE DE PRODUCCION
+                                    </option>
+                                    <option value="1095807041">
+                                        BARAJAS MAYORGA WILMER DARIO - LIDER LOGISTICA
+                                    </option>
+                                    <option value="1098661799">
+                                        RUEDA MADERO PAOLA CAROLINA - LIDER DE VENTAS
+                                    </option>
+                                    <option value="52822147">
+                                        MUÑOZ BERNAL PAOLA ANDREA - JEFE DE MERCADEO
+                                    </option>
+                                    <option value="1098665901">
+                                        RODRIGUEZ RUIZ ALEXANDER - JEFE DE PLANEACION FINANCIERA
+                                    </option>
+                                    <option value="1098725715">
+                                        QUESADA ZORRILLA WILHELM ARLEY - DIRECTOR CONTROLLER
+                                    </option>
+                                </select>
+                                <span class="hint">
+                                    Lista cargada desde LIDERES COLBEEF 2026.
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label>
+                                Descripción del servicio a solicitar
+                                <span class="required">*</span>
+                            </label>
+                            <textarea name="descripcion_servicio" required></textarea>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label>
+                                    Principales obligaciones de Colbeef
+                                    <span class="required">*</span>
+                                </label>
+                                <textarea name="obligaciones_colbeef" required></textarea>
+                            </div>
+                            <div class="field">
+                                <label>
+                                    Principales obligaciones del proveedor
+                                    <span class="required">*</span>
+                                </label>
+                                <textarea
+                                    name="obligaciones_proveedor"
+                                    required
+                                ></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== Valor y plazo ===== -->
+                    <div class="form-section">
+                        <h3>2. Valor y plazo</h3>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label>
+                                    Valor del contrato <span class="required">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input
+                                        type="number"
+                                        name="valor"
+                                        step="0.01"
+                                        min="0.01"
+                                        max="9999999999999999.99"
+                                        required
+                                        placeholder="0.00"
+                                    />
+                                    <select name="moneda" required>
+                                        <option value="COP">Pesos (COP)</option>
+                                        <option value="USD">Dólares (USD)</option>
+                                        <option value="EUR">Euros (EUR)</option>
+                                    </select>
+                                </div>
+                                <span class="hint">
+                                    Los pesos son pesos colombianos (COP). Máximo
+                                    16 dígitos.
+                                </span>
+                            </div>
+
+                            <div class="field">
+                                <label>
+                                    Plazo del contrato <span class="required">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input
+                                        type="number"
+                                        name="plazo_cantidad"
+                                        min="1"
+                                        required
+                                        placeholder="Cantidad"
+                                    />
+                                    <select name="plazo_unidad" required>
+                                        <option value="dias">Días</option>
+                                        <option value="meses" selected>Meses</option>
+                                        <option value="anios">Años</option>
+                                    </select>
+                                </div>
+                                <span class="hint">
+                                    Ej.: 6 meses, 30 días, 1 año. Se usa para
+                                    notificaciones.
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label>
+                                    ¿Renovación automática?
+                                    <span class="required">*</span>
+                                </label>
+                                <select name="renovacion_automatica" required>
+                                    <option value="false">No</option>
+                                    <option value="true">Sí</option>
+                                </select>
+                                <span class="hint">
+                                    Si es "Sí", al vencerse se renueva por el mismo plazo.
+                                </span>
+                            </div>
+                            <div class="field">
+                                <label>
+                                    ¿Requiere póliza? <span class="required">*</span>
+                                </label>
+                                <select name="requiere_poliza" required>
+                                    <option value="false">No</option>
+                                    <option value="true">Sí</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== Condiciones ===== -->
+                    <div class="form-section">
+                        <h3>3. Condiciones de recibido satisfactorio</h3>
+                        <div class="field">
+                            <label>
+                                Detalle las condiciones <span class="required">*</span>
+                            </label>
+                            <textarea
+                                name="condiciones_recibido_satisfactorio"
+                                required
+                                placeholder="Ej.: Entrega de informe final, cumplimiento de cronograma, validación por parte del líder de proceso, etc."
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="correo-lider-proceso" name="correo_lider_proceso" value="" />
+                    <input type="hidden" id="correo-gerencia" name="correo_gerencia" value="" />
+
+                    <!-- ===== Archivos ===== -->
+                    <div class="form-section">
+                        <h3>4. Documentos adjuntos</h3>
+                        <p class="muted" style="margin-bottom: 16px;">
+                            Los 3 primeros archivos son OBLIGATORIOS. El último es opcional.
+                        </p>
+
+                        <div class="file-grid">
+                            <div class="file-card required">
+                                <span class="tag">Obligatorio</span>
+                                <div class="field">
+                                    <label>Cámara de comercio del proveedor</label>
+                                    <input
+                                        type="file"
+                                        name="camara_comercio"
+                                        accept="application/pdf,image/*"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="file-card required">
+                                <span class="tag">Obligatorio</span>
+                                <div class="field">
+                                    <label>Cotización de oferta</label>
+                                    <input
+                                        type="file"
+                                        name="cotizacion"
+                                        accept="application/pdf,image/*"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="file-card required">
+                                <span class="tag">Obligatorio</span>
+                                <div class="field">
+                                    <label>
+                                        Cédula representante legal del proveedor
+                                    </label>
+                                    <input
+                                        type="file"
+                                        name="cedula_rep_legal"
+                                        accept="application/pdf,image/*"
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="file-card optional">
+                                <span class="tag">Opcional</span>
+                                <div class="field">
+                                    <label>Archivo adicional</label>
+                                    <input type="file" name="archivo_opcional" />
+                                    <span class="hint">Cualquier tipo de archivo.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px;"
+                    >
+                        <a href="/app/dashboard.html" class="btn btn-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="btn-submit">
+                            Radicar solicitud
+                        </button>
+                    </div>
+                </form>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api, ApiError } from "/static/js/api/client.js";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+
+            const selectLiderJefe = document.getElementById("lider-jefe-colbeef");
+            const inputLider = document.getElementById("correo-lider-proceso");
+            const inputGerencia = document.getElementById("correo-gerencia");
+
+            const EMAIL_LIDER_DEFAULT = "coordinacion.juridica@colbeef.com";
+            const EMAIL_GERENCIA_DEFAULT = "tommyelite25@gmail.com";
+            let emailLiderInmediato = "";
+            let emailGerencia = "";
+
+            api.get("/config/aprobacion-emails")
+                .then((cfg) => {
+                    emailLiderInmediato =
+                        cfg.lider_inmediato || EMAIL_LIDER_DEFAULT;
+                    emailGerencia = cfg.gerencia || EMAIL_GERENCIA_DEFAULT;
+                })
+                .catch(() => {
+                    emailLiderInmediato = EMAIL_LIDER_DEFAULT;
+                    emailGerencia = EMAIL_GERENCIA_DEFAULT;
+                });
+
+            function vincularCorreosAlElegirJefe() {
+                if (!selectLiderJefe.value) {
+                    inputLider.value = "";
+                    inputGerencia.value = "";
+                    return;
+                }
+                const lider =
+                    emailLiderInmediato || EMAIL_LIDER_DEFAULT;
+                const gerencia = emailGerencia || EMAIL_GERENCIA_DEFAULT;
+                inputLider.value = lider;
+                inputGerencia.value = gerencia;
+            }
+
+            selectLiderJefe.addEventListener("change", vincularCorreosAlElegirJefe);
+
+            const form = document.getElementById("form-contrato");
+            const alertError = document.getElementById("alert-error");
+            const alertSuccess = document.getElementById("alert-success");
+            const submitBtn = document.getElementById("btn-submit");
+
+            function showError(msg) {
+                alertSuccess.classList.remove("show");
+                alertError.textContent = msg;
+                alertError.classList.add("show");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+
+            function showSuccess(msg) {
+                alertError.classList.remove("show");
+                alertSuccess.textContent = msg;
+                alertSuccess.classList.add("show");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+
+            form.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                alertError.classList.remove("show");
+                alertSuccess.classList.remove("show");
+                submitBtn.disabled = true;
+                submitBtn.textContent = "Radicando...";
+
+                try {
+                    if (!selectLiderJefe.value) {
+                        showError("Selecciona el líder / jefe responsable.");
+                        return;
+                    }
+                    vincularCorreosAlElegirJefe();
+                    if (!inputLider.value) {
+                        showError(
+                            "Espera un momento y vuelve a elegir el líder / jefe responsable."
+                        );
+                        return;
+                    }
+
+                    const formData = new FormData(form);
+                    formData.set("correo_lider_proceso", inputLider.value);
+                    formData.set("correo_gerencia", inputGerencia.value);
+
+                    // Si el archivo opcional viene vacío, lo quitamos para que el
+                    // backend lo ignore.
+                    const opcional = formData.get("archivo_opcional");
+                    if (opcional && opcional.size === 0) {
+                        formData.delete("archivo_opcional");
+                    }
+
+                    const data = await api.postForm("/contratos", formData);
+                    showSuccess(
+                        `Solicitud radicada con código ${data.codigo}. ` +
+                        "Se envió a Coordinación Jurídica para aprobación."
+                    );
+                    form.reset();
+                    inputLider.value = "";
+                    inputGerencia.value = "";
+                } catch (err) {
+                    const msg =
+                        err instanceof ApiError
+                            ? err.message
+                            : "Error al enviar la solicitud.";
+                    showError(msg);
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = "Radicar solicitud";
+                }
+            });
+        </script>
+    </body>
+</html>

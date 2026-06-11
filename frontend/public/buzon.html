@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Buzón · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .buzon-summary {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 16px;
+                margin-bottom: 24px;
+            }
+            .buzon-summary .stat {
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-lg);
+                padding: 18px 20px;
+            }
+            .buzon-summary .stat .label {
+                font-size: 0.85rem;
+                color: var(--color-text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.4px;
+            }
+            .buzon-summary .stat .value {
+                font-size: 2rem;
+                font-weight: 600;
+                color: var(--color-primary-dark);
+                margin-top: 6px;
+            }
+            .buzon-summary .stat.danger .value {
+                color: var(--color-danger);
+            }
+            .modulos-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+                gap: 20px;
+                max-width: 720px;
+            }
+            .modulo-icon-card {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                padding: 16px 10px;
+                text-decoration: none;
+                color: inherit;
+                border-radius: var(--radius-lg);
+                transition: background 0.15s, transform 0.05s;
+            }
+            .modulo-icon-card:hover {
+                background: var(--color-primary-light);
+                text-decoration: none;
+            }
+            .modulo-icon-card:active {
+                transform: scale(0.97);
+            }
+            .modulo-icon-wrap {
+                position: relative;
+                width: 72px;
+                height: 72px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: 18px;
+                color: var(--color-primary);
+                box-shadow: var(--shadow-sm);
+                transition: border-color 0.15s, box-shadow 0.15s;
+            }
+            .modulo-icon-card:hover .modulo-icon-wrap {
+                border-color: var(--color-primary);
+                box-shadow: var(--shadow-md);
+            }
+            .modulo-icon-card.urgente .modulo-icon-wrap {
+                border-color: #fecaca;
+                color: var(--color-danger);
+            }
+            .modulo-icon-wrap svg {
+                width: 34px;
+                height: 34px;
+            }
+            .modulo-icon-badge {
+                position: absolute;
+                top: -6px;
+                right: -6px;
+                min-width: 22px;
+                height: 22px;
+                padding: 0 6px;
+                border-radius: 999px;
+                background: var(--color-primary);
+                color: #fff;
+                font-size: 0.75rem;
+                font-weight: 700;
+                line-height: 22px;
+                text-align: center;
+                border: 2px solid var(--color-bg);
+            }
+            .modulo-icon-card.urgente .modulo-icon-badge {
+                background: var(--color-danger);
+            }
+            .modulo-icon-label {
+                font-size: 0.82rem;
+                font-weight: 600;
+                color: var(--color-text);
+                text-align: center;
+                line-height: 1.3;
+                max-width: 110px;
+            }
+            .empty-state {
+                text-align: center;
+                padding: 48px 24px;
+                color: var(--color-text-muted);
+            }
+            .empty-state h2 {
+                color: var(--color-success);
+                margin-bottom: 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Pendientes</h1>
+                        <p class="muted" id="buzon-subtitle">
+                            Toca el módulo que quieras revisar.
+                        </p>
+                    </div>
+                    <button class="btn btn-secondary" id="btn-refresh">Actualizar</button>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+
+                <div class="buzon-summary" id="buzon-summary" hidden>
+                    <div class="stat">
+                        <div class="label">Pendientes</div>
+                        <div class="value" id="stat-total">0</div>
+                    </div>
+                    <div class="stat danger">
+                        <div class="label">Urgentes</div>
+                        <div class="value" id="stat-alta">0</div>
+                    </div>
+                    <div class="stat">
+                        <div class="label">Módulos</div>
+                        <div class="value" id="stat-modulos">0</div>
+                    </div>
+                </div>
+
+                <div class="modulos-grid" id="modulos-grid"></div>
+
+                <div class="card empty-state" id="empty-state" hidden>
+                    <h2>Buzón vacío</h2>
+                    <p>No tienes pendientes en este momento.</p>
+                </div>
+
+                <div class="card" id="loading-state">
+                    <p class="muted">Cargando buzón...</p>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api, ApiError } from "/static/js/api/client.js";
+            import { escapeHtml } from "/static/js/utils/format.js";
+
+            session.requireAuth();
+            renderSidebar();
+
+            const user = session.getUser();
+            const subtitles = {
+                admin: "Módulos del sistema con acciones pendientes.",
+                juridica: "Entra al módulo correspondiente para resolver tus pendientes.",
+                compras: "Revisa el estado de tus solicitudes y otrosíes.",
+            };
+            document.getElementById("buzon-subtitle").textContent =
+                subtitles[user.role] || subtitles.compras;
+
+            const alertError = document.getElementById("alert-error");
+            const buzonSummary = document.getElementById("buzon-summary");
+            const modulosGrid = document.getElementById("modulos-grid");
+            const emptyState = document.getElementById("empty-state");
+            const loadingState = document.getElementById("loading-state");
+
+            const MODULO_ICONS = {
+                "Pendientes Jurídica": `<path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/>`,
+                "Otrosíes pendientes": `<path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>`,
+                "Edición de contratos": `<path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>`,
+                "Mis solicitudes": `<path fill="currentColor" d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>`,
+                Contratos: `<path fill="currentColor" d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>`,
+            };
+
+            function iconForModulo(titulo) {
+                const path =
+                    MODULO_ICONS[titulo] ||
+                    `<path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>`;
+                return `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
+            }
+
+            function renderBuzon(data) {
+                loadingState.hidden = true;
+                alertError.classList.remove("show");
+
+                if (!data.total) {
+                    buzonSummary.hidden = true;
+                    modulosGrid.innerHTML = "";
+                    emptyState.hidden = false;
+                    return;
+                }
+
+                emptyState.hidden = true;
+                buzonSummary.hidden = false;
+                document.getElementById("stat-total").textContent = data.total;
+                document.getElementById("stat-alta").textContent = data.alta_prioridad;
+                document.getElementById("stat-modulos").textContent = data.modulos.length;
+
+                modulosGrid.innerHTML = data.modulos
+                    .map((modulo) => {
+                        const urgente = modulo.alta_prioridad > 0;
+                        return `
+                            <a
+                                href="${escapeHtml(modulo.accion_url)}"
+                                class="modulo-icon-card${urgente ? " urgente" : ""}"
+                                title="${escapeHtml(modulo.descripcion)}"
+                            >
+                                <div class="modulo-icon-wrap">
+                                    ${iconForModulo(modulo.titulo)}
+                                    <span class="modulo-icon-badge">${modulo.cantidad}</span>
+                                </div>
+                                <span class="modulo-icon-label">${escapeHtml(modulo.titulo)}</span>
+                            </a>
+                        `;
+                    })
+                    .join("");
+            }
+
+            async function loadBuzon() {
+                loadingState.hidden = false;
+                emptyState.hidden = true;
+                buzonSummary.hidden = true;
+                modulosGrid.innerHTML = "";
+
+                try {
+                    const data = await api.get("/tareas/buzon");
+                    renderBuzon(data);
+                } catch (err) {
+                    loadingState.hidden = true;
+                    const msg =
+                        err instanceof ApiError
+                            ? err.message
+                            : "No se pudo cargar el buzón.";
+                    alertError.textContent = msg;
+                    alertError.classList.add("show");
+                }
+            }
+
+            document.getElementById("btn-refresh").addEventListener("click", loadBuzon);
+            loadBuzon();
+        </script>
+    </body>
+</html>

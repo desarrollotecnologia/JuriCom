@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Usuarios · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Gestión de usuarios</h1>
+                        <p class="muted">
+                            Crea, edita y administra cuentas y roles del sistema.
+                        </p>
+                    </div>
+                    <button class="btn btn-primary" id="btn-new">+ Nuevo usuario</button>
+                </div>
+
+                <div class="alert alert-info" id="info-policy">
+                    Por seguridad, las contraseñas se almacenan hasheadas (bcrypt) y no
+                    son visibles en texto plano. Como administrador puedes reasignar la
+                    contraseña de cualquier usuario.
+                </div>
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Usuario</th>
+                                <th>Rol</th>
+                                <th>Estado</th>
+                                <th>Creado</th>
+                                <th class="text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-tbody">
+                            <tr>
+                                <td colspan="6" class="muted">Cargando...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+
+        <!-- Modal: crear / editar -->
+        <div class="modal-overlay" id="modal-user">
+            <div class="modal">
+                <h2 id="modal-title">Nuevo usuario</h2>
+                <form id="form-user" class="mt-2">
+                    <input type="hidden" id="user-id" />
+                    <div class="field">
+                        <label>Usuario <span class="required">*</span></label>
+                        <input type="text" id="f-username" required maxlength="100" />
+                    </div>
+                    <div class="field" id="field-password">
+                        <label>Contraseña <span class="required">*</span></label>
+                        <input type="text" id="f-password" minlength="4" maxlength="200" />
+                        <span class="hint">Mínimo 4 caracteres.</span>
+                    </div>
+                    <div class="row-2">
+                        <div class="field">
+                            <label>Rol <span class="required">*</span></label>
+                            <select id="f-role" required>
+                                <option value="admin">Administrador</option>
+                                <option value="juridica">Jurídica</option>
+                                <option value="compras">Compras</option>
+                            </select>
+                        </div>
+                        <div class="field" id="field-active" style="display: none;">
+                            <label>Estado</label>
+                            <select id="f-active">
+                                <option value="true">Activo</option>
+                                <option value="false">Inactivo</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="btn-cancel">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="btn-save">
+                            Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal: reasignar contraseña -->
+        <div class="modal-overlay" id="modal-password">
+            <div class="modal">
+                <h2>Reasignar contraseña</h2>
+                <p class="muted" id="password-target"></p>
+                <form id="form-password" class="mt-2">
+                    <input type="hidden" id="pwd-user-id" />
+                    <div class="field">
+                        <label>Nueva contraseña <span class="required">*</span></label>
+                        <input
+                            type="text"
+                            id="pwd-new"
+                            required
+                            minlength="4"
+                            maxlength="200"
+                        />
+                        <span class="hint">
+                            Esta contraseña se le entregará al usuario por canal seguro.
+                            El sistema NO conserva la versión en texto plano.
+                        </span>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="btn-pwd-cancel">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            Reasignar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api, ApiError } from "/static/js/api/client.js";
+            import { escapeHtml, formatDate } from "/static/js/utils/format.js";
+
+            session.requireAuth();
+            session.requireRole(["admin"]);
+            renderSidebar();
+
+            const tbody = document.getElementById("users-tbody");
+            const alertError = document.getElementById("alert-error");
+            const alertSuccess = document.getElementById("alert-success");
+
+            const modalUser = document.getElementById("modal-user");
+            const modalPwd = document.getElementById("modal-password");
+            const formUser = document.getElementById("form-user");
+            const formPwd = document.getElementById("form-password");
+
+            const ROLE_BADGE = {
+                admin: '<span class="badge badge-admin">Admin</span>',
+                juridica: '<span class="badge badge-juridica">Jurídica</span>',
+                compras: '<span class="badge badge-compras">Compras</span>',
+            };
+
+            function showError(msg) {
+                alertSuccess.classList.remove("show");
+                alertError.textContent = msg;
+                alertError.classList.add("show");
+                setTimeout(() => alertError.classList.remove("show"), 5000);
+            }
+
+            function showSuccess(msg) {
+                alertError.classList.remove("show");
+                alertSuccess.textContent = msg;
+                alertSuccess.classList.add("show");
+                setTimeout(() => alertSuccess.classList.remove("show"), 4000);
+            }
+
+            async function loadUsers() {
+                try {
+                    const users = await api.get("/users");
+                    if (users.length === 0) {
+                        tbody.innerHTML =
+                            '<tr><td colspan="6" class="muted">Sin usuarios registrados.</td></tr>';
+                        return;
+                    }
+                    const me = session.getUser();
+                    tbody.innerHTML = users
+                        .map((u) => {
+                            const isSelf = u.id === me.id;
+                            return `
+                            <tr>
+                                <td>${u.id}</td>
+                                <td><strong>${escapeHtml(u.username)}</strong>${
+                                isSelf ? ' <span class="muted">(tú)</span>' : ""
+                            }</td>
+                                <td>${ROLE_BADGE[u.role] || u.role}</td>
+                                <td>
+                                    ${
+                                        u.is_active
+                                            ? '<span class="badge badge-active">Activo</span>'
+                                            : '<span class="badge badge-inactive">Inactivo</span>'
+                                    }
+                                </td>
+                                <td>${formatDate(u.created_at)}</td>
+                                <td class="text-right">
+                                    <button class="btn btn-sm btn-secondary" data-action="edit" data-id="${
+                                        u.id
+                                    }">Editar</button>
+                                    <button class="btn btn-sm btn-secondary" data-action="password" data-id="${
+                                        u.id
+                                    }" data-username="${escapeHtml(
+                                u.username
+                            )}">Contraseña</button>
+                                    ${
+                                        isSelf
+                                            ? ""
+                                            : `<button class="btn btn-sm btn-danger" data-action="delete" data-id="${u.id}" data-username="${escapeHtml(
+                                                  u.username
+                                              )}">Eliminar</button>`
+                                    }
+                                </td>
+                            </tr>
+                        `;
+                        })
+                        .join("");
+                } catch (err) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${escapeHtml(
+                        err.message
+                    )}</td></tr>`;
+                }
+            }
+
+            tbody.addEventListener("click", async (e) => {
+                const btn = e.target.closest("button[data-action]");
+                if (!btn) return;
+                const id = Number(btn.dataset.id);
+                const action = btn.dataset.action;
+
+                if (action === "edit") {
+                    const users = await api.get("/users");
+                    const u = users.find((x) => x.id === id);
+                    if (u) openEditModal(u);
+                } else if (action === "password") {
+                    openPasswordModal(id, btn.dataset.username);
+                } else if (action === "delete") {
+                    if (
+                        confirm(
+                            `¿Eliminar definitivamente al usuario "${btn.dataset.username}"?`
+                        )
+                    ) {
+                        try {
+                            await api.delete(`/users/${id}`);
+                            showSuccess("Usuario eliminado.");
+                            loadUsers();
+                        } catch (err) {
+                            showError(err.message);
+                        }
+                    }
+                }
+            });
+
+            // ===== Crear / Editar =====
+            document.getElementById("btn-new").addEventListener("click", () => {
+                document.getElementById("modal-title").textContent = "Nuevo usuario";
+                formUser.reset();
+                document.getElementById("user-id").value = "";
+                document.getElementById("field-password").style.display = "flex";
+                document.getElementById("f-password").required = true;
+                document.getElementById("field-active").style.display = "none";
+                modalUser.classList.add("show");
+            });
+
+            document.getElementById("btn-cancel").addEventListener("click", () =>
+                modalUser.classList.remove("show")
+            );
+
+            function openEditModal(u) {
+                document.getElementById("modal-title").textContent = "Editar usuario";
+                document.getElementById("user-id").value = u.id;
+                document.getElementById("f-username").value = u.username;
+                document.getElementById("f-role").value = u.role;
+                document.getElementById("f-active").value = String(u.is_active);
+                document.getElementById("field-password").style.display = "none";
+                document.getElementById("f-password").required = false;
+                document.getElementById("field-active").style.display = "flex";
+                modalUser.classList.add("show");
+            }
+
+            formUser.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const id = document.getElementById("user-id").value;
+                const username = document.getElementById("f-username").value.trim();
+                const role = document.getElementById("f-role").value;
+
+                try {
+                    if (id) {
+                        const is_active =
+                            document.getElementById("f-active").value === "true";
+                        await api.put(`/users/${id}`, { username, role, is_active });
+                        showSuccess("Usuario actualizado.");
+                    } else {
+                        const password = document.getElementById("f-password").value;
+                        await api.post("/users", { username, password, role });
+                        showSuccess("Usuario creado.");
+                    }
+                    modalUser.classList.remove("show");
+                    loadUsers();
+                } catch (err) {
+                    showError(err.message);
+                }
+            });
+
+            // ===== Reasignar contraseña =====
+            function openPasswordModal(id, username) {
+                document.getElementById("pwd-user-id").value = id;
+                document.getElementById(
+                    "password-target"
+                ).textContent = `Usuario: ${username}`;
+                document.getElementById("pwd-new").value = "";
+                modalPwd.classList.add("show");
+            }
+
+            document.getElementById("btn-pwd-cancel").addEventListener("click", () =>
+                modalPwd.classList.remove("show")
+            );
+
+            formPwd.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const id = document.getElementById("pwd-user-id").value;
+                const new_password = document.getElementById("pwd-new").value;
+                try {
+                    await api.put(`/users/${id}/password`, { new_password });
+                    showSuccess("Contraseña reasignada correctamente.");
+                    modalPwd.classList.remove("show");
+                } catch (err) {
+                    showError(err.message);
+                }
+            });
+
+            loadUsers();
+        </script>
+    </body>
+</html>

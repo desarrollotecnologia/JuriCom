@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Inicio · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .welcome {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 16px;
+                margin-top: 16px;
+            }
+            .stat {
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-lg);
+                padding: 20px;
+            }
+            .stat .label {
+                font-size: 0.85rem;
+                color: var(--color-text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .stat .value {
+                font-size: 2rem;
+                font-weight: 600;
+                color: var(--color-primary-dark);
+                margin-top: 6px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Bienvenido, <span id="username-greet"></span></h1>
+                        <p class="muted" id="role-greet"></p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 class="card-title">Resumen</h2>
+                    <div class="welcome">
+                        <div class="stat">
+                            <div class="label">Contratos totales</div>
+                            <div class="value" id="stat-total">—</div>
+                        </div>
+                        <div class="stat">
+                            <div class="label">En proceso</div>
+                            <div class="value" id="stat-en_proceso">—</div>
+                        </div>
+                        <div class="stat">
+                            <div class="label">Activos</div>
+                            <div class="value" id="stat-activo">—</div>
+                        </div>
+                        <div class="stat">
+                            <div class="label">Finalizados</div>
+                            <div class="value" id="stat-finalizado">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4" id="card-buzon" hidden>
+                    <h2 class="card-title">Buzón</h2>
+                    <p class="muted" style="margin-bottom: 12px" id="buzon-resumen"></p>
+                    <a href="/app/buzon.html" class="btn btn-primary" id="btn-buzon">
+                        Ir al buzón
+                    </a>
+                </div>
+
+                <div class="card mt-4">
+                    <h2 class="card-title">Accesos rápidos</h2>
+                    <div id="quick-actions" style="display: flex; gap: 12px; flex-wrap: wrap;"></div>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api } from "/static/js/api/client.js";
+
+            session.requireAuth();
+            renderSidebar();
+
+            const user = session.getUser();
+            document.getElementById("username-greet").textContent = user.username;
+            document.getElementById("role-greet").textContent =
+                user.role === "admin"
+                    ? "Administrador del sistema"
+                    : user.role === "juridica"
+                    ? "Equipo de Jurídica"
+                    : "Equipo de Compras";
+
+            const quickActions = document.getElementById("quick-actions");
+            const actions = [];
+            if (user.role === "admin") {
+                actions.push({
+                    href: "/app/admin/usuarios.html",
+                    label: "Gestionar usuarios",
+                    cls: "btn-primary",
+                });
+            }
+            if (user.role === "compras" || user.role === "admin") {
+                actions.push({
+                    href: "/app/compras/solicitud-radicar.html",
+                    label: "Radicar nueva solicitud",
+                    cls: "btn-primary",
+                });
+            }
+            actions.push({
+                href: "/app/compras/mis-solicitudes.html",
+                label: "Ver contratos",
+                cls: "btn-secondary",
+            });
+            quickActions.innerHTML = actions
+                .map(
+                    (a) =>
+                        `<a href="${a.href}" class="btn ${a.cls}">${a.label}</a>`
+                )
+                .join("");
+
+            (async () => {
+                try {
+                    const [items, buzon] = await Promise.all([
+                        api.get("/contratos"),
+                        api.get("/tareas/buzon"),
+                    ]);
+                    document.getElementById("stat-total").textContent = items.length;
+                    document.getElementById("stat-en_proceso").textContent =
+                        items.filter((c) => c.estado === "en_proceso").length;
+                    document.getElementById("stat-activo").textContent =
+                        items.filter((c) => c.estado === "activo").length;
+                    document.getElementById("stat-finalizado").textContent =
+                        items.filter((c) => c.estado === "finalizado").length;
+
+                    if (buzon.total > 0) {
+                        const card = document.getElementById("card-buzon");
+                        card.hidden = false;
+                        const modLabel =
+                            buzon.modulos.length === 1 ? "módulo" : "módulos";
+                        document.getElementById("buzon-resumen").textContent =
+                            `${buzon.total} pendiente${buzon.total === 1 ? "" : "s"} en ${buzon.modulos.length} ${modLabel}` +
+                            (buzon.alta_prioridad
+                                ? ` (${buzon.alta_prioridad} urgente${buzon.alta_prioridad === 1 ? "" : "s"})`
+                                : "");
+                        document.getElementById("btn-buzon").textContent =
+                            `Ir al buzón (${buzon.total})`;
+                    }
+                } catch {
+                    /* ignorar */
+                }
+            })();
+        </script>
+    </body>
+</html>

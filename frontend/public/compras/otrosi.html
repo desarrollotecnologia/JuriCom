@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Aplicar otrosí · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .search-card {
+                margin-bottom: 18px;
+            }
+            .search-line {
+                display: grid;
+                grid-template-columns: minmax(220px, 360px) auto;
+                gap: 10px;
+                align-items: end;
+            }
+            .form-section {
+                margin-bottom: 28px;
+            }
+            .form-section h3 {
+                color: var(--color-primary-dark);
+                margin-bottom: 16px;
+                padding-bottom: 8px;
+                border-bottom: 2px solid var(--color-primary-light);
+            }
+            .readonly-box {
+                background: var(--color-surface-2);
+                padding: 10px 14px;
+                border-radius: var(--radius-md);
+                border: 1px solid var(--color-border);
+                min-height: 40px;
+            }
+            .otrosi-panel {
+                background: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                border-radius: var(--radius-md);
+                padding: 16px;
+            }
+            .otrosi-panel h3 {
+                color: #166534;
+            }
+            .otrosi-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+            .otrosi-item {
+                background: white;
+                border-left: 4px solid #16a34a;
+                padding: 10px 12px;
+                border-radius: 6px;
+                margin-bottom: 8px;
+            }
+            .disabled-note {
+                background: #fff7ed;
+                border-left: 4px solid var(--color-warning);
+                color: #92400e;
+                padding: 12px 14px;
+                border-radius: 6px;
+                margin-top: 12px;
+            }
+            @media (max-width: 720px) {
+                .search-line {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Solicitud de otrosí</h1>
+                        <p class="muted">
+                            Busca un contrato activo por código y registra una solicitud de otrosí. Este módulo no permite editar el contrato ni cargar el PDF firmado.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card search-card">
+                    <div class="search-line">
+                        <div class="field">
+                            <label>Código del contrato</label>
+                            <input
+                                type="text"
+                                id="codigo-input"
+                                placeholder="Ej: JC-0009"
+                                autocomplete="off"
+                            />
+                        </div>
+                        <button class="btn btn-primary" id="btn-buscar">
+                            Buscar contrato
+                        </button>
+                    </div>
+                </div>
+
+                <div id="contrato-card" class="card" style="display:none;">
+                    <div class="form-section">
+                        <h3>1. Información del contrato</h3>
+                        <p>
+                            <span id="codigo-display" class="codigo-contrato"></span>
+                            <span id="estado-display" class="badge"></span>
+                        </p>
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Proveedor / Contratista</label>
+                                <div class="readonly-box" id="proveedor"></div>
+                            </div>
+                            <div class="field">
+                                <label>NIT</label>
+                                <div class="readonly-box" id="nit"></div>
+                            </div>
+                        </div>
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Valor</label>
+                                <div class="readonly-box" id="valor"></div>
+                            </div>
+                            <div class="field">
+                                <label>Plazo actual</label>
+                                <div class="readonly-box" id="plazo"></div>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label>Descripción del servicio</label>
+                            <div class="readonly-box" id="descripcion"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>2. Historial de otrosíes</h3>
+                        <div id="otrosi-history"></div>
+                    </div>
+
+                    <div class="form-section otrosi-panel">
+                        <h3>3. Solicitar nuevo otrosí</h3>
+                        <p class="muted">
+                            Al enviar la solicitud se notificará al Líder de proceso y a Gerencia.
+                            El PDF firmado del otrosí lo carga únicamente Jurídica.
+                        </p>
+                        <div id="otrosi-disabled"></div>
+                        <form id="form-otrosi">
+                            <div class="row-2">
+                                <div class="field">
+                                    <label>Tipo de otrosí <span class="required">*</span></label>
+                                    <select id="otrosi-tipo" required>
+                                        <option value="prorroga">Prórroga (extender plazo)</option>
+                                        <option value="adicion">Adición (aumentar valor)</option>
+                                        <option value="modificacion">Modificación (cambiar servicio)</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+                                <div id="otrosi-extra-wrap"></div>
+                            </div>
+                            <div class="field">
+                                <label>Motivo / descripción <span class="required">*</span></label>
+                                <textarea
+                                    id="otrosi-descripcion"
+                                    required
+                                    placeholder="Ej.: Se prorroga el contrato por necesidades del servicio..."
+                                ></textarea>
+                            </div>
+                            <div style="display:flex;justify-content:flex-end;">
+                                <button class="btn btn-primary" id="btn-aplicar" type="submit">
+                                    Enviar solicitud de otrosí
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api } from "/static/js/api/client.js";
+            import { escapeHtml, formatMoney, formatPlazo, formatDate } from "/static/js/utils/format.js";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+
+            let current = null;
+
+            const codigoInput = document.getElementById("codigo-input");
+            const contratoCard = document.getElementById("contrato-card");
+            const alertError = document.getElementById("alert-error");
+            const alertSuccess = document.getElementById("alert-success");
+            const formOtrosi = document.getElementById("form-otrosi");
+            const tipoSelect = document.getElementById("otrosi-tipo");
+
+            const ESTADO_LABEL = {
+                en_proceso: "Pendiente",
+                activo: "Activo",
+                finalizado: "Finalizado",
+            };
+            const TIPO_OTROSI_LABEL = {
+                prorroga: "Prórroga",
+                adicion: "Adición",
+                modificacion: "Modificación",
+                otro: "Otro",
+            };
+            const UNIDAD_PLAZO_LABEL = {
+                dias: "días",
+                meses: "meses",
+                anios: "años",
+            };
+
+            function showError(message) {
+                alertSuccess.classList.remove("show");
+                alertError.textContent = message;
+                alertError.classList.add("show");
+                setTimeout(() => alertError.classList.remove("show"), 7000);
+            }
+
+            function showSuccess(message) {
+                alertError.classList.remove("show");
+                alertSuccess.textContent = message;
+                alertSuccess.classList.add("show");
+                setTimeout(() => alertSuccess.classList.remove("show"), 5000);
+            }
+
+            async function buscarContrato() {
+                const codigo = codigoInput.value.trim().toUpperCase();
+                if (!codigo) {
+                    showError("Escribe el código del contrato.");
+                    return;
+                }
+                try {
+                    const resultados = await api.get(`/contratos?q=${encodeURIComponent(codigo)}`);
+                    const item = resultados.find((c) => c.codigo === codigo) || resultados[0];
+                    if (!item) {
+                        showError(`No encontré ningún contrato con código ${codigo}.`);
+                        contratoCard.style.display = "none";
+                        return;
+                    }
+                    current = await api.get(`/contratos/${item.id}`);
+                    renderContrato(current);
+                    contratoCard.style.display = "block";
+                    showSuccess(`Contrato ${current.codigo} cargado.`);
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            function renderContrato(c) {
+                document.getElementById("codigo-display").textContent = c.codigo || "";
+                const estado = document.getElementById("estado-display");
+                estado.className = `badge badge-${c.estado}`;
+                estado.textContent = ESTADO_LABEL[c.estado] || c.estado;
+                document.getElementById("proveedor").textContent = c.proveedor_contratista;
+                document.getElementById("nit").textContent = c.nit_proveedor;
+                document.getElementById("valor").textContent = formatMoney(c.valor, c.moneda);
+                document.getElementById("plazo").textContent = formatPlazo(c.plazo_cantidad, c.plazo_unidad);
+                document.getElementById("descripcion").textContent = c.descripcion_servicio;
+                renderHistorial(c);
+                renderOtrosiExtraField(tipoSelect.value, c);
+
+                const disabled = c.estado !== "activo";
+                formOtrosi.style.display = disabled ? "none" : "block";
+                document.getElementById("otrosi-disabled").innerHTML = disabled
+                    ? `<div class="disabled-note">
+                          Para aplicar un otrosí, el contrato debe estar <strong>Activo</strong>.
+                          Estado actual: <strong>${ESTADO_LABEL[c.estado] || c.estado}</strong>.
+                       </div>`
+                    : "";
+            }
+
+            function renderHistorial(c) {
+                const otrosies = c.otrosies || [];
+                const container = document.getElementById("otrosi-history");
+                if (!otrosies.length) {
+                    container.innerHTML = '<p class="muted">Este contrato todavía no tiene otrosíes.</p>';
+                    return;
+                }
+                container.innerHTML = `<ul class="otrosi-list">
+                    ${otrosies.map((o) => `
+                        <li class="otrosi-item">
+                            <strong>Otrosí #${o.numero} · ${TIPO_OTROSI_LABEL[o.tipo] || o.tipo}</strong>
+                            <div class="muted">${formatDate(o.created_at)}</div>
+                            <div>${escapeHtml(o.descripcion)}</div>
+                            <div><strong>Efecto:</strong> ${escapeHtml(describeEfecto(o))}</div>
+                        </li>
+                    `).join("")}
+                </ul>`;
+            }
+
+            function describeEfecto(o) {
+                if (o.tipo === "prorroga") {
+                    const unidad = UNIDAD_PLAZO_LABEL[o.plazo_adicional_unidad] || o.plazo_adicional_unidad || "";
+                    return `+${o.plazo_adicional_cantidad || 0} ${unidad}`;
+                }
+                if (o.tipo === "adicion") {
+                    return `+${Number(o.valor_adicional || 0).toLocaleString("es-CO", { minimumFractionDigits: 2 })}`;
+                }
+                if (o.tipo === "modificacion") return "Cambió descripción del servicio";
+                return "Sin cambio en campos del contrato";
+            }
+
+            function renderOtrosiExtraField(tipo, contrato) {
+                const wrap = document.getElementById("otrosi-extra-wrap");
+                if (!wrap || !contrato) return;
+                if (tipo === "prorroga") {
+                    const unidad = UNIDAD_PLAZO_LABEL[contrato.plazo_unidad] || contrato.plazo_unidad;
+                    wrap.innerHTML = `
+                        <div class="field">
+                            <label>Plazo adicional (${unidad}) <span class="required">*</span></label>
+                            <input type="number" id="otrosi-plazo" min="1" placeholder="Ej: 2" />
+                        </div>
+                    `;
+                } else if (tipo === "adicion") {
+                    wrap.innerHTML = `
+                        <div class="field">
+                            <label>Valor adicional (${contrato.moneda}) <span class="required">*</span></label>
+                            <input type="number" id="otrosi-valor" min="0.01" step="0.01" placeholder="Ej: 1000000" />
+                        </div>
+                    `;
+                } else if (tipo === "modificacion") {
+                    wrap.innerHTML = `
+                        <div class="field">
+                            <label>Nueva descripción <span class="required">*</span></label>
+                            <textarea id="otrosi-nueva-desc" placeholder="Nuevo alcance del servicio"></textarea>
+                        </div>
+                    `;
+                } else {
+                    wrap.innerHTML = `<p class="muted" style="margin-top:28px;">Solo se registrará el otrosí en el historial.</p>`;
+                }
+            }
+
+            async function aplicarOtrosi(event) {
+                event.preventDefault();
+                if (!current) return;
+                const tipo = tipoSelect.value;
+                const descripcion = document.getElementById("otrosi-descripcion").value.trim();
+                if (!descripcion) {
+                    showError("La descripción / motivo del otrosí es obligatoria.");
+                    return;
+                }
+                const fd = new FormData();
+                fd.append("tipo", tipo);
+                fd.append("descripcion", descripcion);
+
+                if (tipo === "prorroga") {
+                    const v = document.getElementById("otrosi-plazo")?.value;
+                    if (!v || Number(v) <= 0) {
+                        showError("Debes indicar el plazo adicional mayor a 0.");
+                        return;
+                    }
+                    fd.append("plazo_adicional_cantidad", v);
+                } else if (tipo === "adicion") {
+                    const v = document.getElementById("otrosi-valor")?.value;
+                    if (!v || Number(v) <= 0) {
+                        showError("Debes indicar el valor adicional mayor a 0.");
+                        return;
+                    }
+                    fd.append("valor_adicional", v);
+                } else if (tipo === "modificacion") {
+                    const v = document.getElementById("otrosi-nueva-desc")?.value.trim();
+                    if (!v) {
+                        showError("Debes escribir la nueva descripción.");
+                        return;
+                    }
+                    fd.append("nueva_descripcion_servicio", v);
+                }
+
+                try {
+                    current = await api.postForm(`/contratos/${current.id}/otrosi`, fd);
+                    formOtrosi.reset();
+                    renderContrato(current);
+                    showSuccess(`Solicitud de otrosí enviada para el contrato ${current.codigo}.`);
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            document.getElementById("btn-buscar").addEventListener("click", buscarContrato);
+            codigoInput.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") buscarContrato();
+            });
+            tipoSelect.addEventListener("change", () => renderOtrosiExtraField(tipoSelect.value, current));
+            formOtrosi.addEventListener("submit", aplicarOtrosi);
+
+            const params = new URLSearchParams(window.location.search);
+            const codigo = params.get("codigo");
+            if (codigo) {
+                codigoInput.value = codigo;
+                buscarContrato();
+            }
+        </script>
+    </body>
+</html>

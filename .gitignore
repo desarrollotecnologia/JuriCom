@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Secrets / Entorno
+.env
+.env.local
+.env.*.local
+
+# Uploads de usuarios (no subir archivos reales al repo)
+uploads/contratos/*
+!uploads/contratos/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Node (frontend si llegamos a usarlo)
+node_modules/
+dist/
+build/

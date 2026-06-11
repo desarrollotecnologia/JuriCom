@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Edición de contrato · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .form-section {
+                margin-bottom: 28px;
+            }
+            .form-section h3 {
+                color: var(--color-primary-dark);
+                margin-bottom: 16px;
+                padding-bottom: 8px;
+                border-bottom: 2px solid var(--color-primary-light);
+            }
+            .search-card {
+                margin-bottom: 18px;
+            }
+            .search-line {
+                display: grid;
+                grid-template-columns: minmax(220px, 360px) auto;
+                gap: 10px;
+                align-items: end;
+            }
+            .readonly-box {
+                background: var(--color-surface-2);
+                padding: 10px 14px;
+                border-radius: var(--radius-md);
+                border: 1px solid var(--color-border);
+                font-weight: 500;
+            }
+            .input-group {
+                display: grid;
+                grid-template-columns: 2fr 1fr;
+                gap: 8px;
+            }
+            .upload-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+            .upload-card {
+                background: var(--color-surface-2);
+                border: 1px dashed var(--color-border);
+                border-radius: var(--radius-md);
+                padding: 12px;
+            }
+            .danger-zone {
+                background: #fef2f2;
+                border: 1px solid #fecaca;
+                border-radius: var(--radius-md);
+                padding: 14px;
+            }
+            @media (max-width: 720px) {
+                .search-line,
+                .upload-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Edición de contrato</h1>
+                        <p class="muted">
+                            Busca el código del contrato y edita la información en un formulario similar a Radicar solicitud.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card search-card">
+                    <div class="search-line">
+                        <div class="field">
+                            <label>Código del contrato</label>
+                            <input
+                                type="text"
+                                id="codigo-input"
+                                placeholder="Ej: JC-0005"
+                                autocomplete="off"
+                            />
+                        </div>
+                        <button class="btn btn-primary" id="btn-buscar">
+                            Buscar contrato
+                        </button>
+                    </div>
+                </div>
+
+                <form id="form-edicion" class="card" style="display:none;">
+                    <div class="form-section">
+                        <h3>1. Contrato</h3>
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Código</label>
+                                <div class="readonly-box" id="codigo-display"></div>
+                            </div>
+                            <div class="field">
+                                <label>Estado</label>
+                                <div class="readonly-box" id="estado-display"></div>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label>Compañía</label>
+                            <div class="readonly-box">Colbeef</div>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Proveedor / Contratista <span class="required">*</span></label>
+                                <input type="text" id="proveedor" required />
+                            </div>
+                            <div class="field">
+                                <label>NIT del proveedor <span class="required">*</span></label>
+                                <input type="text" id="nit" required />
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label>Descripción del servicio <span class="required">*</span></label>
+                            <textarea id="descripcion" required></textarea>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Principales obligaciones de Colbeef <span class="required">*</span></label>
+                                <textarea id="obl-colbeef" required></textarea>
+                            </div>
+                            <div class="field">
+                                <label>Principales obligaciones del proveedor <span class="required">*</span></label>
+                                <textarea id="obl-proveedor" required></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>2. Valor, plazo y vigencia</h3>
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Valor del contrato <span class="required">*</span></label>
+                                <div class="input-group">
+                                    <input id="valor" type="number" min="0.01" step="0.01" required />
+                                    <select id="moneda" required>
+                                        <option value="COP">Pesos (COP)</option>
+                                        <option value="USD">Dólares (USD)</option>
+                                        <option value="EUR">Euros (EUR)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>Plazo del contrato <span class="required">*</span></label>
+                                <div class="input-group">
+                                    <input id="plazo-cantidad" type="number" min="1" required />
+                                    <select id="plazo-unidad" required>
+                                        <option value="dias">Días</option>
+                                        <option value="meses">Meses</option>
+                                        <option value="anios">Años</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Fecha de inicio</label>
+                                <input id="fecha-inicio" type="date" />
+                            </div>
+                            <div class="field">
+                                <label>Fecha de fin</label>
+                                <input id="fecha-fin" type="date" />
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label>Volver a notificar el</label>
+                            <input id="fecha-proxima-notificacion" type="date" />
+                            <span class="hint">
+                                Jurídica define manualmente cuándo el sistema debe volver a notificar este contrato.
+                            </span>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label>¿Renovación automática?</label>
+                                <select id="renovacion">
+                                    <option value="false">No</option>
+                                    <option value="true">Sí</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>¿Requiere póliza?</label>
+                                <select id="requiere-poliza">
+                                    <option value="false">No</option>
+                                    <option value="true">Sí</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>3. Condiciones de recibido satisfactorio</h3>
+                        <div class="field">
+                            <label>Detalle las condiciones <span class="required">*</span></label>
+                            <textarea id="condiciones" required></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>4. Archivos de Jurídica</h3>
+                        <div class="upload-grid">
+                            <div class="upload-card">
+                                <label>Póliza</label>
+                                <input type="file" id="file-poliza" accept="application/pdf,image/*" />
+                                <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-poliza">
+                                    Subir póliza
+                                </button>
+                            </div>
+                            <div class="upload-card">
+                                <label>Borrador firmado</label>
+                                <input type="file" id="file-borrador" accept="application/pdf" />
+                                <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-borrador">
+                                    Subir borrador
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>5. Estado del contrato</h3>
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Estado</label>
+                                <select id="estado">
+                                    <option value="en_proceso">Pendiente</option>
+                                    <option value="activo">Activo</option>
+                                    <option value="finalizado">Finalizado</option>
+                                </select>
+                            </div>
+                            <div class="field" style="display:flex;align-items:end;gap:8px;">
+                                <button type="button" class="btn btn-secondary" id="btn-estado">
+                                    Guardar estado
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex;justify-content:flex-end;gap:10px;">
+                        <button type="button" class="btn btn-secondary" id="btn-delete" style="color:#991b1b;">
+                            Eliminar contrato
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="btn-save">
+                            Guardar cambios
+                        </button>
+                    </div>
+                </form>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api } from "/static/js/api/client.js";
+            import { escapeHtml } from "/static/js/utils/format.js";
+
+            session.requireAuth();
+            session.requireRole(["juridica", "admin"]);
+            renderSidebar();
+
+            let current = null;
+
+            const form = document.getElementById("form-edicion");
+            const alertError = document.getElementById("alert-error");
+            const alertSuccess = document.getElementById("alert-success");
+            const codigoInput = document.getElementById("codigo-input");
+
+            const ESTADO_LABEL = {
+                en_proceso: "Pendiente",
+                activo: "Activo",
+                finalizado: "Finalizado",
+            };
+
+            function showError(message) {
+                alertSuccess.classList.remove("show");
+                alertError.textContent = message;
+                alertError.classList.add("show");
+                setTimeout(() => alertError.classList.remove("show"), 7000);
+            }
+
+            function showSuccess(message) {
+                alertError.classList.remove("show");
+                alertSuccess.textContent = message;
+                alertSuccess.classList.add("show");
+                setTimeout(() => alertSuccess.classList.remove("show"), 5000);
+            }
+
+            async function buscarContrato() {
+                const codigo = codigoInput.value.trim().toUpperCase();
+                if (!codigo) {
+                    showError("Escribe el código del contrato.");
+                    return;
+                }
+                try {
+                    const resultados = await api.get(`/contratos?q=${encodeURIComponent(codigo)}`);
+                    const item = resultados.find((c) => c.codigo === codigo) || resultados[0];
+                    if (!item) {
+                        showError(`No encontré ningún contrato con código ${codigo}.`);
+                        form.style.display = "none";
+                        return;
+                    }
+                    current = await api.get(`/contratos/${item.id}`);
+                    fillForm(current);
+                    form.style.display = "block";
+                    showSuccess(`Contrato ${current.codigo} cargado para edición.`);
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            function setValue(id, value) {
+                document.getElementById(id).value = value ?? "";
+            }
+
+            function fillForm(c) {
+                document.getElementById("codigo-display").innerHTML =
+                    `<span class="codigo-contrato">${escapeHtml(c.codigo)}</span>`;
+                document.getElementById("estado-display").textContent =
+                    ESTADO_LABEL[c.estado] || c.estado;
+                setValue("proveedor", c.proveedor_contratista);
+                setValue("nit", c.nit_proveedor);
+                setValue("descripcion", c.descripcion_servicio);
+                setValue("obl-colbeef", c.obligaciones_colbeef);
+                setValue("obl-proveedor", c.obligaciones_proveedor);
+                setValue("valor", c.valor);
+                setValue("moneda", c.moneda);
+                setValue("plazo-cantidad", c.plazo_cantidad);
+                setValue("plazo-unidad", c.plazo_unidad);
+                setValue("fecha-inicio", c.fecha_inicio);
+                setValue("fecha-fin", c.fecha_fin);
+                setValue("fecha-proxima-notificacion", c.fecha_proxima_notificacion);
+                setValue("renovacion", String(Boolean(c.renovacion_automatica)));
+                setValue("requiere-poliza", String(Boolean(c.requiere_poliza)));
+                setValue("condiciones", c.condiciones_recibido_satisfactorio);
+                setValue("estado", c.estado);
+            }
+
+            function buildPayload() {
+                return {
+                    proveedor_contratista: document.getElementById("proveedor").value.trim(),
+                    nit_proveedor: document.getElementById("nit").value.trim(),
+                    descripcion_servicio: document.getElementById("descripcion").value.trim(),
+                    obligaciones_colbeef: document.getElementById("obl-colbeef").value.trim(),
+                    obligaciones_proveedor: document.getElementById("obl-proveedor").value.trim(),
+                    valor: Number(document.getElementById("valor").value),
+                    moneda: document.getElementById("moneda").value,
+                    plazo_cantidad: Number(document.getElementById("plazo-cantidad").value),
+                    plazo_unidad: document.getElementById("plazo-unidad").value,
+                    renovacion_automatica: document.getElementById("renovacion").value === "true",
+                    condiciones_recibido_satisfactorio: document.getElementById("condiciones").value.trim(),
+                    requiere_poliza: document.getElementById("requiere-poliza").value === "true",
+                    fecha_inicio: document.getElementById("fecha-inicio").value || null,
+                    fecha_fin: document.getElementById("fecha-fin").value || null,
+                    fecha_proxima_notificacion: document.getElementById("fecha-proxima-notificacion").value || null,
+                };
+            }
+
+            async function saveContrato(event) {
+                event.preventDefault();
+                if (!current) return;
+                try {
+                    current = await api.put(`/contratos/${current.id}`, buildPayload());
+                    fillForm(current);
+                    showSuccess(`Contrato ${current.codigo} actualizado.`);
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            async function upload(endpoint, inputId) {
+                if (!current) return;
+                const file = document.getElementById(inputId).files[0];
+                if (!file) {
+                    showError("Selecciona un archivo primero.");
+                    return;
+                }
+                const fd = new FormData();
+                fd.append("archivo", file);
+                try {
+                    await api.postForm(`/contratos/${current.id}/${endpoint}`, fd);
+                    showSuccess("Archivo cargado correctamente.");
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            async function saveEstado() {
+                if (!current) return;
+                try {
+                    current = await api.put(`/contratos/${current.id}/estado`, {
+                        estado: document.getElementById("estado").value,
+                    });
+                    fillForm(current);
+                    showSuccess("Estado actualizado correctamente.");
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            async function deleteContrato() {
+                if (!current) return;
+                const ok = confirm(
+                    `¿Seguro que deseas eliminar el contrato ${current.codigo}? Esta acción no se puede deshacer.`
+                );
+                if (!ok) return;
+                try {
+                    await api.delete(`/contratos/${current.id}`);
+                    showSuccess(`Contrato ${current.codigo} eliminado.`);
+                    current = null;
+                    form.style.display = "none";
+                    codigoInput.value = "";
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            document.getElementById("btn-buscar").addEventListener("click", buscarContrato);
+            codigoInput.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") buscarContrato();
+            });
+            form.addEventListener("submit", saveContrato);
+            document.getElementById("btn-poliza").addEventListener("click", () => upload("poliza", "file-poliza"));
+            document.getElementById("btn-borrador").addEventListener("click", () => upload("borrador", "file-borrador"));
+            document.getElementById("btn-estado").addEventListener("click", saveEstado);
+            document.getElementById("btn-delete").addEventListener("click", deleteContrato);
+
+            const params = new URLSearchParams(window.location.search);
+            const codigoDirecto = params.get("codigo");
+            if (codigoDirecto) {
+                codigoInput.value = codigoDirecto;
+                buscarContrato();
+            }
+        </script>
+    </body>
+</html>
