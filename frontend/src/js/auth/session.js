@@ -32,12 +32,16 @@ export const session = {
     requireAuth(redirectTo = "/app/login.html") {
         if (!this.isAuthenticated()) {
             window.location.href = redirectTo;
+            return false;
         }
+        return true;
     },
     requireRole(roles, redirectTo = "/app/dashboard.html") {
         const user = this.getUser();
         if (!user || !roles.includes(user.role)) {
             window.location.href = redirectTo;
+            return false;
         }
+        return true;
     },
 };

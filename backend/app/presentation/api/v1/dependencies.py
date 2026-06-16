@@ -9,6 +9,9 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.application.interfaces.contrato_repository import ContratoRepository
+from app.application.interfaces.solicitud_gestion_repository import (
+    SolicitudGestionRepository,
+)
 from app.application.interfaces.email_notifier import EmailNotifier
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.password_hasher import PasswordHasher
@@ -19,6 +22,7 @@ from app.infrastructure.database.session import get_db
 from app.infrastructure.email import SmtpEmailNotifier
 from app.infrastructure.repositories import (
     SqlAlchemyContratoRepository,
+    SqlAlchemySolicitudGestionRepository,
     SqlAlchemyUserRepository,
 )
 from app.infrastructure.security import BcryptPasswordHasher, JwtTokenService
@@ -34,6 +38,12 @@ def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
 
 def get_contrato_repository(db: Session = Depends(get_db)) -> ContratoRepository:
     return SqlAlchemyContratoRepository(db)
+
+
+def get_solicitud_gestion_repository(
+    db: Session = Depends(get_db),
+) -> SolicitudGestionRepository:
+    return SqlAlchemySolicitudGestionRepository(db)
 
 
 def get_password_hasher() -> PasswordHasher:

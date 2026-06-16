@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Reporte e Indicadores · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Reporte e Indicadores</h1>
+                        <p class="muted">
+                            Resumen de solicitudes según estado y aprobación.
+                        </p>
+                    </div>
+                    <a
+                        href="/app/compras/gestion-solicitudes.html"
+                        class="btn btn-secondary"
+                    >
+                        Volver al módulo
+                    </a>
+                </div>
+
+                <div class="card">
+                    <h2 class="card-title">Por estado del contrato</h2>
+                    <div class="module-stat-grid">
+                        <div class="module-stat">
+                            <div class="label">Total</div>
+                            <div class="value" id="stat-total">—</div>
+                        </div>
+                        <div class="module-stat">
+                            <div class="label">En proceso</div>
+                            <div class="value" id="stat-en_proceso">—</div>
+                        </div>
+                        <div class="module-stat">
+                            <div class="label">Activos</div>
+                            <div class="value" id="stat-activo">—</div>
+                        </div>
+                        <div class="module-stat">
+                            <div class="label">Finalizados</div>
+                            <div class="value" id="stat-finalizado">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <h2 class="card-title">Por aprobación</h2>
+                    <div class="module-stat-grid">
+                        <div class="module-stat">
+                            <div class="label">Pendiente líder</div>
+                            <div class="value" id="stat-pendiente_lider">—</div>
+                        </div>
+                        <div class="module-stat">
+                            <div class="label">Pendiente gerencia</div>
+                            <div class="value" id="stat-pendiente_gerencia">—</div>
+                        </div>
+                        <div class="module-stat">
+                            <div class="label">Aprobados</div>
+                            <div class="value" id="stat-aprobado">—</div>
+                        </div>
+                        <div class="module-stat">
+                            <div class="label">Rechazados</div>
+                            <div class="value" id="stat-rechazado">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <h2 class="card-title">Acciones</h2>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap">
+                        <a
+                            href="/app/compras/mis-solicitudes.html"
+                            class="btn btn-primary"
+                        >
+                            Panel de solicitudes
+                        </a>
+                        <a
+                            href="/app/compras/solicitud-radicar.html"
+                            class="btn btn-secondary"
+                        >
+                            Nueva solicitud
+                        </a>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api } from "/static/js/api/client.js";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+
+            function countBy(items, key, value) {
+                return items.filter((item) => item[key] === value).length;
+            }
+
+            (async () => {
+                try {
+                    const items = await api.get("/contratos");
+                    document.getElementById("stat-total").textContent = items.length;
+                    document.getElementById("stat-en_proceso").textContent = countBy(
+                        items,
+                        "estado",
+                        "en_proceso"
+                    );
+                    document.getElementById("stat-activo").textContent = countBy(
+                        items,
+                        "estado",
+                        "activo"
+                    );
+                    document.getElementById("stat-finalizado").textContent = countBy(
+                        items,
+                        "estado",
+                        "finalizado"
+                    );
+                    document.getElementById("stat-pendiente_lider").textContent = countBy(
+                        items,
+                        "estado_aprobacion",
+                        "pendiente_lider"
+                    );
+                    document.getElementById("stat-pendiente_gerencia").textContent = countBy(
+                        items,
+                        "estado_aprobacion",
+                        "pendiente_gerencia"
+                    );
+                    document.getElementById("stat-aprobado").textContent = countBy(
+                        items,
+                        "estado_aprobacion",
+                        "aprobado"
+                    );
+                    document.getElementById("stat-rechazado").textContent = countBy(
+                        items,
+                        "estado_aprobacion",
+                        "rechazado"
+                    );
+                } catch {
+                    /* ignorar */
+                }
+            })();
+        </script>
+    </body>
+</html>

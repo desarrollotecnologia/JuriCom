@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Nueva Solicitud · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div class="page-header-brand">
+                        <img
+                            src="/app/assets/colbeef-logo.png"
+                            alt="Colbeef"
+                            width="200"
+                            height="72"
+                        />
+                        <div>
+                            <h1>Nueva Solicitud</h1>
+                            <p class="muted">
+                                Selecciona el tipo de formulario que deseas radicar.
+                            </p>
+                        </div>
+                    </div>
+                    <a
+                        href="/app/compras/gestion-solicitudes.html"
+                        class="btn btn-secondary"
+                    >
+                        Volver
+                    </a>
+                </div>
+
+                <div class="card">
+                    <h2 class="card-title">Tipo de formulario</h2>
+                    <div class="module-access-grid">
+                        <a
+                            href="/app/compras/solicitud-compra.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Formulario 1</span>
+                            <span class="module-access-title">Solicitud de Compra</span>
+                            <span class="module-access-desc">
+                                Radica una solicitud de compra de bienes o servicios.
+                            </span>
+                        </a>
+                        <a
+                            href="/app/compras/traslado-bodegas.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Formulario 2</span>
+                            <span class="module-access-title">Traslado entre Bodegas</span>
+                            <span class="module-access-desc">
+                                Solicita el traslado de materiales entre bodegas.
+                            </span>
+                        </a>
+                        <a
+                            href="/app/compras/solicitud-insumos-servicios.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Formulario 3</span>
+                            <span class="module-access-title">Solicitud de Insumos/Servicios</span>
+                            <span class="module-access-desc">
+                                Radica solicitudes de insumos o servicios operativos.
+                            </span>
+                        </a>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+        </script>
+    </body>
+</html>

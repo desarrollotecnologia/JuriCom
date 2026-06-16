@@ -108,6 +108,11 @@
             }
             if (user.role === "compras" || user.role === "admin") {
                 actions.push({
+                    href: "/app/compras/gestion-solicitudes.html",
+                    label: "Gestión de Solicitudes a Compras",
+                    cls: "btn-primary",
+                });
+                actions.push({
                     href: "/app/compras/solicitud-radicar.html",
                     label: "Radicar nueva solicitud",
                     cls: "btn-primary",

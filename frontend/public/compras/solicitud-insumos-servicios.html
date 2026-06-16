@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Solicitud de Insumos/Servicios · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Solicitud de Insumos/Servicios</h1>
+                        <p class="muted">Formulario de solicitud de insumos o servicios.</p>
+                    </div>
+                    <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
+                        Volver
+                    </a>
+                </div>
+
+                <div class="card">
+                    <p class="muted">
+                        Este formulario se encuentra en construcción. Próximamente podrás
+                        radicar solicitudes de insumos y servicios desde aquí.
+                    </p>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+        </script>
+    </body>
+</html>

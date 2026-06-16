@@ -28,6 +28,14 @@ export function formatDate(iso) {
     });
 }
 
+export function formatFileSize(bytes) {
+    const n = Number(bytes);
+    if (!n) return "—";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function escapeHtml(str) {
     return String(str ?? "")
         .replace(/&/g, "&amp;")

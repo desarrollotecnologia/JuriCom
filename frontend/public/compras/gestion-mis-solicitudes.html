@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Mis Solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div class="page-header-brand">
+                        <img
+                            src="/app/assets/colbeef-logo.png"
+                            alt="Colbeef"
+                            width="200"
+                            height="72"
+                        />
+                        <div>
+                            <h1 id="page-title">Mis Solicitudes</h1>
+                            <p class="muted" id="page-subtitle"></p>
+                        </div>
+                    </div>
+                    <div class="page-header-actions">
+                        <a
+                            href="/app/compras/gestion-solicitudes.html"
+                            class="btn btn-secondary"
+                        >
+                            Volver
+                        </a>
+                        <a
+                            href="/app/compras/nueva-solicitud.html"
+                            class="btn btn-primary"
+                        >
+                            + Nueva solicitud
+                        </a>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+
+                <div class="card">
+                    <h2 class="card-title">Mis Solicitudes</h2>
+
+                    <div class="search-bar">
+                        <input
+                            type="text"
+                            id="gestion-search"
+                            placeholder="Buscar por consecutivo, tipo o título..."
+                            autocomplete="off"
+                        />
+                        <select id="gestion-filter-tipo">
+                            <option value="">Todos los tipos</option>
+                            <option value="compra">Solicitud de Compra</option>
+                            <option value="traslado_bodegas">Traslado en Bodega</option>
+                            <option value="insumos_servicios">Insumos/Servicios</option>
+                        </select>
+                        <span class="info" id="gestion-result-count"></span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table-gestion-solicitudes">
+                            <thead>
+                                <tr>
+                                    <th>Consecutivo</th>
+                                    <th>Tipo de Solicitud</th>
+                                    <th>Estado</th>
+                                    <th>Fecha de Registro</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gestion-tbody">
+                                <tr>
+                                    <td colspan="5" class="muted text-center">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div class="modal-overlay" id="modal-gestion-detail">
+            <div class="modal modal-wide modal-detail-solicitud">
+                <h2 id="gestion-detail-title">Detalle de la solicitud</h2>
+                <div class="sg-modal-detail-body">
+                    <div id="gestion-detail-content"></div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="btn-gestion-detail-close">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { requireSessionRole } from "/static/js/auth/bootstrap.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js";
+
+            const user = await requireSessionRole(["compras", "admin"]);
+            if (user) {
+                renderSidebar();
+                initMisSolicitudesGestion({ esAdmin: user.role === "admin" });
+            } else {
+                const tbody = document.getElementById("gestion-tbody");
+                if (tbody && !window.location.pathname.endsWith("/login.html")) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="5" class="muted text-center">Redirigiendo...</td></tr>';
+                }
+            }
+        </script>
+    </body>
+</html>

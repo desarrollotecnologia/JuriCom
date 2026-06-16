@@ -26,6 +26,8 @@ const NAV_BY_ROLE = {
 
         { href: "/app/admin/usuarios.html", label: "Gestión de usuarios" },
 
+        { href: "/app/compras/gestion-solicitudes.html", label: "Gestión de Solicitudes a Compras" },
+
         { href: "/app/compras/solicitud-radicar.html", label: "Radicar solicitud" },
 
         { href: "/app/juridica/pendientes.html", label: "Pendientes Jurídica" },
@@ -53,6 +55,8 @@ const NAV_BY_ROLE = {
     ],
 
     compras: [
+
+        { href: "/app/compras/gestion-solicitudes.html", label: "Gestión de Solicitudes a Compras" },
 
         { href: "/app/compras/solicitud-radicar.html", label: "Radicar solicitud" },
 

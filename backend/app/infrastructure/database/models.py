@@ -167,3 +167,181 @@ class OtrosiContratoModel(Base):
     contrato: Mapped["ContratoModel"] = relationship(
         "ContratoModel", back_populates="otrosies"
     )
+
+
+class SolicitudGestionModel(Base):
+    __tablename__ = "solicitudes_gestion"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    codigo: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    tipo: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    titulo: Mapped[str] = mapped_column(String(500), nullable=False)
+    presupuestado: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    centro_costo_area: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    lider_area_id: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    lider_area_label: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    observaciones: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    observaciones_texto: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    observaciones_gestion: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    justificacion_cotizaciones: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    gestor_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    lider_segunda_aprobacion_id: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    lider_segunda_aprobacion_label: Mapped[str] = mapped_column(
+        String(500), nullable=False, default=""
+    )
+    estado: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="solicitud", index=True
+    )
+    creado_por_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )
+
+    productos: Mapped[list["SolicitudGestionProductoModel"]] = relationship(
+        "SolicitudGestionProductoModel",
+        back_populates="solicitud",
+        cascade="all, delete-orphan",
+    )
+    archivos: Mapped[list["SolicitudGestionArchivoModel"]] = relationship(
+        "SolicitudGestionArchivoModel",
+        back_populates="solicitud",
+        cascade="all, delete-orphan",
+    )
+    observaciones_trazabilidad: Mapped[list["SolicitudGestionObservacionModel"]] = relationship(
+        "SolicitudGestionObservacionModel",
+        back_populates="solicitud",
+        cascade="all, delete-orphan",
+        order_by="SolicitudGestionObservacionModel.created_at",
+    )
+    historial_estados: Mapped[list["SolicitudGestionHistorialEstadoModel"]] = relationship(
+        "SolicitudGestionHistorialEstadoModel",
+        back_populates="solicitud",
+        cascade="all, delete-orphan",
+        order_by="SolicitudGestionHistorialEstadoModel.created_at",
+    )
+
+
+class SolicitudGestionHistorialEstadoModel(Base):
+    __tablename__ = "solicitudes_gestion_historial_estados"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    solicitud_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("solicitudes_gestion.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    etapa: Mapped[str] = mapped_column(String(40), nullable=False)
+    usuario_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    comentario: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    solicitud: Mapped["SolicitudGestionModel"] = relationship(
+        "SolicitudGestionModel", back_populates="historial_estados"
+    )
+    usuario: Mapped[Optional["UserModel"]] = relationship("UserModel")
+
+
+class SolicitudGestionProductoModel(Base):
+    __tablename__ = "solicitudes_gestion_productos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    solicitud_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("solicitudes_gestion.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    codigo_siimed: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    unidad: Mapped[str] = mapped_column(String(20), nullable=False)
+    descripcion: Mapped[str] = mapped_column(Text, nullable=False)
+    centro_costo: Mapped[str] = mapped_column(String(100), nullable=False)
+    estado_aprobacion: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pendiente"
+    )
+
+    solicitud: Mapped["SolicitudGestionModel"] = relationship(
+        "SolicitudGestionModel", back_populates="productos"
+    )
+
+
+class SolicitudGestionArchivoModel(Base):
+    __tablename__ = "solicitudes_gestion_archivos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    solicitud_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("solicitudes_gestion.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    nombre_original: Mapped[str] = mapped_column(String(255), nullable=False)
+    ruta_almacenamiento: Mapped[str] = mapped_column(String(500), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    tamano_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    categoria: Mapped[str] = mapped_column(String(30), nullable=False, default="solicitud")
+    observacion_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("solicitudes_gestion_observaciones.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    subido_por_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    solicitud: Mapped["SolicitudGestionModel"] = relationship(
+        "SolicitudGestionModel", back_populates="archivos"
+    )
+    observacion: Mapped[Optional["SolicitudGestionObservacionModel"]] = relationship(
+        "SolicitudGestionObservacionModel", back_populates="archivos"
+    )
+
+
+class SolicitudGestionObservacionModel(Base):
+    __tablename__ = "solicitudes_gestion_observaciones"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    solicitud_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("solicitudes_gestion.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    usuario_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    autor_nombre: Mapped[str] = mapped_column(String(150), nullable=False, default="")
+    autor_rol: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    contenido: Mapped[str] = mapped_column(Text, nullable=False)
+    contenido_texto: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    solicitud: Mapped["SolicitudGestionModel"] = relationship(
+        "SolicitudGestionModel", back_populates="observaciones_trazabilidad"
+    )
+    usuario: Mapped[Optional["UserModel"]] = relationship("UserModel")
+    archivos: Mapped[list["SolicitudGestionArchivoModel"]] = relationship(
+        "SolicitudGestionArchivoModel",
+        back_populates="observacion",
+        order_by="SolicitudGestionArchivoModel.created_at",
+    )

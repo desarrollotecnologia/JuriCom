@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Aprobar solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div class="page-header-brand">
+                        <img
+                            src="/app/assets/colbeef-logo.png"
+                            alt="Colbeef"
+                            width="200"
+                            height="72"
+                        />
+                        <div>
+                            <h1>Aprobar solicitudes</h1>
+                            <p class="muted">
+                                Revisa y aprueba las solicitudes de compra registradas por los usuarios del sistema.
+                                El líder Colbeef del formulario es referencia del área; la aprobación la realiza aquí un usuario Compras o Admin.
+                            </p>
+                        </div>
+                    </div>
+                    <a
+                        href="/app/compras/gestion-solicitudes.html"
+                        class="btn btn-secondary"
+                    >
+                        Volver
+                    </a>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card">
+                    <h2 class="card-title">Solicitudes de compra pendientes</h2>
+
+                    <div class="search-bar">
+                        <input
+                            type="text"
+                            id="aprobacion-search"
+                            placeholder="Buscar por consecutivo, título o solicitante..."
+                            autocomplete="off"
+                        />
+                        <span class="info" id="aprobacion-result-count"></span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table-gestion-solicitudes">
+                            <thead>
+                                <tr>
+                                    <th>Consecutivo</th>
+                                    <th>Solicitante</th>
+                                    <th>Título</th>
+                                    <th>Etapa</th>
+                                    <th>Líder aprobador</th>
+                                    <th>Fecha de registro</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="aprobacion-tbody">
+                                <tr>
+                                    <td colspan="7" class="muted text-center">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div class="modal-overlay" id="modal-aprobacion-detail">
+            <div class="modal modal-wide modal-detail-solicitud">
+                <h2 id="aprobacion-detail-title">Detalle de la solicitud</h2>
+                <div class="sg-modal-detail-body">
+                    <div id="aprobacion-detail-content"></div>
+
+                    <div class="sg-detail-panel sg-aprobacion-tipo-panel" id="aprobacion-primera-panel" hidden>
+                        <h3 class="sg-detail-panel-title">Tipo de aprobación</h3>
+                        <div class="sg-aprobacion-tipo-opciones">
+                            <label class="sg-aprobacion-tipo-option">
+                                <input type="radio" name="tipo-aprobacion" value="total" checked />
+                                Aprobar todo
+                            </label>
+                            <label class="sg-aprobacion-tipo-option">
+                                <input type="radio" name="tipo-aprobacion" value="parcial" />
+                                Aprobar parcial
+                            </label>
+                        </div>
+                        <p class="muted sg-aprobacion-parcial-hint" id="aprobacion-parcial-hint" hidden>
+                            Marca en la tabla de productos los ítems que deseas aprobar.
+                            Los no seleccionados quedarán registrados como no aprobados.
+                        </p>
+                    </div>
+
+                    <div class="sg-detail-panel sg-aprobacion-obs-panel">
+                        <h3 class="sg-detail-panel-title">Observación de aprobación</h3>
+                        <p class="muted sg-detail-panel-hint" id="aprobacion-obs-hint">
+                            Opcional. Tu comentario quedará registrado en el historial de observaciones.
+                        </p>
+                        <div class="field sg-observacion-field">
+                            <label for="aprobacion-observacion-editor">Comentario del líder aprobador</label>
+                            <div id="aprobacion-observacion-editor"></div>
+                            <input
+                                type="file"
+                                id="aprobacion-observacion-adjuntos"
+                                multiple
+                                hidden
+                                accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.webp,.gif"
+                            />
+                            <ul class="file-list" id="aprobacion-observacion-file-list" hidden></ul>
+                            <span class="hint">
+                                Usa el clip en la barra del editor para adjuntar archivos (también puedes
+                                arrastrarlos sobre el área de texto). Usa el botón de imagen para insertar
+                                una foto dentro del comentario.
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="motivo-rechazo">Motivo de cancelación (obligatorio para cancelar)</label>
+                        <textarea
+                            id="motivo-rechazo"
+                            rows="3"
+                            placeholder="Describe el motivo si vas a cancelar la solicitud..."
+                        ></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-aprobacion-detail-close">
+                        Cerrar
+                    </button>
+                    <button type="button" class="btn btn-danger" id="btn-rechazar-solicitud">
+                        Cancelar solicitud
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-secondary sg-btn-recotizar"
+                        id="btn-solicitar-recotizacion"
+                        hidden
+                    >
+                        Solicitar recotización
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btn-aprobar-solicitud">
+                        Aprobar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+            initAprobarSolicitudesGestion();
+        </script>
+    </body>
+</html>

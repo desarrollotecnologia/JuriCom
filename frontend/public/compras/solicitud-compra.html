@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Solicitud de Compra · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div class="page-header-brand">
+                        <img
+                            src="/app/assets/colbeef-logo.png"
+                            alt="Colbeef"
+                            width="200"
+                            height="72"
+                        />
+                        <div>
+                            <h1>Solicitud de Compra</h1>
+                            <p class="muted">
+                                Completa los datos generales, el detalle de productos y adjunta los soportes.
+                            </p>
+                        </div>
+                    </div>
+                    <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
+                        Volver
+                    </a>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <form id="form-solicitud-compra" class="card" novalidate>
+                    <!-- 1. Cabecera -->
+                    <div class="form-section">
+                        <h3>1. Datos generales</h3>
+
+                        <div class="field">
+                            <label for="titulo">
+                                Título o Asunto de la Solicitud
+                                <span class="required">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="titulo"
+                                name="titulo"
+                                required
+                                placeholder="Ej. Compra de insumos de oficina — marzo 2026"
+                            />
+                        </div>
+
+                        <div class="field">
+                            <label>Presupuestado <span class="required">*</span></label>
+                            <div class="radio-group">
+                                <label class="radio-option">
+                                    <input
+                                        type="radio"
+                                        name="presupuestado"
+                                        value="si"
+                                        required
+                                    />
+                                    Es presupuestado
+                                </label>
+                                <label class="radio-option">
+                                    <input
+                                        type="radio"
+                                        name="presupuestado"
+                                        value="no"
+                                    />
+                                    No es presupuestado
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label for="centro-costo-area">
+                                    Centro de Costo (Área Solicitante)
+                                    <span class="required">*</span>
+                                </label>
+                                <select
+                                    id="centro-costo-area"
+                                    name="centro_costo_area"
+                                    required
+                                ></select>
+                            </div>
+                            <div class="field">
+                                <label for="lider-area-input">
+                                    Líder de Área (Aprobador)
+                                    <span class="required">*</span>
+                                </label>
+                                <div id="lider-area-select"></div>
+                                <span class="hint">
+                                    Escribe para filtrar. Lista Líderes Colbeef 2026.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Detalle productos -->
+                    <div class="form-section">
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                flex-wrap: wrap;
+                                gap: 12px;
+                            "
+                        >
+                            <h3 style="margin-bottom: 0; border: none; padding: 0">
+                                2. Detalle de la compra
+                            </h3>
+                            <button
+                                type="button"
+                                class="btn btn-secondary btn-sm"
+                                id="btn-agregar-producto"
+                            >
+                                + Agregar Producto
+                            </button>
+                        </div>
+
+                        <div class="table-editable-wrap">
+                            <table class="table-editable">
+                                <thead>
+                                    <tr>
+                                        <th>Código Siimed</th>
+                                        <th>Unidad</th>
+                                        <th>Descripción del producto</th>
+                                        <th>Centro de Costo</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="productos-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 3. Pie del formulario -->
+                    <div class="form-section">
+                        <h3>3. Observaciones y adjuntos</h3>
+
+                        <div class="field">
+                            <label for="observaciones-editor">Observaciones</label>
+                            <div id="observaciones-editor"></div>
+                            <input
+                                type="file"
+                                id="file-input"
+                                multiple
+                                hidden
+                                accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx"
+                            />
+                            <ul class="file-list" id="file-list" hidden></ul>
+                            <span class="hint">
+                                Usa el clip en la barra del editor para adjuntar archivos
+                                (también puedes arrastrarlos sobre el área de texto).
+                                Usa el botón de imagen para insertar una foto dentro del comentario.
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <a
+                            href="/app/compras/nueva-solicitud.html"
+                            class="btn btn-secondary"
+                        >
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="btn-submit">
+                            Enviar Solicitud
+                        </button>
+                    </div>
+                </form>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { initSolicitudCompraForm } from "/static/js/compras/solicitud-compra-form.js";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+            initSolicitudCompraForm();
+        </script>
+    </body>
+</html>

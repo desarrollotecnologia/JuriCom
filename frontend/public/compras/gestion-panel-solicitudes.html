@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Panel de solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div class="page-header-brand">
+                        <img
+                            src="/app/assets/colbeef-logo.png"
+                            alt="Colbeef"
+                            width="200"
+                            height="72"
+                        />
+                        <div>
+                            <h1>Panel de solicitudes</h1>
+                            <p class="muted">
+                                Solicitudes ya aprobadas listas para gestionar. Las pendientes de
+                                aprobación no aparecen aquí.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="page-header-actions">
+                        <a
+                            href="/app/compras/gestion-solicitudes.html"
+                            class="btn btn-secondary"
+                        >
+                            Volver
+                        </a>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card">
+                    <h2 class="card-title">Solicitudes aprobadas</h2>
+
+                    <div class="search-bar">
+                        <input
+                            type="text"
+                            id="panel-search"
+                            placeholder="Buscar por consecutivo, solicitante o título..."
+                            autocomplete="off"
+                        />
+                        <select id="panel-filter-tipo">
+                            <option value="">Todos los tipos</option>
+                            <option value="compra">Solicitud de Compra</option>
+                            <option value="traslado_bodegas">Traslado en Bodega</option>
+                            <option value="insumos_servicios">Insumos/Servicios</option>
+                        </select>
+                        <span class="info" id="panel-result-count"></span>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table-gestion-solicitudes">
+                            <thead>
+                                <tr>
+                                    <th>Consecutivo</th>
+                                    <th>Solicitante</th>
+                                    <th>Tipo de Solicitud</th>
+                                    <th>Estado</th>
+                                    <th>Fecha de Registro</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="panel-tbody">
+                                <tr>
+                                    <td colspan="6" class="muted text-center">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div class="modal-overlay" id="modal-panel-detail">
+            <div class="modal modal-wide modal-detail-solicitud">
+                <h2 id="panel-detail-title">Detalle de la solicitud</h2>
+                <div class="sg-modal-detail-body">
+                    <div id="panel-detail-content"></div>
+                </div>
+                <div class="modal-actions" id="panel-modal-actions-gestion" hidden>
+                    <button type="button" class="btn btn-primary" id="btn-panel-enviar-aprobacion">
+                        Enviar para aprobación
+                    </button>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="btn-panel-detail-close">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { requireSessionRole } from "/static/js/auth/bootstrap.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js";
+
+            const user = await requireSessionRole(["compras", "admin"]);
+            if (user) {
+                renderSidebar();
+                initPanelSolicitudesGestion();
+            } else {
+                const tbody = document.getElementById("panel-tbody");
+                if (tbody) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="6" class="muted text-center">Redirigiendo...</td></tr>';
+                }
+            }
+        </script>
+    </body>
+</html>

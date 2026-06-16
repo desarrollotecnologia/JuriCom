@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div class="page-header-brand">
+                        <img
+                            src="/app/assets/colbeef-logo.png"
+                            alt="Colbeef"
+                            width="200"
+                            height="72"
+                        />
+                        <div>
+                            <h1>Gestión de Solicitudes a Compras</h1>
+                            <p class="muted">
+                                Radica, consulta y da seguimiento a solicitudes de compra, traslado en bodegas e insumos/servicios.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 class="card-title">Panel principal</h2>
+                    <p class="muted" style="margin-bottom: 16px">
+                        Gestiona las solicitudes que ya fueron aprobadas. Las pendientes de
+                        aprobación no aparecen aquí.
+                    </p>
+                    <a
+                        href="/app/compras/gestion-panel-solicitudes.html"
+                        class="btn btn-primary"
+                    >
+                        Panel de solicitudes
+                    </a>
+                </div>
+
+                <div class="card mt-4">
+                    <h2 class="card-title">Opciones del módulo</h2>
+                    <div class="module-access-grid">
+                        <a
+                            href="/app/compras/nueva-solicitud.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Crear</span>
+                            <span class="module-access-title">Nueva Solicitud</span>
+                            <span class="module-access-desc">
+                                Elige el tipo de formulario: compra, traslado entre bodegas o insumos/servicios.
+                            </span>
+                        </a>
+                        <a
+                            href="/app/compras/gestion-mis-solicitudes.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Consultar</span>
+                            <span class="module-access-title">Mis solicitudes</span>
+                            <span class="module-access-desc">
+                                Revisa el estado y el detalle de todas tus solicitudes, incluidas las pendientes de aprobación.
+                            </span>
+                        </a>
+                        <a
+                            href="/app/compras/gestion-aprobar-solicitudes.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Aprobar</span>
+                            <span class="module-access-title">Aprobar solicitudes</span>
+                            <span class="module-access-desc">
+                                Revisa y aprueba las solicitudes de compra registradas por los usuarios.
+                            </span>
+                        </a>
+                        <a
+                            href="/app/compras/reporte-indicadores.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Analizar</span>
+                            <span class="module-access-title">Reporte e Indicadores</span>
+                            <span class="module-access-desc">
+                                Visualiza resumen y métricas de las solicitudes registradas.
+                            </span>
+                        </a>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+        </script>
+    </body>
+</html>

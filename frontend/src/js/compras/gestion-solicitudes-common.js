@@ -1,0 +1,866 @@
+import { session } from "../auth/session.js";
+import { renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js";
+import { API_BASE } from "../utils/config.js";
+import { escapeHtml, formatDate, formatFileSize } from "../utils/format.js";
+
+export const TIPO_LABEL = {
+    compra: "Solicitud de Compra",
+    traslado_bodegas: "Traslado en Bodega",
+    insumos_servicios: "Insumos/Servicios",
+};
+
+export const TIPO_BADGE = {
+    compra: "badge-tipo-compra",
+    traslado_bodegas: "badge-tipo-traslado",
+    insumos_servicios: "badge-tipo-insumos",
+};
+
+const LEGACY_ESTADO = {
+    registrada: "solicitud",
+    aprobada: "primera_aprobacion",
+    rechazada: "cancelado",
+    aprobacion_lider_area: "solicitud",
+    aprobacion_gerencia: "primera_aprobacion",
+    proceso_cotizacion: "cotizacion",
+    en_proceso: "tramitada_oc",
+    pendiente: "tramitada_oc",
+    finalizada: "entregado",
+};
+
+export const ESTADO_LABEL = {
+    solicitud: "Solicitud",
+    primera_aprobacion: "Primera Aprobación",
+    cotizacion: "Cotización",
+    en_aprobacion: "En Aprobación",
+    tramitada_oc: "Tramitada OC",
+    cancelado: "Cancelado",
+    entregado: "Entregado",
+    entregado_parcial: "Entregado Parcial",
+    registrada: "Solicitud",
+    aprobada: "Primera Aprobación",
+    rechazada: "Cancelado",
+};
+
+export const ESTADO_BADGE = {
+    solicitud: "badge-sg-pendiente",
+    primera_aprobacion: "badge-sg-aprobacion",
+    cotizacion: "badge-sg-aprobacion",
+    en_aprobacion: "badge-sg-aprobacion",
+    tramitada_oc: "badge-sg-aprobacion",
+    cancelado: "badge-sg-rechazado",
+    entregado: "badge-sg-aprobado",
+    entregado_parcial: "badge-sg-aprobado",
+    registrada: "badge-sg-pendiente",
+    aprobada: "badge-sg-aprobacion",
+    rechazada: "badge-sg-rechazado",
+};
+
+export function normalizarEstado(estado) {
+    return LEGACY_ESTADO[estado] || estado;
+}
+
+function formatObservacionFecha(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const fecha = d.toLocaleDateString("es-CO", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    });
+    const hora = d.toLocaleTimeString("es-CO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+    });
+    return `${fecha} - ${hora}`;
+}
+
+function archivosPorObservacion(solicitud) {
+    const map = new Map();
+    for (const archivo of solicitud.archivos || []) {
+        if (!archivo.observacion_id) continue;
+        const key = archivo.observacion_id;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(archivo);
+    }
+    return map;
+}
+
+function archivosSinObservacion(solicitud, categoria = null) {
+    return (solicitud.archivos || []).filter((a) => {
+        if (a.observacion_id) return false;
+        if (categoria) return (a.categoria || "solicitud") === categoria;
+        return true;
+    });
+}
+
+function renderObservacionArchivosHtml(solicitudId, archivos) {
+    const visibles = (archivos || []).filter((a) => a.categoria !== "observacion_inline");
+    if (!visibles.length) return "";
+    return `
+        <ul class="sg-obs-attachment-list">
+            ${visibles
+                .map(
+                    (a) => `
+            <li class="sg-obs-attachment-item">
+                <span class="sg-attachment-icon" aria-hidden="true">📎</span>
+                <div class="sg-attachment-info">
+                    <strong>${escapeHtml(a.nombre_original)}</strong>
+                    <span class="muted">${formatFileSize(a.tamano_bytes)} · ${escapeHtml(a.mime_type || "archivo")}</span>
+                </div>
+                <a
+                    href="#"
+                    class="btn btn-secondary btn-sm"
+                    data-download-url="/solicitudes-gestion/${solicitudId}/archivos/${a.id}"
+                    data-filename="${escapeHtml(a.nombre_original)}"
+                    data-mime-type="${escapeHtml(a.mime_type || "")}"
+                >
+                    Ver
+                </a>
+            </li>`
+                )
+                .join("")}
+        </ul>`;
+}
+
+function enrichObservacionesWithJustificacion(solicitud, items) {
+    const just = (solicitud.justificacion_cotizaciones || "").trim();
+    if (!just || !items.length) return items;
+
+    const alreadyShown = items.some(
+        (item) =>
+            (item.contenido_texto || "").includes(just) ||
+            (item.contenido || "").includes(just)
+    );
+    if (alreadyShown) return items;
+
+    const enriched = items.map((item) => ({ ...item }));
+    const gestorIdx = enriched.findLastIndex((item) =>
+        (item.autor_rol || item.autor_etiqueta || "").toLowerCase().includes("gestor")
+    );
+
+    const blockHtml = `<p class="sg-justificacion-cotizaciones"><strong>Justificación cotizaciones:</strong> ${escapeHtml(just).replace(/\n/g, "<br>")}</p>`;
+    const blockTexto = `Justificación cotizaciones: ${just}`;
+
+    if (gestorIdx >= 0) {
+        const item = enriched[gestorIdx];
+        enriched[gestorIdx] = {
+            ...item,
+            contenido: `${item.contenido || ""}${blockHtml}`,
+            contenido_texto: `${item.contenido_texto || ""}\n\n${blockTexto}`.trim(),
+        };
+        return enriched;
+    }
+
+    enriched.push({
+        id: -1,
+        autor_etiqueta: solicitud.gestor_username
+            ? `${solicitud.gestor_username} (Gestor)`
+            : "Gestor",
+        contenido: blockHtml,
+        contenido_texto: blockTexto,
+        created_at: solicitud.updated_at || solicitud.created_at,
+        archivos: [],
+    });
+    return enriched;
+}
+
+function collectObservacionesTrazabilidad(solicitud) {
+    const porObs = archivosPorObservacion(solicitud);
+    const items = [...(solicitud.observaciones_trazabilidad || [])];
+    if (items.length) {
+        return enrichObservacionesWithJustificacion(
+            solicitud,
+            items
+                .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+                .map((item) => ({
+                    ...item,
+                    archivos:
+                        item.archivos?.length > 0
+                            ? item.archivos
+                            : porObs.get(item.id) || [],
+                }))
+        );
+    }
+
+    const legacy = [];
+    if (solicitud.observaciones_texto || solicitud.observaciones) {
+        legacy.push({
+            id: 0,
+            autor_etiqueta: solicitud.creado_por_username
+                ? `${solicitud.creado_por_username} (Usuario Solicitante)`
+                : "Usuario Solicitante",
+            contenido: solicitud.observaciones || escapeHtml(solicitud.observaciones_texto),
+            created_at: solicitud.created_at,
+            archivos: archivosSinObservacion(solicitud, "solicitud"),
+        });
+    }
+    if (solicitud.observaciones_gestion) {
+        legacy.push({
+            id: 0,
+            autor_etiqueta: solicitud.gestor_username
+                ? `${solicitud.gestor_username} (Gestor)`
+                : "Gestor",
+            contenido: renderObservacionesGestionHtml(solicitud.observaciones_gestion),
+            created_at: solicitud.updated_at || solicitud.created_at,
+            archivos: archivosSinObservacion(solicitud, "cotizacion"),
+        });
+    }
+    return enrichObservacionesWithJustificacion(solicitud, legacy);
+}
+
+export function renderObservacionesTrazabilidadHtml(
+    solicitud,
+    { titulo = "Historial de observaciones", panelId = "sg-obs-trazabilidad-panel" } = {}
+) {
+    const items = collectObservacionesTrazabilidad(solicitud);
+
+    const lista =
+        items.length > 0
+            ? `<ul class="sg-obs-timeline">
+                ${items
+                    .map((item) => {
+                        const etiqueta = escapeHtml(
+                            item.autor_etiqueta ||
+                                `${item.autor_nombre || "Usuario"} (${item.autor_rol || ""})`
+                        );
+                        const fecha = formatObservacionFecha(item.created_at);
+                        const adjuntos = renderObservacionArchivosHtml(solicitud.id, item.archivos);
+                        return `
+                <li class="sg-obs-timeline-item">
+                    <p class="sg-obs-timeline-meta">
+                        <span class="sg-obs-timeline-fecha">[${escapeHtml(fecha)}]</span>
+                        <strong>${etiqueta}:</strong>
+                    </p>
+                    <div class="sg-obs-timeline-content sg-observaciones-readonly">${item.contenido || ""}</div>
+                    ${adjuntos}
+                </li>`;
+                    })
+                    .join("")}
+            </ul>`
+            : `<p class="muted sg-obs-timeline-empty">Sin observaciones registradas.</p>`;
+
+    return `
+        <div class="sg-detail-panel" id="${escapeHtml(panelId)}">
+            <h3 class="sg-detail-panel-title">${escapeHtml(titulo)}</h3>
+            ${lista}
+        </div>`;
+}
+function renderObservacionesGestionHtml(raw) {
+    if (!raw) return "";
+    if (raw.includes("sg-obs-gestion-entry")) return raw;
+    return escapeHtml(raw).replace(/\n/g, "<br>");
+}
+
+export const MIN_COTIZACIONES = 3;
+export const COTIZACION_ACCEPT = ".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx";
+
+export function renderAgregarComentarioHtml({
+    editorContainerId = "gestion-nueva-observacion-editor",
+    fileInputId = "gestion-comentario-adjuntos",
+    fileListId = "gestion-comentario-file-list",
+    btnId = "btn-gestion-guardar-comentario",
+    title = "Agregar comentario",
+    label = "Nuevo comentario",
+    showIntro = true,
+    showHint = true,
+    showSaveButton = true,
+} = {}) {
+    return `
+        <div class="sg-detail-panel sg-obs-nuevo-comentario-panel">
+            <h3 class="sg-detail-panel-title">${escapeHtml(title)}</h3>
+            ${
+                showIntro
+                    ? `<p class="muted sg-detail-panel-hint">
+                El comentario se añadirá al historial sin modificar entradas anteriores.
+            </p>`
+                    : ""
+            }
+            ${renderObservacionAdjuntosFieldHtml({
+                editorContainerId,
+                fileInputId,
+                fileListId,
+                label,
+                showHint,
+            })}
+            ${
+                showSaveButton
+                    ? `<button type="button" class="btn btn-secondary btn-sm" id="${escapeHtml(btnId)}">
+                Guardar comentario
+            </button>`
+                    : ""
+            }
+        </div>`;
+}
+
+function renderCotizacionSlotHtml(index) {
+    const removable = index >= MIN_COTIZACIONES;
+    return `
+        <div class="sg-cotizacion-slot" data-slot="${index}">
+            <span class="sg-cotizacion-slot-label">Cotización ${index + 1}</span>
+            <div class="sg-cotizacion-slot-row">
+                <input
+                    type="file"
+                    class="gestion-cotizacion-input"
+                    id="gestion-cotizacion-${index}"
+                    accept="${COTIZACION_ACCEPT}"
+                />
+                <span class="sg-cotizacion-slot-name muted">Sin archivo</span>
+                <button type="button" class="btn btn-sm btn-secondary btn-cotizacion-clear" hidden>
+                    Quitar archivo
+                </button>
+                ${
+                    removable
+                        ? `<button type="button" class="btn btn-sm btn-secondary btn-cotizacion-quitar-slot">
+                    Quitar
+                </button>`
+                        : ""
+                }
+            </div>
+        </div>`;
+}
+
+export function renderCotizacionesUploadHtml(existentesCount = 0) {
+    const principales = Array.from({ length: MIN_COTIZACIONES }, (_, i) =>
+        renderCotizacionSlotHtml(i)
+    ).join("");
+
+    return `
+        <div class="field sg-cotizaciones-field">
+            <label>
+                Carga de cotizaciones
+                <span class="hint">Adjunta al menos ${MIN_COTIZACIONES} archivos o indica una justificación.</span>
+            </label>
+            <div id="gestion-cotizaciones-upload" class="sg-cotizaciones-upload">
+                <div id="gestion-cotizaciones-principales" class="sg-cotizaciones-principales">
+                    ${principales}
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-gestion-cotizacion-mas">
+                    Agregar más
+                </button>
+                <div id="gestion-cotizaciones-extras" class="sg-cotizaciones-extras"></div>
+            </div>
+            <p class="info" id="gestion-cotizaciones-count">
+                Cotizaciones registradas: ${existentesCount} · Nuevas seleccionadas: 0
+            </p>
+        </div>`;
+}
+
+export function badgeTipo(tipo) {
+    const cls = TIPO_BADGE[tipo] || "badge-tipo-compra";
+    return `<span class="badge ${cls}">${escapeHtml(TIPO_LABEL[tipo] || tipo)}</span>`;
+}
+
+export function badgeEstado(estado) {
+    const key = normalizarEstado(estado);
+    const cls = ESTADO_BADGE[key] || ESTADO_BADGE[estado] || "badge-sg-pendiente";
+    const label = ESTADO_LABEL[key] || ESTADO_LABEL[estado] || estado;
+    return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+}
+
+function buildTimelineItems(solicitud) {
+    const historial = [...(solicitud.historial_estados || [])].sort(
+        (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    );
+    const current = normalizarEstado(solicitud.estado);
+    const terminal = ["cancelado", "entregado", "entregado_parcial"].includes(current);
+
+    if (!historial.length) {
+        return [
+            {
+                label: ESTADO_LABEL[current] || "Solicitud",
+                fecha: solicitud.created_at,
+                usuario: solicitud.creado_por_username,
+                comentario: "Solicitud registrada",
+                status:
+                    current === "cancelado"
+                        ? "rejected"
+                        : terminal
+                          ? "done"
+                          : "active",
+            },
+        ];
+    }
+
+    return historial.map((h, i) => {
+        const key = normalizarEstado(h.etapa);
+        const isLast = i === historial.length - 1;
+        let status = "done";
+
+        if (isLast) {
+            if (key === "cancelado" || current === "cancelado") status = "rejected";
+            else if (terminal) status = "done";
+            else if (key === current) status = "active";
+        }
+
+        return {
+            label: h.etapa_label || ESTADO_LABEL[key] || key,
+            fecha: h.created_at,
+            usuario: h.usuario_username,
+            comentario: h.comentario,
+            status,
+        };
+    });
+}
+
+export function renderWorkflowTimelineHtml(solicitud) {
+    const items = buildTimelineItems(solicitud);
+
+    if (!items.length) {
+        return "";
+    }
+
+    const pasos = items
+        .map((item) => {
+            const meta = [];
+            if (item.fecha) meta.push(formatDate(item.fecha));
+            if (item.usuario) meta.push(escapeHtml(item.usuario));
+            if (item.comentario && item.comentario !== item.label) {
+                meta.push(escapeHtml(item.comentario));
+            }
+
+            return `
+            <li class="sg-workflow-step sg-workflow-step--${item.status}">
+                <span class="sg-workflow-marker" aria-hidden="true"></span>
+                <div class="sg-workflow-body">
+                    <strong>${escapeHtml(item.label)}</strong>
+                    ${meta.length ? `<span class="sg-workflow-meta">${meta.join(" · ")}</span>` : ""}
+                </div>
+            </li>`;
+        })
+        .join("");
+
+    return `
+        <div class="sg-detail-panel sg-detail-panel--timeline">
+            <h3 class="sg-detail-panel-title">Historial del flujo</h3>
+            <p class="muted sg-detail-panel-hint">
+                Los estados aparecen aquí a medida que avanza tu solicitud.
+            </p>
+            <ol class="sg-workflow-timeline sg-workflow-timeline--progressive">
+                ${pasos}
+            </ol>
+        </div>`;
+}
+
+function renderArchivosHtml(solicitud, { categoria = null, titulo = "Archivos adjuntos" } = {}) {
+    let archivos = (solicitud.archivos || []).filter((a) => !a.observacion_id);
+    if (categoria) {
+        archivos = archivos.filter((a) => (a.categoria || "solicitud") === categoria);
+    } else {
+        archivos = archivos.filter((a) => (a.categoria || "solicitud") !== "cotizacion");
+    }
+    if (!archivos.length) {
+        return "";
+    }
+
+    return `
+        <div class="sg-detail-panel">
+            <h3 class="sg-detail-panel-title">${escapeHtml(titulo)} (${archivos.length})</h3>
+            <ul class="sg-attachment-list">
+                ${archivos
+                    .map(
+                        (a) => `
+                <li class="sg-attachment-item">
+                    <span class="sg-attachment-icon" aria-hidden="true">📎</span>
+                    <div class="sg-attachment-info">
+                        <strong>${escapeHtml(a.nombre_original)}</strong>
+                        <span class="muted">${formatFileSize(a.tamano_bytes)} · ${escapeHtml(a.mime_type || "archivo")}</span>
+                    </div>
+                    <a
+                        href="#"
+                        class="btn btn-secondary btn-sm"
+                        data-download-url="/solicitudes-gestion/${solicitud.id}/archivos/${a.id}"
+                        data-filename="${escapeHtml(a.nombre_original)}"
+                        data-mime-type="${escapeHtml(a.mime_type || "")}"
+                    >
+                        Ver
+                    </a>
+                </li>`
+                    )
+                    .join("")}
+            </ul>
+        </div>`;
+}
+
+export const ESTADO_APROBACION_PRODUCTO_LABEL = {
+    pendiente: "Pendiente",
+    aprobado: "Aprobado",
+    no_aprobado: "No aprobado",
+};
+
+export function tieneProductosNoAprobados(productos) {
+    return (productos || []).some((p) => p.estado_aprobacion === "no_aprobado");
+}
+
+export function filtrarProductosParaGestion(productos) {
+    return (productos || []).filter(
+        (p) => (p.estado_aprobacion || "pendiente") !== "no_aprobado"
+    );
+}
+
+function badgeEstadoProducto(estado) {
+    const key = estado || "pendiente";
+    const cls =
+        {
+            pendiente: "badge-sg-pendiente",
+            aprobado: "badge-sg-aprobado",
+            no_aprobado: "badge-sg-rechazado",
+        }[key] || "badge-sg-pendiente";
+    const label = ESTADO_APROBACION_PRODUCTO_LABEL[key] || key;
+    return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+}
+
+export function renderAprobacionParcialAlertHtml(s) {
+    if (!s?.aprobacion_parcial) return "";
+    const rechazados = (s.productos || []).filter(
+        (p) => p.estado_aprobacion === "no_aprobado"
+    ).length;
+    return `
+        <div class="alert alert-info sg-aprobacion-parcial-alert">
+            Esta solicitud tuvo <strong>aprobación parcial</strong>.
+            ${rechazados} ítem${rechazados === 1 ? "" : "s"} no ${rechazados === 1 ? "fue aprobado" : "fueron aprobados"}
+            y no continúa${rechazados === 1 ? "" : "n"} en el proceso de compra.
+        </div>`;
+}
+
+export function renderProductosTableHtml(productos, options = {}) {
+    const {
+        titulo = "Productos",
+        selectable = false,
+        showEstado = false,
+        soloAprobados = false,
+        excluirNoAprobados = false,
+        resaltarNoAprobados = false,
+        panelId = null,
+    } = options;
+
+    let list = [...(productos || [])];
+    if (excluirNoAprobados) {
+        list = list.filter((p) => (p.estado_aprobacion || "pendiente") !== "no_aprobado");
+    }
+    if (soloAprobados) {
+        list = list.filter((p) => (p.estado_aprobacion || "pendiente") === "aprobado");
+    }
+
+    if (!list.length) {
+        if (soloAprobados) {
+            return `<div class="sg-detail-panel"><p class="muted">No hay ítems aprobados para gestionar.</p></div>`;
+        }
+        return "";
+    }
+
+    const checkCol = selectable
+        ? `<th class="col-check sg-aprobacion-check-col">Aprobar</th>`
+        : "";
+    const estadoCol = showEstado ? `<th>Estado aprobación</th>` : "";
+
+    return `
+        <div class="sg-detail-panel"${panelId ? ` id="${escapeHtml(panelId)}"` : ""}>
+            <h3 class="sg-detail-panel-title">${escapeHtml(titulo)} (${list.length})</h3>
+            <div class="table-responsive">
+                <table class="table-gestion-solicitudes">
+                    <thead>
+                        <tr>
+                            ${checkCol}
+                            <th>Código Siimed</th>
+                            <th>Unidad</th>
+                            <th>Descripción</th>
+                            <th>Centro costo</th>
+                            ${estadoCol}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list
+                            .map((p) => {
+                                const noAprobado = p.estado_aprobacion === "no_aprobado";
+                                const rowClass = noAprobado ? "sg-producto-no-aprobado" : "";
+                                const cellClass = noAprobado && resaltarNoAprobados
+                                    ? "sg-producto-no-aprobado-cell"
+                                    : "";
+                                const checkCell = selectable
+                                    ? `<td class="col-check sg-aprobacion-check-col" data-label="Aprobar">
+                                        <input
+                                            type="checkbox"
+                                            class="aprobacion-producto-check"
+                                            value="${p.id}"
+                                            checked
+                                            aria-label="Aprobar ${escapeHtml(p.descripcion)}"
+                                        />
+                                    </td>`
+                                    : "";
+                                const estadoCell = showEstado
+                                    ? `<td data-label="Estado">${badgeEstadoProducto(p.estado_aprobacion)}</td>`
+                                    : "";
+                                const msgNoAprobado =
+                                    noAprobado && resaltarNoAprobados
+                                        ? `<p class="sg-producto-no-aprobado-msg">El líder no aprobó este ítem</p>`
+                                        : "";
+                                return `
+                            <tr class="${rowClass}">
+                                ${checkCell}
+                                <td class="${cellClass}" data-label="Código Siimed">${escapeHtml(p.codigo_siimed || "—")}</td>
+                                <td class="${cellClass}" data-label="Unidad">${escapeHtml(p.unidad)}</td>
+                                <td class="${cellClass}" data-label="Descripción">
+                                    <span class="${noAprobado && resaltarNoAprobados ? "sg-producto-no-aprobado-text" : ""}">${escapeHtml(p.descripcion)}</span>
+                                    ${msgNoAprobado}
+                                </td>
+                                <td class="${cellClass}" data-label="Centro costo">${escapeHtml(p.centro_costo)}</td>
+                                ${estadoCell}
+                            </tr>`;
+                            })
+                            .join("")}
+                    </tbody>
+                </table>
+            </div>
+        </div>`;
+}
+
+export function renderDetalleSolicitudHtml(s, options = {}) {
+    const { productosOptions = {}, showAprobacionParcialAlert = true } = options;
+    const presupuestado =
+        s.presupuestado === null || s.presupuestado === undefined
+            ? "—"
+            : s.presupuestado
+              ? "Sí"
+              : "No";
+
+    return `
+        <div class="sg-detail-layout">
+            ${renderWorkflowTimelineHtml(s)}
+            ${showAprobacionParcialAlert ? renderAprobacionParcialAlertHtml(s) : ""}
+
+            <div class="sg-detail-panel">
+                <h3 class="sg-detail-panel-title">Información general</h3>
+                <dl class="sg-detail-grid">
+                    <div class="sg-detail-field">
+                        <dt>Título</dt>
+                        <dd>${escapeHtml(s.titulo)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Estado actual</dt>
+                        <dd>${badgeEstado(s.estado)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Centro de costo</dt>
+                        <dd>${escapeHtml(s.centro_costo_area)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Líder aprobador</dt>
+                        <dd>${escapeHtml(s.lider_area_label || "—")}</dd>
+                    </div>
+                    ${
+                        s.tipo === "compra"
+                            ? `<div class="sg-detail-field">
+                        <dt>Presupuestado</dt>
+                        <dd>${presupuestado}</dd>
+                    </div>`
+                            : ""
+                    }
+                    <div class="sg-detail-field">
+                        <dt>Fecha de registro</dt>
+                        <dd>${formatDate(s.created_at)}</dd>
+                    </div>
+                    ${
+                        s.creado_por_username
+                            ? `<div class="sg-detail-field">
+                        <dt>Registrada por</dt>
+                        <dd>${escapeHtml(s.creado_por_username)}</dd>
+                    </div>`
+                            : ""
+                    }
+                </dl>
+            </div>
+
+            ${renderProductosTableHtml(s.productos, {
+                ...productosOptions,
+                titulo: productosOptions.titulo ?? "Productos",
+                showEstado:
+                    productosOptions.showEstado ??
+                    (tieneProductosNoAprobados(s.productos) ||
+                        Boolean(s.aprobacion_parcial)),
+                resaltarNoAprobados:
+                    productosOptions.resaltarNoAprobados ??
+                    (tieneProductosNoAprobados(s.productos) ||
+                        Boolean(s.aprobacion_parcial)),
+            })}
+
+            ${renderObservacionesTrazabilidadHtml(s)}
+
+            ${renderArchivosHtml(s)}
+        </div>`;
+}
+
+export function renderPanelGestionHtml(s, lideresOptionsHtml) {
+    const cotizaciones = (s.archivos || []).filter((a) => a.categoria === "cotizacion");
+    const presupuestado =
+        s.presupuestado === null || s.presupuestado === undefined
+            ? "—"
+            : s.presupuestado
+              ? "Sí"
+              : "No";
+
+    return `
+        <div class="sg-detail-layout">
+            ${renderWorkflowTimelineHtml(s)}
+
+            <div class="sg-detail-panel">
+                <h3 class="sg-detail-panel-title">Información general</h3>
+                <dl class="sg-detail-grid">
+                    <div class="sg-detail-field">
+                        <dt>Título</dt>
+                        <dd>${escapeHtml(s.titulo)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Estado actual</dt>
+                        <dd>${badgeEstado(s.estado)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Centro de costo</dt>
+                        <dd>${escapeHtml(s.centro_costo_area)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Líder aprobador inicial</dt>
+                        <dd>${escapeHtml(s.lider_area_label || "—")}</dd>
+                    </div>
+                    ${
+                        s.tipo === "compra"
+                            ? `<div class="sg-detail-field">
+                        <dt>Presupuestado</dt>
+                        <dd>${presupuestado}</dd>
+                    </div>`
+                            : ""
+                    }
+                    ${
+                        s.gestor_username
+                            ? `<div class="sg-detail-field">
+                        <dt>Gestor asignado</dt>
+                        <dd>${escapeHtml(s.gestor_username)}</dd>
+                    </div>`
+                            : ""
+                    }
+                </dl>
+            </div>
+
+            ${renderAprobacionParcialAlertHtml(s)}
+
+            ${renderProductosTableHtml(s.productos, {
+                titulo: tieneProductosNoAprobados(s.productos)
+                    ? "Productos aprobados"
+                    : "Productos",
+                excluirNoAprobados: true,
+                showEstado: false,
+            })}
+
+            ${renderObservacionesTrazabilidadHtml(s)}
+
+            ${renderArchivosHtml(s)}
+
+            ${renderAgregarComentarioHtml({
+                showIntro: false,
+                showHint: false,
+                showSaveButton: false,
+                title: "Observación del gestor",
+                label: "Comentario",
+            })}
+
+            <div class="sg-detail-panel sg-gestion-form-panel">
+                <h3 class="sg-detail-panel-title">Gestión de cotización</h3>
+
+                ${renderCotizacionesUploadHtml(cotizaciones.length)}
+
+                ${
+                    cotizaciones.length
+                        ? renderArchivosHtml(s, {
+                              categoria: "cotizacion",
+                              titulo: "Cotizaciones ya registradas",
+                          })
+                        : ""
+                }
+
+                <div class="field" id="gestion-justificacion-wrap" hidden>
+                    <label for="gestion-justificacion">
+                        Justificación
+                        <span class="required">*</span>
+                    </label>
+                    <textarea
+                        id="gestion-justificacion"
+                        rows="3"
+                        placeholder="Indica por qué se adjuntan menos de 3 cotizaciones..."
+                    >${escapeHtml(s.justificacion_cotizaciones || "")}</textarea>
+                </div>
+
+                <div class="field">
+                    <label for="gestion-lider-aprobacion">
+                        Líder Colbeef — segunda aprobación
+                        <span class="required">*</span>
+                    </label>
+                    <select id="gestion-lider-aprobacion" required>
+                        <option value="">Selecciona un líder</option>
+                        ${lideresOptionsHtml}
+                    </select>
+                </div>
+            </div>
+        </div>`;
+}
+
+export function attachGestionDownloadHandlers(container, onError) {
+    if (!container) return;
+
+    container.addEventListener("click", async (e) => {
+        const link = e.target.closest("a[data-download-url]");
+        if (!link) return;
+        e.preventDefault();
+
+        const path = link.dataset.downloadUrl;
+        const filename = link.dataset.filename || "archivo";
+        const mimeType = link.dataset.mimeType || "";
+
+        try {
+            const response = await fetch(`${API_BASE}${path}?inline=1`, {
+                headers: { Authorization: `Bearer ${session.getToken()}` },
+            });
+            if (!response.ok) {
+                throw new Error(`No se pudo abrir el archivo (${response.status}).`);
+            }
+            const blob = await response.blob();
+            const type = mimeType || blob.type || "application/octet-stream";
+            const viewBlob = blob.type ? blob : new Blob([blob], { type });
+            const url = URL.createObjectURL(viewBlob);
+            const popup = window.open(url, "_blank", "noopener,noreferrer");
+            if (!popup) {
+                URL.revokeObjectURL(url);
+                throw new Error(
+                    "Permite ventanas emergentes en el navegador para visualizar el archivo."
+                );
+            }
+        } catch (err) {
+            onError?.(err.message || "No se pudo abrir el archivo.");
+        }
+    });
+}
+
+export async function hydrateInlineObservacionImages(container, solicitudId) {
+    if (!container || !solicitudId) return;
+    const token = session.getToken();
+    if (!token) return;
+
+    const imgs = container.querySelectorAll("img[data-sg-archivo-id]");
+    await Promise.all(
+        Array.from(imgs).map(async (img) => {
+            const archivoId = img.getAttribute("data-sg-archivo-id");
+            if (!archivoId || img.dataset.hydrated === "1") return;
+            try {
+                const response = await fetch(
+                    `${API_BASE}/solicitudes-gestion/${solicitudId}/archivos/${archivoId}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                if (!response.ok) return;
+                const blob = await response.blob();
+                img.src = URL.createObjectURL(blob);
+                img.dataset.hydrated = "1";
+            } catch {
+                /* ignorar fallo puntual de una imagen */
+            }
+        })
+    );
+}
