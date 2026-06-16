@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Gestión Jurídica · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .flow-steps {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
+                margin-top: 12px;
+                font-size: 0.9rem;
+            }
+            .flow-step {
+                background: var(--color-primary-light);
+                color: var(--color-primary-dark);
+                padding: 6px 12px;
+                border-radius: 999px;
+                font-weight: 500;
+            }
+            .flow-arrow {
+                color: var(--color-text-muted);
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div class="page-header-brand">
+                        <img
+                            src="/app/assets/colbeef-logo.png"
+                            alt="Colbeef"
+                            width="200"
+                            height="72"
+                        />
+                        <div>
+                            <h1>Gestión Jurídica</h1>
+                            <p class="muted">
+                                Revisa contratos radicados por Compras, otrosíes, vigencias y activación.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 class="card-title">Conexión con Compras</h2>
+                    <p class="muted">
+                        Las <strong>solicitudes de contrato</strong> que Compras radica en
+                        <em>Gestión de Solicitudes a Compras → Radicar solicitud de contrato</em>
+                        llegan aquí cuando Líder y Gerencia las aprueban por correo.
+                    </p>
+                    <div class="flow-steps" aria-label="Flujo del contrato">
+                        <span class="flow-step">Compras radica</span>
+                        <span class="flow-arrow">→</span>
+                        <span class="flow-step">Aprobación Líder</span>
+                        <span class="flow-arrow">→</span>
+                        <span class="flow-step">Aprobación Gerencia</span>
+                        <span class="flow-arrow">→</span>
+                        <span class="flow-step">Jurídica revisa</span>
+                        <span class="flow-arrow">→</span>
+                        <span class="flow-step">Contrato activo</span>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <h2 class="card-title">Panel principal</h2>
+                    <p class="muted" style="margin-bottom: 16px">
+                        Contratos aprobados pendientes de revisión jurídica
+                        <span id="pendientes-count"></span>.
+                    </p>
+                    <a href="/app/juridica/pendientes.html" class="btn btn-primary">
+                        Pendientes Jurídica
+                    </a>
+                </div>
+
+                <div class="card mt-4">
+                    <h2 class="card-title">Opciones del módulo</h2>
+                    <div class="module-access-grid">
+                        <a
+                            href="/app/juridica/pendientes.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Entrada</span>
+                            <span class="module-access-title">Pendientes Jurídica</span>
+                            <span class="module-access-desc">
+                                Contratos radicados por Compras ya aprobados: revisión, póliza, borrador y activación.
+                            </span>
+                        </a>
+                        <a
+                            href="/app/juridica/otrosies-pendientes.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Otrosí</span>
+                            <span class="module-access-title">Otrosíes pendientes</span>
+                            <span class="module-access-desc">
+                                Finaliza otrosíes aprobados: adjunta PDF firmado y aplica cambios al contrato.
+                            </span>
+                        </a>
+                        <a
+                            href="/app/juridica/editar-contrato.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Editar</span>
+                            <span class="module-access-title">Edición de contrato</span>
+                            <span class="module-access-desc">
+                                Busca por código, edita vigencia, notificaciones y estado del contrato.
+                            </span>
+                        </a>
+                        <a
+                            href="/app/compras/mis-solicitudes.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Consultar</span>
+                            <span class="module-access-title">Todos los contratos</span>
+                            <span class="module-access-desc">
+                                Listado completo de contratos aprobados con búsqueda y detalle.
+                            </span>
+                        </a>
+                        <a href="/app/buzon.html" class="module-access-card">
+                            <span class="module-access-label">Pendientes</span>
+                            <span class="module-access-title">Buzón</span>
+                            <span class="module-access-desc">
+                                Acceso rápido a módulos con tareas urgentes o por vencer.
+                            </span>
+                        </a>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api } from "/static/js/api/client.js";
+
+            session.requireAuth();
+            session.requireRole(["juridica", "admin"]);
+            renderSidebar();
+
+            (async () => {
+                try {
+                    const items = await api.get("/contratos?estado=en_proceso");
+                    const n = items.length;
+                    if (n > 0) {
+                        document.getElementById("pendientes-count").textContent =
+                            ` (${n} en bandeja)`;
+                    }
+                } catch {
+                    /* ignorar */
+                }
+            })();
+        </script>
+    </body>
+</html>

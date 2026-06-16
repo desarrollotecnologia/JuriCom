@@ -120,6 +120,12 @@
                             requeridos.
                         </p>
                     </div>
+                    <a
+                        href="/app/compras/gestion-solicitudes.html"
+                        class="btn btn-secondary"
+                    >
+                        Volver
+                    </a>
                 </div>
 
                 <div class="alert alert-error" id="alert-error"></div>
@@ -426,7 +432,7 @@
                     <div
                         style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px;"
                     >
-                        <a href="/app/dashboard.html" class="btn btn-secondary">
+                        <a href="/app/compras/gestion-solicitudes.html" class="btn btn-secondary">
                             Cancelar
                         </a>
                         <button type="submit" class="btn btn-primary" id="btn-submit">
@@ -534,7 +540,7 @@
                     const data = await api.postForm("/contratos", formData);
                     showSuccess(
                         `Solicitud radicada con código ${data.codigo}. ` +
-                        "Se envió a Coordinación Jurídica para aprobación."
+                        "Se notificó al Líder y Gerencia por correo; al aprobar, el caso llegará a Gestión Jurídica."
                     );
                     form.reset();
                     inputLider.value = "";

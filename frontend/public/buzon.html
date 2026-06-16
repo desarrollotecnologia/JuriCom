@@ -132,7 +132,17 @@
                             Toca el módulo que quieras revisar.
                         </p>
                     </div>
-                    <button class="btn btn-secondary" id="btn-refresh">Actualizar</button>
+                    <div class="page-header-actions">
+                        <a
+                            href="/app/juridica/gestion-juridica.html"
+                            class="btn btn-secondary"
+                            id="btn-volver-gestion"
+                            hidden
+                        >
+                            Volver
+                        </a>
+                        <button class="btn btn-secondary" id="btn-refresh">Actualizar</button>
+                    </div>
                 </div>
 
                 <div class="alert alert-error" id="alert-error"></div>
@@ -182,6 +192,18 @@
             };
             document.getElementById("buzon-subtitle").textContent =
                 subtitles[user.role] || subtitles.compras;
+
+            const btnVolver = document.getElementById("btn-volver-gestion");
+            if (user.role === "juridica") {
+                btnVolver.href = "/app/juridica/gestion-juridica.html";
+                btnVolver.hidden = false;
+            } else if (user.role === "compras") {
+                btnVolver.href = "/app/compras/gestion-solicitudes.html";
+                btnVolver.hidden = false;
+            } else if (user.role === "admin") {
+                btnVolver.href = "/app/dashboard.html";
+                btnVolver.hidden = false;
+            }
 
             const alertError = document.getElementById("alert-error");
             const buzonSummary = document.getElementById("buzon-summary");

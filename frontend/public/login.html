@@ -84,9 +84,9 @@
             import { session } from "/static/js/auth/session.js";
 
             function homeForRole(role) {
-                return role === "compras"
-                    ? "/app/buzon.html"
-                    : "/app/dashboard.html";
+                if (role === "compras") return "/app/compras/gestion-solicitudes.html";
+                if (role === "juridica") return "/app/juridica/gestion-juridica.html";
+                return "/app/dashboard.html";
             }
 
             const existingUser = session.getUser();

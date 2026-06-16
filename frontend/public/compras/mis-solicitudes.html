@@ -188,6 +188,14 @@
                         <p class="muted" id="page-subtitle"></p>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
+                        <a
+                            href="/app/juridica/gestion-juridica.html"
+                            class="btn btn-secondary"
+                            id="btn-volver-juridica"
+                            style="display: none;"
+                        >
+                            Volver
+                        </a>
                         <div id="buzon-btn-slot"></div>
                         <button
                             class="btn btn-secondary"
@@ -308,6 +316,7 @@
             if (esJuridica) {
                 document.getElementById("btn-notificar").style.display = "inline-flex";
                 document.getElementById("btn-vencimientos").style.display = "inline-flex";
+                document.getElementById("btn-volver-juridica").style.display = "inline-flex";
             }
 
             const tbody = document.getElementById("contratos-tbody");

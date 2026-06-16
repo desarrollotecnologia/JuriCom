@@ -112,9 +112,11 @@
                     label: "Gestión de Solicitudes a Compras",
                     cls: "btn-primary",
                 });
+            }
+            if (user.role === "juridica" || user.role === "admin") {
                 actions.push({
-                    href: "/app/compras/solicitud-radicar.html",
-                    label: "Radicar nueva solicitud",
+                    href: "/app/juridica/gestion-juridica.html",
+                    label: "Gestión Jurídica",
                     cls: "btn-primary",
                 });
             }
