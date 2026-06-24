@@ -11,23 +11,17 @@
             <aside class="sidebar" id="sidebar"></aside>
             <main class="main">
                 <div class="page-header">
-                    <div class="page-header-brand">
-                        <img
-                            src="/app/assets/colbeef-logo.png"
-                            alt="Colbeef"
-                            width="200"
-                            height="72"
-                        />
-                        <div>
-                            <h1>Solicitud de Compra</h1>
-                            <p class="muted">
-                                Completa los datos generales, el detalle de productos y adjunta los soportes.
-                            </p>
-                        </div>
+                    <div>
+                        <h1>Solicitud de Compra</h1>
+                        <p class="muted">
+                            Completa los datos generales, el detalle de productos y adjunta los soportes.
+                        </p>
                     </div>
-                    <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
-                        Volver
-                    </a>
+                    <div class="page-header-actions">
+                        <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
+                            Volver
+                        </a>
+                    </div>
                 </div>
 
                 <div class="alert alert-error" id="alert-error"></div>
@@ -124,13 +118,22 @@
                         </div>
 
                         <div class="table-editable-wrap">
-                            <table class="table-editable">
+                            <table class="table-editable table-productos-compra">
+                                <colgroup>
+                                    <col class="col-siimed" />
+                                    <col class="col-unidad" />
+                                    <col class="col-descripcion" />
+                                    <col class="col-centro-costo" />
+                                    <col class="col-cantidad" />
+                                    <col class="col-accion" />
+                                </colgroup>
                                 <thead>
                                     <tr>
                                         <th>Código Siimed</th>
                                         <th>Unidad</th>
                                         <th>Descripción del producto</th>
                                         <th>Centro de Costo</th>
+                                        <th>Cantidad</th>
                                         <th>Acción</th>
                                     </tr>
                                 </thead>
@@ -180,7 +183,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSolicitudCompraForm } from "/static/js/compras/solicitud-compra-form.js";
+            import { initSolicitudCompraForm } from "/static/js/compras/solicitud-compra-form.js?v=2";
 
             session.requireAuth();
             session.requireRole(["compras", "admin"]);

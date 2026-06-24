@@ -97,7 +97,19 @@ export function initSolicitudCompraForm() {
                     ${buildSelectOptions(CENTROS_COSTO, "Centro de costo")}
                 </select>
             </td>
-            <td class="table-actions">
+            <td class="cell-cantidad">
+                <input
+                    type="number"
+                    class="input-table-cantidad"
+                    name="cantidad_${rowId}"
+                    value="1"
+                    min="0.0001"
+                    step="any"
+                    required
+                    aria-label="Cantidad"
+                />
+            </td>
+            <td class="table-actions cell-accion">
                 <button
                     type="button"
                     class="btn btn-icon-danger btn-remove-row"
@@ -146,6 +158,7 @@ export function initSolicitudCompraForm() {
             const unidad = row.querySelector('select[name^="unidad_"]')?.value || "";
             const descripcion = row.querySelector('textarea[name^="descripcion_"]')?.value.trim() || "";
             const centroCosto = row.querySelector('select[name^="centro_costo_"]')?.value || "";
+            const cantidadRaw = row.querySelector('input[name^="cantidad_"]')?.value ?? "1";
 
             if (!descripcion && !codigo && !unidad && !centroCosto) continue;
 
@@ -154,6 +167,7 @@ export function initSolicitudCompraForm() {
                 unidad,
                 descripcion,
                 centro_costo: centroCosto,
+                cantidad: cantidadRaw,
             });
         }
         return productos;
@@ -176,6 +190,11 @@ export function initSolicitudCompraForm() {
             }
             if (!p.centro_costo) {
                 showError(`La fila ${i + 1} requiere centro de costo.`);
+                return false;
+            }
+            const cantidad = Number(p.cantidad);
+            if (!Number.isFinite(cantidad) || cantidad <= 0) {
+                showError(`La fila ${i + 1} requiere una cantidad mayor a cero.`);
                 return false;
             }
         }

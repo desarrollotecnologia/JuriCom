@@ -1,6 +1,7 @@
 """Endpoints del módulo Gestión de Solicitudes."""
 
 import json
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from pathlib import Path
@@ -8,10 +9,12 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
+from app.application.interfaces.email_notifier import EmailNotifier
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
+from app.application.interfaces.user_repository import UserRepository
 from app.application.use_cases.solicitudes_gestion import (
     AgregarObservacionSolicitud,
     ArchivoEntradaSolicitud,
@@ -21,7 +24,10 @@ from app.application.use_cases.solicitudes_gestion import (
     ListarPendientesAprobacion,
     ListarSolicitudesGestion,
     ListarSolicitudesPanelGestion,
+    MarcarEntregaSolicitud,
+    RegistrarEntregaParcialSolicitud,
     RegistrarSolicitudCompra,
+    RegistrarTramiteOcSolicitud,
     ResolverAprobacionSolicitud,
     SolicitarRecotizacionSolicitud,
 )
@@ -39,13 +45,17 @@ from app.infrastructure.config import settings
 from app.presentation.api.v1.dependencies import (
     get_current_user,
     get_file_storage,
+    get_email_notifier,
     get_solicitud_gestion_repository,
+    get_user_repository,
 )
 from app.presentation.api.v1.schemas.solicitud_gestion_schemas import (
     RechazarSolicitudGestionBody,
     SolicitudGestionArchivoResponse,
     SolicitudGestionHistorialEstadoResponse,
     SolicitudGestionListItem,
+    MarcarEntregaSolicitudResponse,
+    EntregaParcialSolicitudResponse,
     SolicitudGestionObservacionResponse,
     SolicitudGestionProductoResponse,
     SolicitudGestionResponse,
@@ -70,8 +80,21 @@ def _to_producto_item(p) -> SolicitudGestionProductoResponse:
         unidad=p.unidad,
         descripcion=p.descripcion,
         centro_costo=p.centro_costo,
+        cantidad=float(p.cantidad) if p.cantidad is not None else 1.0,
+        cantidad_entregada=float(p.cantidad_entregada)
+        if getattr(p, "cantidad_entregada", None) is not None
+        else 0.0,
+        cantidad_pendiente=float(p.cantidad_pendiente)
+        if getattr(p, "cantidad_pendiente", None) is not None
+        else max(
+            0.0,
+            float(p.cantidad or 1)
+            - float(getattr(p, "cantidad_entregada", 0) or 0),
+        ),
+        estado_entrega=getattr(p, "estado_entrega", "pendiente") or "pendiente",
         estado_aprobacion=estado_enum.value,
         estado_aprobacion_label=LABELS_APROB_PRODUCTO.get(estado_enum, estado_enum.value),
+        numero_tramite_oc=getattr(p, "numero_tramite_oc", "") or "",
     )
 
 
@@ -88,6 +111,9 @@ def _to_list_item(s: SolicitudGestion) -> SolicitudGestionListItem:
         cantidad_productos=s.cantidad_productos,
         cantidad_productos_aprobados=s.cantidad_productos_aprobados,
         aprobacion_parcial=s.aprobacion_parcial,
+        tiene_tramite_oc_registrado=s.tiene_tramite_oc_registrado,
+        entrega_completa=s.entrega_completa,
+        tiene_entrega_pendiente=s.tiene_entrega_pendiente,
         cantidad_archivos=len(s.archivos),
         creado_por_username=s.creado_por_username,
         gestor_id=s.gestor_id,
@@ -150,6 +176,7 @@ def _to_response(
         observaciones_texto=s.observaciones_texto,
         observaciones_gestion=s.observaciones_gestion,
         justificacion_cotizaciones=s.justificacion_cotizaciones,
+        numero_tramite_oc=s.numero_tramite_oc or "",
         lider_segunda_aprobacion_id=s.lider_segunda_aprobacion_id,
         lider_segunda_aprobacion_label=s.lider_segunda_aprobacion_label,
         gestor_id=s.gestor_id,
@@ -170,6 +197,9 @@ def _to_response(
         ],
         aprobacion_parcial=s.aprobacion_parcial,
         cantidad_productos_aprobados=s.cantidad_productos_aprobados,
+        tiene_tramite_oc_registrado=s.tiene_tramite_oc_registrado,
+        entrega_completa=s.entrega_completa,
+        tiene_entrega_pendiente=s.tiene_entrega_pendiente,
     )
 
 
@@ -324,6 +354,7 @@ async def aprobar_solicitud(
     observacion_texto: str = Form(""),
     tipo_aprobacion: str = Form("total"),
     productos_aprobados: str = Form("[]"),
+    productos_cantidades: str = Form("{}"),
     adjuntos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
@@ -360,6 +391,26 @@ async def aprobar_solicitud(
                 detail="Formato inválido en productos_aprobados.",
             ) from e
 
+    cantidades_por_id: dict[int, Decimal] = {}
+    raw_cantidades = (productos_cantidades or "").strip()
+    if raw_cantidades:
+        try:
+            parsed_cant = json.loads(raw_cantidades)
+            if isinstance(parsed_cant, dict):
+                for key, value in parsed_cant.items():
+                    try:
+                        cantidades_por_id[int(key)] = Decimal(str(value))
+                    except (InvalidOperation, ValueError, TypeError) as e:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Formato inválido en productos_cantidades.",
+                        ) from e
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Formato inválido en productos_cantidades.",
+            ) from e
+
     try:
         solicitud = ResolverAprobacionSolicitud(repo).aprobar(
             current,
@@ -370,6 +421,7 @@ async def aprobar_solicitud(
             storage=storage,
             tipo_aprobacion=tipo_aprobacion,
             productos_aprobados_ids=productos_ids,
+            productos_cantidades=cantidades_por_id or None,
         )
     except ContratoNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -535,6 +587,200 @@ async def enviar_cotizacion_solicitud(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return _to_response(solicitud, historial)
+
+
+@router.post("/{solicitud_id}/tramite-oc", response_model=SolicitudGestionResponse)
+async def registrar_tramite_oc_solicitud(
+    solicitud_id: int,
+    numero_tramite_oc: str = Form(""),
+    productos_tramite_oc: str = Form("{}"),
+    nueva_observacion: str = Form(""),
+    nueva_observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+) -> SolicitudGestionResponse:
+    try:
+        raw_map = json.loads(productos_tramite_oc or "{}")
+        if not isinstance(raw_map, dict):
+            raise ValueError("El formato de trámite parcial por ítem no es válido.")
+        numeros_por_producto: dict[int, str] = {}
+        for key, value in raw_map.items():
+            try:
+                numeros_por_producto[int(key)] = str(value or "")
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Identificador de producto inválido en trámite parcial.") from exc
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El JSON de trámite parcial no es válido.",
+        ) from exc
+
+    adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        adjuntos_entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud = RegistrarTramiteOcSolicitud(repo, storage).execute(
+            current,
+            solicitud_id,
+            numero_tramite_oc=numero_tramite_oc,
+            numeros_por_producto=numeros_por_producto,
+            nueva_observacion=nueva_observacion,
+            nueva_observacion_texto=nueva_observacion_texto,
+            archivos_observacion=adjuntos_entradas,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial)
+
+
+@router.post("/{solicitud_id}/marcar-entrega", response_model=MarcarEntregaSolicitudResponse)
+async def marcar_entrega_solicitud(
+    solicitud_id: int,
+    observacion: str = Form(""),
+    observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    users: UserRepository = Depends(get_user_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+) -> MarcarEntregaSolicitudResponse:
+    adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        adjuntos_entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud, email_enviado = MarcarEntregaSolicitud(
+            repo, users, notifier, storage
+        ).execute(
+            current,
+            solicitud_id,
+            observacion=observacion,
+            observacion_texto=observacion_texto,
+            archivos_observacion=adjuntos_entradas,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return MarcarEntregaSolicitudResponse(
+        solicitud=_to_response(solicitud, historial),
+        email_enviado=email_enviado,
+    )
+
+
+@router.post("/{solicitud_id}/entrega-parcial", response_model=EntregaParcialSolicitudResponse)
+async def registrar_entrega_parcial_solicitud(
+    solicitud_id: int,
+    productos_entrega: str = Form("{}"),
+    observacion: str = Form(""),
+    observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    users: UserRepository = Depends(get_user_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+) -> EntregaParcialSolicitudResponse:
+    try:
+        raw_map = json.loads(productos_entrega or "{}")
+        if not isinstance(raw_map, dict):
+            raise ValueError("El formato de entrega parcial por ítem no es válido.")
+        cantidades: dict[int, Decimal] = {}
+        for key, value in raw_map.items():
+            try:
+                cantidad = Decimal(str(value))
+            except (InvalidOperation, TypeError) as exc:
+                raise ValueError("Cantidad de entrega inválida.") from exc
+            if cantidad <= 0:
+                continue
+            cantidades[int(key)] = cantidad
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El JSON de entrega parcial no es válido.",
+        ) from exc
+
+    adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        adjuntos_entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud, email_enviado, lineas = RegistrarEntregaParcialSolicitud(
+            repo, users, notifier, storage
+        ).execute(
+            current,
+            solicitud_id,
+            productos_entrega=cantidades,
+            observacion=observacion,
+            observacion_texto=observacion_texto,
+            archivos_observacion=adjuntos_entradas,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return EntregaParcialSolicitudResponse(
+        solicitud=_to_response(solicitud, historial),
+        email_enviado=email_enviado,
+        lineas_entrega=lineas,
+    )
 
 
 @router.post(

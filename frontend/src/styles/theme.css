@@ -646,6 +646,16 @@ table.clickable-rows tbody tr[data-id]:focus {
     color: var(--color-text-muted);
     background: var(--color-surface-2);
 }
+.table-gestion-solicitudes th.col-cantidad,
+.table-gestion-solicitudes td.sg-producto-cantidad-cell,
+.table-gestion-solicitudes td[data-label="Cantidad"] {
+    width: 96px;
+    min-width: 88px;
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
 .table-gestion-solicitudes tbody tr:hover {
     background: var(--color-primary-light);
 }
@@ -1253,6 +1263,10 @@ table.clickable-rows tbody tr[data-id]:focus {
     margin-top: var(--space-5);
 }
 
+[hidden] {
+    display: none !important;
+}
+
 /* ============== Helpers ============== */
 .row-2 {
     display: grid;
@@ -1421,6 +1435,33 @@ table.clickable-rows tbody tr[data-id]:focus {
     margin: 0;
     box-shadow: none;
     border-radius: 0;
+    table-layout: fixed;
+    width: 100%;
+    min-width: 920px;
+}
+
+.table-productos-compra .col-siimed {
+    width: 12%;
+}
+
+.table-productos-compra .col-unidad {
+    width: 11%;
+}
+
+.table-productos-compra .col-descripcion {
+    width: 32%;
+}
+
+.table-productos-compra .col-centro-costo {
+    width: 18%;
+}
+
+.table-productos-compra .col-cantidad {
+    width: 10%;
+}
+
+.table-productos-compra .col-accion {
+    width: 72px;
 }
 
 .table-editable th {
@@ -1457,9 +1498,37 @@ table.clickable-rows tbody tr[data-id]:focus {
     overflow: hidden;
 }
 
+.table-editable .input-table-cantidad,
+.table-gestion-solicitudes .sg-producto-cantidad-input {
+    width: 100%;
+    min-width: 72px;
+    max-width: 120px;
+    padding: 8px 10px;
+    font-size: 0.88rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    text-align: right;
+    box-sizing: border-box;
+    background: #fff;
+}
+
+.table-editable td.cell-cantidad {
+    width: 10%;
+    min-width: 88px;
+}
+
+.table-editable td.cell-accion,
 .table-editable .table-actions {
     text-align: center;
-    width: 64px;
+    width: 72px;
+    min-width: 72px;
+}
+
+.table-gestion-solicitudes .sg-producto-cantidad-input {
+    padding: 6px 8px;
+    font-size: 0.88rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
 }
 
 .btn-icon-danger {

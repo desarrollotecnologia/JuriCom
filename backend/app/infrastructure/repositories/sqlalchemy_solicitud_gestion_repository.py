@@ -1,5 +1,6 @@
 """Repositorio SQLAlchemy para solicitudes de gestión."""
 
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import or_
@@ -104,11 +105,13 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones_texto=model.observaciones_texto,
             observaciones_gestion=getattr(model, "observaciones_gestion", "") or "",
             justificacion_cotizaciones=getattr(model, "justificacion_cotizaciones", "") or "",
+            numero_tramite_oc=getattr(model, "numero_tramite_oc", "") or "",
             gestor_id=getattr(model, "gestor_id", None),
             gestor_username=gestor_username,
             estado=normalizar_estado(model.estado),
             creado_por_id=model.creado_por_id,
             creado_por_username=creado_por_username,
+            creado_por_email=getattr(model, "creado_por_email", "") or "",
             created_at=model.created_at,
             updated_at=model.updated_at,
             productos=[
@@ -119,9 +122,12 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
                     unidad=p.unidad,
                     descripcion=p.descripcion,
                     centro_costo=p.centro_costo,
+                    cantidad=getattr(p, "cantidad", None) or Decimal("1"),
+                    cantidad_entregada=getattr(p, "cantidad_entregada", None) or Decimal("0"),
                     estado_aprobacion=normalizar_estado_aprobacion_producto(
                         getattr(p, "estado_aprobacion", None)
                     ),
+                    numero_tramite_oc=getattr(p, "numero_tramite_oc", "") or "",
                 )
                 for p in model.productos
             ],
@@ -147,6 +153,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones_texto=solicitud.observaciones_texto,
             estado=etapa_inicial.value,
             creado_por_id=solicitud.creado_por_id,
+            creado_por_email=(solicitud.creado_por_email or "").strip(),
         )
         self._db.add(model)
         self._db.flush()
@@ -160,6 +167,8 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
                     unidad=producto.unidad,
                     descripcion=producto.descripcion,
                     centro_costo=producto.centro_costo,
+                    cantidad=producto.cantidad,
+                    cantidad_entregada=producto.cantidad_entregada,
                     estado_aprobacion=producto.estado_aprobacion.value,
                 )
             )
@@ -281,6 +290,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model.observaciones_texto = solicitud.observaciones_texto
         model.observaciones_gestion = solicitud.observaciones_gestion
         model.justificacion_cotizaciones = solicitud.justificacion_cotizaciones
+        model.numero_tramite_oc = solicitud.numero_tramite_oc or ""
         model.gestor_id = solicitud.gestor_id
         model.lider_segunda_aprobacion_id = solicitud.lider_segunda_aprobacion_id
         model.lider_segunda_aprobacion_label = solicitud.lider_segunda_aprobacion_label
@@ -426,6 +436,72 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         for row in rows:
             if row.id in estados_por_id:
                 row.estado_aprobacion = estados_por_id[row.id]
+        self._db.commit()
+        self._db.expire_all()
+
+    def update_productos_cantidades(
+        self,
+        solicitud_id: int,
+        cantidades_por_id: dict[int, Decimal],
+    ) -> None:
+        if not cantidades_por_id:
+            return
+        rows = (
+            self._db.query(SolicitudGestionProductoModel)
+            .filter(SolicitudGestionProductoModel.solicitud_id == solicitud_id)
+            .all()
+        )
+        for row in rows:
+            if row.id in cantidades_por_id:
+                row.cantidad = cantidades_por_id[row.id]
+        self._db.commit()
+        self._db.expire_all()
+
+    def update_tramite_oc(
+        self,
+        solicitud_id: int,
+        *,
+        numero_tramite_oc: Optional[str] = None,
+        numeros_por_producto: Optional[dict[int, str]] = None,
+    ) -> None:
+        if numero_tramite_oc is not None:
+            model = (
+                self._db.query(SolicitudGestionModel)
+                .filter(SolicitudGestionModel.id == solicitud_id)
+                .one_or_none()
+            )
+            if model is None:
+                raise ValueError(f"No existe la solicitud {solicitud_id}.")
+            model.numero_tramite_oc = (numero_tramite_oc or "").strip()
+
+        if numeros_por_producto:
+            rows = (
+                self._db.query(SolicitudGestionProductoModel)
+                .filter(SolicitudGestionProductoModel.solicitud_id == solicitud_id)
+                .all()
+            )
+            for row in rows:
+                if row.id in numeros_por_producto:
+                    row.numero_tramite_oc = (numeros_por_producto[row.id] or "").strip()
+
+        self._db.commit()
+        self._db.expire_all()
+
+    def update_productos_cantidad_entregada(
+        self,
+        solicitud_id: int,
+        cantidades_por_id: dict[int, Decimal],
+    ) -> None:
+        if not cantidades_por_id:
+            return
+        rows = (
+            self._db.query(SolicitudGestionProductoModel)
+            .filter(SolicitudGestionProductoModel.solicitud_id == solicitud_id)
+            .all()
+        )
+        for row in rows:
+            if row.id in cantidades_por_id:
+                row.cantidad_entregada = cantidades_por_id[row.id]
         self._db.commit()
         self._db.expire_all()
 

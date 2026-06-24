@@ -95,5 +95,31 @@ class SolicitudGestionRepository(ABC):
         ...
 
     @abstractmethod
+    def update_productos_cantidades(
+        self,
+        solicitud_id: int,
+        cantidades_por_id: dict[int, "Decimal"],
+    ) -> None:
+        ...
+
+    @abstractmethod
+    def update_tramite_oc(
+        self,
+        solicitud_id: int,
+        *,
+        numero_tramite_oc: Optional[str] = None,
+        numeros_por_producto: Optional[dict[int, str]] = None,
+    ) -> None:
+        ...
+
+    @abstractmethod
+    def update_productos_cantidad_entregada(
+        self,
+        solicitud_id: int,
+        cantidades_por_id: dict[int, "Decimal"],
+    ) -> None:
+        ...
+
+    @abstractmethod
     def get_historial(self, solicitud_id: int) -> list[SolicitudGestionHistorialEstado]:
         ...

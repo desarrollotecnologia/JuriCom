@@ -567,3 +567,130 @@ def render_pendientes_texto(contratos: Iterable[Contrato]) -> str:
             lineas.append("    · Falta: BORRADOR FIRMADO")
         lineas.append(f"    · {_link_contrato(c.id)}")
     return "\n".join(lineas) + "\n"
+
+
+def render_entrega_solicitud_html(
+    solicitud,
+    estado,
+    gestor_username: str,
+) -> str:
+    oc_general = (getattr(solicitud, "numero_tramite_oc", "") or "").strip()
+    url = f"{settings.public_url.rstrip('/')}/app/compras/mis-solicitudes-gestion.html"
+    mensaje_estado = (
+        "Los ítems de tu solicitud fueron entregados completamente."
+        if estado.value == "entregado"
+        else "Los ítems de tu solicitud fueron entregados parcialmente."
+    )
+    oc_bloque = (
+        f'<div class="row"><span class="label">Trámite OC</span>'
+        f'<span class="value">{escape(oc_general)}</span></div>'
+        if oc_general
+        else ""
+    )
+    cuerpo = f"""
+        <h2>Tu solicitud fue entregada</h2>
+        <p>Hola <strong>{escape(solicitud.creado_por_username or "solicitante")}</strong>,</p>
+        <p>{escape(mensaje_estado)}</p>
+        <div class="row">
+            <span class="label">Consecutivo</span>
+            <span class="value"><span class="codigo">{escape(solicitud.codigo or "")}</span></span>
+        </div>
+        <div class="row">
+            <span class="label">Estado</span>
+            <span class="value"><strong>{escape(estado.label)}</strong></span>
+        </div>
+        <div class="row">
+            <span class="label">Título</span>
+            <span class="value">{escape(solicitud.titulo or "")}</span>
+        </div>
+        {oc_bloque}
+        <div class="row">
+            <span class="label">Gestor</span>
+            <span class="value">{escape(gestor_username or "Compras")}</span>
+        </div>
+        <p style="margin-top: 20px;">
+            <a class="btn" href="{escape(url)}">Ver mis solicitudes</a>
+        </p>
+    """
+    return _shell(f"Solicitud {solicitud.codigo} — {estado.label}", cuerpo)
+
+
+def render_entrega_solicitud_texto(
+    solicitud,
+    estado,
+    gestor_username: str,
+) -> str:
+    oc_general = (getattr(solicitud, "numero_tramite_oc", "") or "").strip()
+    url = f"{settings.public_url.rstrip('/')}/app/compras/mis-solicitudes-gestion.html"
+    mensaje_estado = (
+        "Los ítems de tu solicitud fueron entregados completamente."
+        if estado.value == "entregado"
+        else "Los ítems de tu solicitud fueron entregados parcialmente."
+    )
+    lineas = [
+        "JURICOM_BEEF — Entrega de solicitud",
+        "",
+        f"Hola {solicitud.creado_por_username or 'solicitante'},",
+        "",
+        mensaje_estado,
+        "",
+        f"Consecutivo: {solicitud.codigo}",
+        f"Estado: {estado.label}",
+        f"Título: {solicitud.titulo}",
+    ]
+    if oc_general:
+        lineas.append(f"Trámite OC: {oc_general}")
+    lineas.extend(
+        [
+        f"Gestor: {gestor_username or 'Compras'}",
+        "",
+        f"Consulta el detalle en: {url}",
+    ]
+    )
+    return "\n".join(lineas) + "\n"
+
+
+def render_entrega_parcial_solicitud_html(
+    solicitud,
+    gestor_username: str,
+    lineas: list[str],
+) -> str:
+    url = f"{settings.public_url.rstrip('/')}/app/compras/gestion-mis-solicitudes.html"
+    items_html = "".join(f"<li>{escape(linea)}</li>" for linea in lineas)
+    cuerpo = f"""
+        <h2>Entrega parcial registrada</h2>
+        <p>Hola <strong>{escape(solicitud.creado_por_username or "solicitante")}</strong>,</p>
+        <p>Compras registró una entrega parcial de tu solicitud. Aún puede haber ítems pendientes.</p>
+        <div class="row">
+            <span class="label">Consecutivo</span>
+            <span class="value"><span class="codigo">{escape(solicitud.codigo or "")}</span></span>
+        </div>
+        <div class="row">
+            <span class="label">Gestor</span>
+            <span class="value">{escape(gestor_username or "Compras")}</span>
+        </div>
+        <p><strong>Detalle de esta entrega:</strong></p>
+        <ul>{items_html}</ul>
+        <p style="margin-top: 20px;">
+            <a class="btn" href="{escape(url)}">Ver mis solicitudes</a>
+        </p>
+    """
+    return _shell(f"Solicitud {solicitud.codigo} — Entrega parcial", cuerpo)
+
+
+def render_entrega_parcial_solicitud_texto(
+    solicitud,
+    gestor_username: str,
+    lineas: list[str],
+) -> str:
+    url = f"{settings.public_url.rstrip('/')}/app/compras/gestion-mis-solicitudes.html"
+    lineas_txt = "\n".join(f"- {linea}" for linea in lineas)
+    return (
+        "JURICOM_BEEF — Entrega parcial registrada\n\n"
+        f"Hola {solicitud.creado_por_username or 'solicitante'},\n\n"
+        "Compras registró una entrega parcial de tu solicitud.\n\n"
+        f"Consecutivo: {solicitud.codigo}\n"
+        f"Gestor: {gestor_username or 'Compras'}\n\n"
+        f"Detalle:\n{lineas_txt}\n\n"
+        f"Consulta el detalle en: {url}\n"
+    )

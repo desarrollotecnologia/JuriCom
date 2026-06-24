@@ -15,8 +15,13 @@ class SolicitudGestionProductoResponse(BaseModel):
     unidad: str
     descripcion: str
     centro_costo: str
+    cantidad: float = 1.0
+    cantidad_entregada: float = 0.0
+    cantidad_pendiente: float = 1.0
+    estado_entrega: str = "pendiente"
     estado_aprobacion: str = "pendiente"
     estado_aprobacion_label: str = "Pendiente"
+    numero_tramite_oc: str = ""
 
 
 class SolicitudGestionArchivoResponse(BaseModel):
@@ -62,6 +67,9 @@ class SolicitudGestionListItem(BaseModel):
     cantidad_productos: int
     cantidad_productos_aprobados: int = 0
     aprobacion_parcial: bool = False
+    tiene_tramite_oc_registrado: bool = False
+    entrega_completa: bool = False
+    tiene_entrega_pendiente: bool = False
     cantidad_archivos: int
     creado_por_username: str = ""
     gestor_id: Optional[int] = None
@@ -92,6 +100,7 @@ class SolicitudGestionResponse(BaseModel):
     observaciones_texto: str
     observaciones_gestion: str = ""
     justificacion_cotizaciones: str = ""
+    numero_tramite_oc: str = ""
     lider_segunda_aprobacion_id: str = ""
     lider_segunda_aprobacion_label: str = ""
     gestor_id: Optional[int] = None
@@ -107,3 +116,17 @@ class SolicitudGestionResponse(BaseModel):
     historial_estados: list[SolicitudGestionHistorialEstadoResponse] = []
     aprobacion_parcial: bool = False
     cantidad_productos_aprobados: int = 0
+    tiene_tramite_oc_registrado: bool = False
+    entrega_completa: bool = False
+    tiene_entrega_pendiente: bool = False
+
+
+class MarcarEntregaSolicitudResponse(BaseModel):
+    solicitud: SolicitudGestionResponse
+    email_enviado: bool = False
+
+
+class EntregaParcialSolicitudResponse(BaseModel):
+    solicitud: SolicitudGestionResponse
+    email_enviado: bool = False
+    lineas_entrega: list[str] = []

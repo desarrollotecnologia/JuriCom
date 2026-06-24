@@ -17,7 +17,9 @@
                             Crea, edita y administra cuentas y roles del sistema.
                         </p>
                     </div>
-                    <button class="btn btn-primary" id="btn-new">+ Nuevo usuario</button>
+                    <div class="page-header-actions">
+                        <button class="btn btn-primary" id="btn-new">+ Nuevo usuario</button>
+                    </div>
                 </div>
 
                 <div class="alert alert-info" id="info-policy">
@@ -64,6 +66,11 @@
                         <label>Contraseña <span class="required">*</span></label>
                         <input type="text" id="f-password" minlength="4" maxlength="200" />
                         <span class="hint">Mínimo 4 caracteres.</span>
+                    </div>
+                    <div class="field">
+                        <label>Correo (notificaciones)</label>
+                        <input type="email" id="f-email" maxlength="255" placeholder="correo@empresa.com" />
+                        <span class="hint">Para avisos de entrega de solicitudes de compra.</span>
                     </div>
                     <div class="row-2">
                         <div class="field">
@@ -269,6 +276,7 @@
                 document.getElementById("modal-title").textContent = "Editar usuario";
                 document.getElementById("user-id").value = u.id;
                 document.getElementById("f-username").value = u.username;
+                document.getElementById("f-email").value = u.email || "";
                 document.getElementById("f-role").value = u.role;
                 document.getElementById("f-active").value = String(u.is_active);
                 document.getElementById("field-password").style.display = "none";
@@ -281,17 +289,18 @@
                 e.preventDefault();
                 const id = document.getElementById("user-id").value;
                 const username = document.getElementById("f-username").value.trim();
+                const email = document.getElementById("f-email").value.trim();
                 const role = document.getElementById("f-role").value;
 
                 try {
                     if (id) {
                         const is_active =
                             document.getElementById("f-active").value === "true";
-                        await api.put(`/users/${id}`, { username, role, is_active });
+                        await api.put(`/users/${id}`, { username, role, is_active, email });
                         showSuccess("Usuario actualizado.");
                     } else {
                         const password = document.getElementById("f-password").value;
-                        await api.post("/users", { username, password, role });
+                        await api.post("/users", { username, password, role, email });
                         showSuccess("Usuario creado.");
                     }
                     modalUser.classList.remove("show");

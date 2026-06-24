@@ -13,8 +13,13 @@ import {
     normalizarEstado,
     renderDetalleSolicitudHtml,
     renderPanelGestionHtml,
+    renderPanelTramiteOcHtml,
+    esGestionEntrega,
+    solicitudEntregaCompleta,
+    solicitudTieneEntregaPendiente,
+    solicitudTieneOcRegistrada,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js";
+} from "./gestion-solicitudes-common.js?v=7";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -28,11 +33,11 @@ function buildLideresOptions(selectedId = "") {
     ).join("");
 }
 
-function puedeGestionar(solicitud, userId) {
+function puedeGestionar(solicitud, userId, isAdmin = false) {
     const estado = normalizarEstado(solicitud.estado);
     if (estado === "primera_aprobacion") return true;
-    if (estado === "cotizacion") {
-        return !solicitud.gestor_id || solicitud.gestor_id === userId;
+    if (estado === "cotizacion" || estado === "tramitada_oc" || estado === "entregado_parcial") {
+        return !solicitud.gestor_id || solicitud.gestor_id === userId || isAdmin;
     }
     return false;
 }
@@ -54,9 +59,14 @@ export function initPanelSolicitudesGestion() {
     const detailTitle = document.getElementById("panel-detail-title");
     const btnClose = document.getElementById("btn-panel-detail-close");
     const btnEnviar = document.getElementById("btn-panel-enviar-aprobacion");
+    const btnGuardarTramite = document.getElementById("btn-panel-guardar-tramite-oc");
+    const btnEntregado = document.getElementById("btn-panel-entregado");
+    const btnEntregadoParcial = document.getElementById("btn-panel-entregado-parcial");
+    const btnConfirmarEntregaParcial = document.getElementById("btn-panel-confirmar-entrega-parcial");
     const modalActionsGestion = document.getElementById("panel-modal-actions-gestion");
 
     const currentUser = session.getUser();
+    const isAdmin = currentUser?.role === "admin";
 
     function showError(msg) {
         if (!alertError) return;
@@ -122,7 +132,7 @@ export function initPanelSolicitudesGestion() {
 
         tbody.innerHTML = items
             .map((s) => {
-                const gestionar = puedeGestionar(s, currentUser?.id);
+                const gestionar = puedeGestionar(s, currentUser?.id, isAdmin);
                 const btnClass = gestionar ? "btn btn-primary btn-icon-view" : "btn btn-secondary btn-icon-view";
                 const btnLabel = gestionar ? "Gestionar" : "Ver";
                 const btnIcon = gestionar ? GESTION_ICON : EYE_ICON;
@@ -135,7 +145,7 @@ export function initPanelSolicitudesGestion() {
                 </td>
                 <td data-label="Solicitante">${escapeHtml(s.creado_por_username || "—")}</td>
                 <td data-label="Tipo">${badgeTipo(s.tipo)}</td>
-                <td data-label="Estado">${badgeEstado(s.estado)}</td>
+                <td data-label="Estado">${badgeEstado(s.estado, s)}</td>
                 <td data-label="Fecha">${formatDate(s.created_at)}</td>
                 <td data-label="Acciones" class="col-actions">
                     <button
@@ -193,6 +203,11 @@ export function initPanelSolicitudesGestion() {
         selectedSolicitud = null;
         modoGestion = false;
         modalActionsGestion?.setAttribute("hidden", "");
+        setModalBtnHidden(btnEnviar, false);
+        setModalBtnHidden(btnGuardarTramite, true);
+        setModalBtnHidden(btnEntregado, true);
+        setModalBtnHidden(btnEntregadoParcial, true);
+        setModalBtnHidden(btnConfirmarEntregaParcial, true);
         btnClose?.removeAttribute("hidden");
     }
 
@@ -347,32 +362,372 @@ export function initPanelSolicitudesGestion() {
         }
     }
 
+    function formTieneTramiteOc() {
+        const general =
+            document.getElementById("gestion-tramite-oc-general")?.value.trim() ?? "";
+        if (general) return true;
+        return Array.from(
+            detailContent?.querySelectorAll(".sg-tramite-oc-parcial-input") ?? []
+        ).some((input) => input.value.trim());
+    }
+
+    function setModalBtnHidden(btn, hidden) {
+        if (!btn) return;
+        btn.hidden = hidden;
+        if (hidden) {
+            btn.setAttribute("hidden", "");
+        } else {
+            btn.removeAttribute("hidden");
+        }
+    }
+
+    function bindTramiteOcFormEvents() {
+        const generalInput = document.getElementById("gestion-tramite-oc-general");
+        generalInput?.addEventListener("input", updateAccionesEntrega);
+        detailContent?.querySelectorAll(".sg-tramite-oc-parcial-input").forEach((input) => {
+            input.addEventListener("input", updateAccionesEntrega);
+        });
+    }
+
+    function bindEntregaParcialFormEvents() {
+        detailContent?.querySelectorAll(".entrega-parcial-check").forEach((check) => {
+            check.addEventListener("change", () => {
+                const row = check.closest("tr");
+                const input = row?.querySelector(".sg-entrega-parcial-cantidad");
+                if (!input) return;
+                if (check.checked && !input.value) {
+                    input.value = check.dataset.pendiente || "1";
+                }
+                if (!check.checked) {
+                    input.value = "";
+                }
+            });
+        });
+
+        detailContent?.querySelectorAll(".sg-entrega-parcial-cantidad").forEach((input) => {
+            input.addEventListener("input", () => {
+                const row = input.closest("tr");
+                const check = row?.querySelector(".entrega-parcial-check");
+                const cantidad = Number(input.value);
+                if (!check) return;
+                if (cantidad > 0) {
+                    check.checked = true;
+                } else if (!input.value) {
+                    check.checked = false;
+                }
+            });
+        });
+    }
+
+    function updateAccionesEntrega() {
+        if (!selectedSolicitud) return;
+        const estado = normalizarEstado(selectedSolicitud.estado);
+        const esEntrega = esGestionEntrega(estado);
+        if (!esEntrega) {
+            setModalBtnHidden(btnEntregado, true);
+            setModalBtnHidden(btnEntregadoParcial, true);
+            setModalBtnHidden(btnConfirmarEntregaParcial, true);
+            return;
+        }
+
+        const ocOk = solicitudTieneOcRegistrada(selectedSolicitud);
+        const esTramiteOc = estado === "tramitada_oc";
+
+        setModalBtnHidden(btnGuardarTramite, !esTramiteOc);
+
+        const puedeParcial = ocOk && solicitudTieneEntregaPendiente(selectedSolicitud);
+        setModalBtnHidden(btnEntregadoParcial, !puedeParcial);
+
+        const puedeCerrar = ocOk && solicitudEntregaCompleta(selectedSolicitud);
+        setModalBtnHidden(btnEntregado, !puedeCerrar);
+
+        const panelEntrega = document.getElementById("panel-entrega-parcial-wrap");
+        const panelVisible = panelEntrega && !panelEntrega.hidden;
+        setModalBtnHidden(btnConfirmarEntregaParcial, !panelVisible);
+    }
+
+    function updateAccionesGestionModal(esEntrega) {
+        setModalBtnHidden(btnEnviar, esEntrega);
+        if (esEntrega) {
+            updateAccionesEntrega();
+        } else {
+            setModalBtnHidden(btnGuardarTramite, true);
+            setModalBtnHidden(btnEntregado, true);
+            setModalBtnHidden(btnEntregadoParcial, true);
+            setModalBtnHidden(btnConfirmarEntregaParcial, true);
+        }
+    }
+
+    async function refrescarPanelEntrega(solicitud) {
+        selectedSolicitud = solicitud;
+        destroyObservacionesEditor();
+        detailContent.innerHTML = renderPanelTramiteOcHtml(solicitud);
+        initObservacionesEditor();
+        if (normalizarEstado(solicitud.estado) === "tramitada_oc") {
+            bindTramiteOcFormEvents();
+        }
+        updateAccionesEntrega();
+        await hydrateInlineObservacionImages(detailContent, solicitud.id);
+    }
+
+    function abrirFormularioEntregaParcial() {
+        const panel = document.getElementById("panel-entrega-parcial-wrap");
+        if (!panel) {
+            showError("No hay ítems pendientes de entrega.");
+            return;
+        }
+        panel.hidden = false;
+        bindEntregaParcialFormEvents();
+        updateAccionesEntrega();
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function getProductosEntregaParcial() {
+        const map = {};
+        detailContent?.querySelectorAll(".sg-entrega-parcial-cantidad").forEach((input) => {
+            const id = Number(input.dataset.productoId);
+            const cantidad = Number(input.value);
+            if (!id || !cantidad || cantidad <= 0) return;
+            map[id] = cantidad;
+        });
+        return map;
+    }
+
+    async function confirmarEntregaParcial() {
+        if (!selectedSolicitud || !modoGestion) return;
+
+        const productos = getProductosEntregaParcial();
+        if (!Object.keys(productos).length) {
+            showError("Selecciona al menos un ítem e indica la cantidad a entregar.");
+            return;
+        }
+
+        if (
+            !confirm(
+                `¿Confirmas registrar la entrega parcial de ${Object.keys(productos).length} ítem(s)? ` +
+                    "Se notificará al solicitante por correo."
+            )
+        ) {
+            return;
+        }
+
+        observacionControl?.editor.syncHidden();
+        const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
+        const nuevaObsTexto = observacionControl?.editor.getText() ?? "";
+
+        const formData = new FormData();
+        formData.append("productos_entrega", JSON.stringify(productos));
+        formData.append("observacion", nuevaObsHtml);
+        formData.append("observacion_texto", nuevaObsTexto);
+        (observacionControl?.getFiles() ?? []).forEach((file) =>
+            formData.append("adjuntos", file)
+        );
+
+        btnConfirmarEntregaParcial.disabled = true;
+        btnConfirmarEntregaParcial.textContent = "Registrando...";
+
+        try {
+            const result = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/entrega-parcial`,
+                formData
+            );
+            const solicitud = result?.solicitud || result;
+            showSuccess(
+                result?.email_enviado
+                    ? `Entrega parcial registrada. Se notificó al solicitante por correo.`
+                    : `Entrega parcial registrada. No se pudo enviar el correo (revisa SMTP y email del solicitante).`
+            );
+            await load();
+            await refrescarPanelEntrega(solicitud);
+        } catch (err) {
+            showError(
+                err instanceof ApiError ? err.message : "No se pudo registrar la entrega parcial."
+            );
+        } finally {
+            btnConfirmarEntregaParcial.disabled = false;
+            btnConfirmarEntregaParcial.textContent = "Confirmar entrega parcial";
+        }
+    }
+
     async function abrirGestion(solicitud) {
         selectedSolicitud = solicitud;
         modoGestion = true;
-        detailTitle.textContent = `Gestionar · ${solicitud.codigo}`;
-        detailContent.innerHTML = renderPanelGestionHtml(
-            solicitud,
-            buildLideresOptions(solicitud.lider_segunda_aprobacion_id || "")
-        );
+        const estado = normalizarEstado(solicitud.estado);
+        const esEntrega = esGestionEntrega(estado);
+
+        detailTitle.textContent = esEntrega
+            ? `Entrega · ${solicitud.codigo}`
+            : `Gestionar · ${solicitud.codigo}`;
+        detailContent.innerHTML = esEntrega
+            ? renderPanelTramiteOcHtml(solicitud)
+            : renderPanelGestionHtml(
+                  solicitud,
+                  buildLideresOptions(solicitud.lider_segunda_aprobacion_id || "")
+              );
         modalActionsGestion?.removeAttribute("hidden");
+        updateAccionesGestionModal(esEntrega);
         btnClose?.removeAttribute("hidden");
-        bindGestionFormEvents();
+        if (esEntrega) {
+            if (estado === "tramitada_oc") {
+                bindTramiteOcFormEvents();
+            }
+        } else {
+            bindGestionFormEvents();
+        }
         initObservacionesEditor();
         await hydrateInlineObservacionImages(detailContent, solicitud.id);
         modal.classList.add("show");
     }
 
+    function getProductosTramiteOcParcial() {
+        const map = {};
+        detailContent?.querySelectorAll(".sg-tramite-oc-parcial-input").forEach((input) => {
+            const id = Number(input.dataset.productoId);
+            if (!id) return;
+            map[id] = input.value.trim();
+        });
+        return map;
+    }
+
     async function iniciarGestion(id) {
         try {
             const solicitud = await api.post(`/solicitudes-gestion/${id}/gestionar`, {});
-            showSuccess(`Solicitud ${solicitud.codigo} en estado Cotización.`);
+            const estado = normalizarEstado(solicitud.estado);
+            if (estado === "tramitada_oc") {
+                showSuccess(`Gestión de trámite OC — ${solicitud.codigo}`);
+            } else if (estado === "entregado_parcial") {
+                showSuccess(`Gestión de entrega — ${solicitud.codigo}`);
+            } else if (estado === "cotizacion") {
+                showSuccess(`Solicitud ${solicitud.codigo} en estado Cotización.`);
+            } else {
+                showSuccess(`Solicitud ${solicitud.codigo} lista para gestionar.`);
+            }
             await load();
             await abrirGestion(solicitud);
         } catch (err) {
             showError(
                 err instanceof ApiError ? err.message : "No se pudo iniciar la gestión."
             );
+        }
+    }
+
+    async function guardarTramiteOc() {
+        if (!selectedSolicitud || !modoGestion) return;
+
+        observacionControl?.editor.syncHidden();
+        const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
+        const nuevaObsTexto = observacionControl?.editor.getText() ?? "";
+        const general =
+            document.getElementById("gestion-tramite-oc-general")?.value.trim() ?? "";
+        const parciales = getProductosTramiteOcParcial();
+        const tieneParcial = Object.values(parciales).some((v) => Boolean(v));
+
+        if (!general && !tieneParcial) {
+            showError(
+                "Indica el número de trámite OC general o al menos uno parcial por ítem."
+            );
+            return;
+        }
+
+        if (!confirm("¿Guardar los números de trámite OC registrados?")) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("numero_tramite_oc", general);
+        formData.append("productos_tramite_oc", JSON.stringify(parciales));
+        formData.append("nueva_observacion", nuevaObsHtml);
+        formData.append("nueva_observacion_texto", nuevaObsTexto);
+        (observacionControl?.getFiles() ?? []).forEach((file) =>
+            formData.append("adjuntos", file)
+        );
+
+        btnGuardarTramite.disabled = true;
+        btnGuardarTramite.textContent = "Guardando...";
+
+        try {
+            const solicitud = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/tramite-oc`,
+                formData
+            );
+            selectedSolicitud = solicitud;
+            showSuccess(
+                `Orden OC registrada — ${solicitud.codigo}. El solicitante verá el estado actualizado.`
+            );
+            await load();
+            await refrescarPanelEntrega(solicitud);
+        } catch (err) {
+            showError(
+                err instanceof ApiError ? err.message : "No se pudo guardar el trámite OC."
+            );
+        } finally {
+            btnGuardarTramite.disabled = false;
+            btnGuardarTramite.textContent = "Guardar trámite OC";
+        }
+    }
+
+    async function marcarEntregaTotal() {
+        if (!selectedSolicitud || !modoGestion) return;
+
+        if (!solicitudTieneOcRegistrada(selectedSolicitud)) {
+            showError('Primero guarda el trámite OC con el botón "Guardar trámite OC".');
+            return;
+        }
+
+        if (!solicitudEntregaCompleta(selectedSolicitud)) {
+            showError(
+                "Aún hay cantidades pendientes por ítem. Registra las entregas parciales hasta completar todas las cantidades."
+            );
+            return;
+        }
+
+        if (
+            !confirm(
+                `¿Confirmas cerrar la solicitud ${selectedSolicitud.codigo} como Entregado? ` +
+                    "Se enviará un correo al solicitante y finalizará el flujo."
+            )
+        ) {
+            return;
+        }
+
+        observacionControl?.editor.syncHidden();
+        const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
+        const nuevaObsTexto = observacionControl?.editor.getText() ?? "";
+
+        const formData = new FormData();
+        formData.append("observacion", nuevaObsHtml);
+        formData.append("observacion_texto", nuevaObsTexto);
+        (observacionControl?.getFiles() ?? []).forEach((file) =>
+            formData.append("adjuntos", file)
+        );
+
+        btnEntregado.disabled = true;
+        btnEntregado.textContent = "Procesando...";
+
+        try {
+            const result = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/marcar-entrega`,
+                formData
+            );
+            const codigo = result?.solicitud?.codigo || selectedSolicitud.codigo;
+            if (result?.email_enviado) {
+                showSuccess(
+                    `Solicitud ${codigo} cerrada como Entregado. Se notificó al solicitante por correo.`
+                );
+            } else {
+                showSuccess(
+                    `Solicitud ${codigo} cerrada como Entregado. No se pudo enviar el correo.`
+                );
+            }
+            closeModal();
+            await load();
+        } catch (err) {
+            showError(
+                err instanceof ApiError ? err.message : "No se pudo registrar la entrega total."
+            );
+        } finally {
+            btnEntregado.disabled = false;
+            btnEntregado.textContent = "Entregado";
         }
     }
 
@@ -453,6 +808,10 @@ export function initPanelSolicitudesGestion() {
 
     btnClose?.addEventListener("click", closeModal);
     btnEnviar?.addEventListener("click", enviarParaAprobacion);
+    btnGuardarTramite?.addEventListener("click", guardarTramiteOc);
+    btnEntregado?.addEventListener("click", marcarEntregaTotal);
+    btnEntregadoParcial?.addEventListener("click", abrirFormularioEntregaParcial);
+    btnConfirmarEntregaParcial?.addEventListener("click", confirmarEntregaParcial);
     modal?.addEventListener("click", (e) => {
         if (e.target === modal) closeModal();
     });

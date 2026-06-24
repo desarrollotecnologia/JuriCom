@@ -1,5 +1,7 @@
 """Aprueba o cancela una solicitud de compra pendiente."""
 
+from decimal import Decimal
+
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
@@ -35,6 +37,7 @@ class ResolverAprobacionSolicitud:
         storage: FileStorage | None = None,
         tipo_aprobacion: str = "total",
         productos_aprobados_ids: list[int] | None = None,
+        productos_cantidades: dict[int, Decimal] | None = None,
     ) -> SolicitudGestion:
         solicitud = self._get_pendiente(actor, solicitud_id)
         etapa_actual = normalizar_estado(solicitud.estado)
@@ -63,6 +66,7 @@ class ResolverAprobacionSolicitud:
 
         comentario_historial = ""
         if etapa_actual == EstadoSolicitudGestion.SOLICITUD:
+            self._aplicar_cantidades_productos(solicitud, productos_cantidades)
             comentario_historial = self._aplicar_primera_aprobacion_productos(
                 solicitud,
                 tipo_aprobacion,
@@ -83,6 +87,26 @@ class ResolverAprobacionSolicitud:
         )
         refreshed = self._solicitudes.get_by_id(solicitud_id)
         return refreshed or actualizada
+
+    def _aplicar_cantidades_productos(
+        self,
+        solicitud: SolicitudGestion,
+        productos_cantidades: dict[int, Decimal] | None,
+    ) -> None:
+        if not productos_cantidades:
+            return
+
+        ids_validos = {p.id for p in solicitud.productos if p.id is not None}
+        cantidades: dict[int, Decimal] = {}
+        for pid, cant in productos_cantidades.items():
+            if pid not in ids_validos:
+                continue
+            if cant <= 0:
+                raise ValueError("Todas las cantidades deben ser mayores a cero.")
+            cantidades[pid] = cant
+
+        if cantidades:
+            self._solicitudes.update_productos_cantidades(solicitud.id, cantidades)
 
     def _aplicar_primera_aprobacion_productos(
         self,

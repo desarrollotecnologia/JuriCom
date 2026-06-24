@@ -4,24 +4,16 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Mis Solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=3" />
     </head>
     <body>
         <div class="app-shell">
             <aside class="sidebar" id="sidebar"></aside>
             <main class="main">
                 <div class="page-header">
-                    <div class="page-header-brand">
-                        <img
-                            src="/app/assets/colbeef-logo.png"
-                            alt="Colbeef"
-                            width="200"
-                            height="72"
-                        />
-                        <div>
-                            <h1 id="page-title">Mis Solicitudes</h1>
-                            <p class="muted" id="page-subtitle"></p>
-                        </div>
+                    <div>
+                        <h1 id="page-title">Mis Solicitudes</h1>
+                        <p class="muted" id="page-subtitle"></p>
                     </div>
                     <div class="page-header-actions">
                         <a
@@ -99,7 +91,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js";
+            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=7";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

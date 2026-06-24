@@ -36,6 +36,13 @@ export function formatFileSize(bytes) {
     return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export function formatCantidad(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "—";
+    if (Number.isInteger(n)) return String(n);
+    return n.toLocaleString("es-CO", { maximumFractionDigits: 4 });
+}
+
 export function escapeHtml(str) {
     return String(str ?? "")
         .replace(/&/g, "&amp;")

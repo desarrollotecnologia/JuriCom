@@ -17,6 +17,7 @@ class UserPublic(BaseModel):
     id: int
     username: str
     role: Role
+    email: str = ""
     is_active: bool
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

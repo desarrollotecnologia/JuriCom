@@ -4,27 +4,19 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Panel de solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=4" />
     </head>
     <body>
         <div class="app-shell">
             <aside class="sidebar" id="sidebar"></aside>
             <main class="main">
                 <div class="page-header">
-                    <div class="page-header-brand">
-                        <img
-                            src="/app/assets/colbeef-logo.png"
-                            alt="Colbeef"
-                            width="200"
-                            height="72"
-                        />
-                        <div>
-                            <h1>Panel de solicitudes</h1>
-                            <p class="muted">
-                                Solicitudes ya aprobadas listas para gestionar. Las pendientes de
-                                aprobación no aparecen aquí.
-                            </p>
-                        </div>
+                    <div>
+                        <h1>Panel de solicitudes</h1>
+                        <p class="muted">
+                            Solicitudes ya aprobadas listas para gestionar. Las pendientes de
+                            aprobación no aparecen aquí.
+                        </p>
                     </div>
                     <div class="page-header-actions">
                         <a
@@ -88,8 +80,45 @@
                     <div id="panel-detail-content"></div>
                 </div>
                 <div class="modal-actions" id="panel-modal-actions-gestion" hidden>
-                    <button type="button" class="btn btn-primary" id="btn-panel-enviar-aprobacion">
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-enviar-aprobacion"
+                        hidden
+                    >
                         Enviar para aprobación
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-guardar-tramite-oc"
+                        hidden
+                    >
+                        Guardar trámite OC
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-entregado"
+                        hidden
+                    >
+                        Entregado
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        id="btn-panel-entregado-parcial"
+                        hidden
+                    >
+                        Entregado Parcial
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-confirmar-entrega-parcial"
+                        hidden
+                    >
+                        Confirmar entrega parcial
                     </button>
                 </div>
                 <div class="modal-actions">
@@ -103,7 +132,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=9";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

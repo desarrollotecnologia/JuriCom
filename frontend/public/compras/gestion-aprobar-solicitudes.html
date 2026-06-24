@@ -4,34 +4,28 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Aprobar solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=3" />
     </head>
     <body>
         <div class="app-shell">
             <aside class="sidebar" id="sidebar"></aside>
             <main class="main">
                 <div class="page-header">
-                    <div class="page-header-brand">
-                        <img
-                            src="/app/assets/colbeef-logo.png"
-                            alt="Colbeef"
-                            width="200"
-                            height="72"
-                        />
-                        <div>
-                            <h1>Aprobar solicitudes</h1>
-                            <p class="muted">
-                                Revisa y aprueba las solicitudes de compra registradas por los usuarios del sistema.
-                                El líder Colbeef del formulario es referencia del área; la aprobación la realiza aquí un usuario Compras o Admin.
-                            </p>
-                        </div>
+                    <div>
+                        <h1>Aprobar solicitudes</h1>
+                        <p class="muted">
+                            Revisa y aprueba las solicitudes de compra registradas por los usuarios del sistema.
+                            El líder Colbeef del formulario es referencia del área; la aprobación la realiza aquí un usuario Compras o Admin.
+                        </p>
                     </div>
-                    <a
-                        href="/app/compras/gestion-solicitudes.html"
-                        class="btn btn-secondary"
-                    >
-                        Volver
-                    </a>
+                    <div class="page-header-actions">
+                        <a
+                            href="/app/compras/gestion-solicitudes.html"
+                            class="btn btn-secondary"
+                        >
+                            Volver
+                        </a>
+                    </div>
                 </div>
 
                 <div class="alert alert-error" id="alert-error"></div>
@@ -96,6 +90,9 @@
                             Marca en la tabla de productos los ítems que deseas aprobar.
                             Los no seleccionados quedarán registrados como no aprobados.
                         </p>
+                        <p class="muted sg-aprobacion-cantidad-hint">
+                            Puedes ajustar la cantidad de cada ítem antes de aprobar.
+                        </p>
                     </div>
 
                     <div class="sg-detail-panel sg-aprobacion-obs-panel">
@@ -157,7 +154,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js";
+            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=3";
 
             session.requireAuth();
             session.requireRole(["compras", "admin"]);

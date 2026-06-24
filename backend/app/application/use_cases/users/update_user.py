@@ -23,6 +23,7 @@ class UpdateUser:
         new_username: Optional[str] = None,
         new_role: Optional[Role] = None,
         new_is_active: Optional[bool] = None,
+        new_email: Optional[str] = None,
     ) -> User:
         if not actor.can_manage_users():
             raise UnauthorizedError("Sólo el administrador puede editar usuarios.")
@@ -49,5 +50,8 @@ class UpdateUser:
             if target.id == actor.id and not new_is_active:
                 raise UnauthorizedError("No puedes desactivar tu propia cuenta.")
             target.is_active = new_is_active
+
+        if new_email is not None:
+            target.email = new_email.strip()
 
         return self._users.update(target)

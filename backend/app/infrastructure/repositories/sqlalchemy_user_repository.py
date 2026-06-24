@@ -21,6 +21,7 @@ class SqlAlchemyUserRepository(UserRepository):
             username=model.username,
             password_hash=model.password_hash,
             role=Role(model.role),
+            email=getattr(model, "email", "") or "",
             is_active=model.is_active,
             created_at=model.created_at,
             updated_at=model.updated_at,
@@ -48,6 +49,7 @@ class SqlAlchemyUserRepository(UserRepository):
             username=user.username,
             password_hash=user.password_hash,
             role=user.role.value,
+            email=(user.email or "").strip(),
             is_active=user.is_active,
             created_by_id=user.created_by_id,
         )
@@ -66,6 +68,7 @@ class SqlAlchemyUserRepository(UserRepository):
         model.username = user.username
         model.password_hash = user.password_hash
         model.role = user.role.value
+        model.email = (user.email or "").strip()
         model.is_active = user.is_active
 
         self._db.commit()

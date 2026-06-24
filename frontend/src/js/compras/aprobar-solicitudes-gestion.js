@@ -18,7 +18,7 @@ import {
 
     TIPO_LABEL,
 
-} from "./gestion-solicitudes-common.js";
+} from "./gestion-solicitudes-common.js?v=3";
 
 
 
@@ -214,6 +214,32 @@ export function initAprobarSolicitudesGestion() {
 
         );
 
+    }
+
+
+
+    function getProductosCantidades() {
+        const cantidades = {};
+        detailContent?.querySelectorAll(".sg-producto-cantidad-input").forEach((input) => {
+            const id = Number(input.dataset.productoId);
+            const val = Number(input.value);
+            if (id) cantidades[id] = val;
+        });
+        return cantidades;
+    }
+
+
+
+    function validateCantidadesProductos() {
+        const inputs = detailContent?.querySelectorAll(".sg-producto-cantidad-input") || [];
+        for (const input of inputs) {
+            const val = Number(input.value);
+            if (!Number.isFinite(val) || val <= 0) {
+                showError("Todas las cantidades deben ser mayores a cero.");
+                return false;
+            }
+        }
+        return true;
     }
 
 
@@ -446,6 +472,8 @@ export function initAprobarSolicitudesGestion() {
 
                           selectable: true,
 
+                          cantidadEditable: true,
+
                           showEstado: false,
 
                           titulo: "Ítems de la solicitud",
@@ -454,7 +482,10 @@ export function initAprobarSolicitudesGestion() {
 
                       }
 
-                    : { showEstado: Boolean(s.aprobacion_parcial) },
+                    : {
+                          showEstado: Boolean(s.aprobacion_parcial),
+                          cantidadEditable: false,
+                      },
 
             });
 
@@ -543,6 +574,8 @@ export function initAprobarSolicitudesGestion() {
 
                 document.querySelector('input[name="tipo-aprobacion"]:checked')?.value || "total";
 
+            if (!validateCantidadesProductos()) return;
+
             if (tipoAprobacion === "parcial") {
 
                 productosAprobados = getProductosAprobadosIds();
@@ -598,6 +631,10 @@ export function initAprobarSolicitudesGestion() {
         formData.append("tipo_aprobacion", tipoAprobacion);
 
         formData.append("productos_aprobados", JSON.stringify(productosAprobados));
+
+        if (isPrimera && esDesdeModal) {
+            formData.append("productos_cantidades", JSON.stringify(getProductosCantidades()));
+        }
 
         adjuntos.forEach((file) => formData.append("adjuntos", file));
 

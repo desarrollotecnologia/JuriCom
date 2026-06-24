@@ -33,6 +33,7 @@ class UserModel(Base):
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_by_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -184,6 +185,7 @@ class SolicitudGestionModel(Base):
     observaciones_texto: Mapped[str] = mapped_column(Text, nullable=False, default="")
     observaciones_gestion: Mapped[str] = mapped_column(Text, nullable=False, default="")
     justificacion_cotizaciones: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    numero_tramite_oc: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     gestor_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -197,6 +199,7 @@ class SolicitudGestionModel(Base):
     creado_por_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+    creado_por_email: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
@@ -270,9 +273,16 @@ class SolicitudGestionProductoModel(Base):
     unidad: Mapped[str] = mapped_column(String(20), nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
     centro_costo: Mapped[str] = mapped_column(String(100), nullable=False)
+    cantidad: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("1")
+    )
+    cantidad_entregada: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0")
+    )
     estado_aprobacion: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pendiente"
     )
+    numero_tramite_oc: Mapped[str] = mapped_column(String(100), nullable=False, default="")
 
     solicitud: Mapped["SolicitudGestionModel"] = relationship(
         "SolicitudGestionModel", back_populates="productos"

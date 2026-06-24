@@ -16,6 +16,7 @@ class User:
     username: str
     password_hash: str
     role: Role
+    email: str = ""
     id: Optional[int] = None
     is_active: bool = True
     created_at: Optional[datetime] = None

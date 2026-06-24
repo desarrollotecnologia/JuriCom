@@ -7,7 +7,7 @@ import {
     hydrateInlineObservacionImages,
     renderDetalleSolicitudHtml,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js";
+} from "./gestion-solicitudes-common.js?v=7";
 
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
@@ -69,7 +69,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
                     <span class="codigo-solicitud">${escapeHtml(s.codigo)}</span>
                 </td>
                 <td data-label="Tipo">${badgeTipo(s.tipo)}</td>
-                <td data-label="Estado">${badgeEstado(s.estado)}</td>
+                <td data-label="Estado">${badgeEstado(s.estado, s)}</td>
                 <td data-label="Fecha">${formatDate(s.created_at)}</td>
                 <td data-label="Acciones" class="col-actions">
                     <button
@@ -122,6 +122,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
                 productosOptions: {
                     resaltarNoAprobados: true,
                     showEstado: true,
+                    titulo: "Productos solicitados",
                 },
             });
             await hydrateInlineObservacionImages(detailContent, s.id);

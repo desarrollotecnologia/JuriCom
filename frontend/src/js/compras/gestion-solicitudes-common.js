@@ -1,7 +1,7 @@
 import { session } from "../auth/session.js";
 import { renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js";
 import { API_BASE } from "../utils/config.js";
-import { escapeHtml, formatDate, formatFileSize } from "../utils/format.js";
+import { escapeHtml, formatCantidad, formatDate, formatFileSize } from "../utils/format.js";
 
 export const TIPO_LABEL = {
     compra: "Solicitud de Compra",
@@ -35,7 +35,7 @@ export const ESTADO_LABEL = {
     tramitada_oc: "Tramitada OC",
     cancelado: "Cancelado",
     entregado: "Entregado",
-    entregado_parcial: "Entregado Parcial",
+    entregado_parcial: "Entrega parcial en curso",
     registrada: "Solicitud",
     aprobada: "Primera Aprobación",
     rechazada: "Cancelado",
@@ -57,6 +57,52 @@ export const ESTADO_BADGE = {
 
 export function normalizarEstado(estado) {
     return LEGACY_ESTADO[estado] || estado;
+}
+
+export const ESTADO_ENTREGA_LABEL = {
+    pendiente: "Pendiente",
+    parcial: "Parcial",
+    entregado: "Entregado",
+};
+
+export function esGestionEntrega(estado) {
+    const key = normalizarEstado(estado);
+    return key === "tramitada_oc" || key === "entregado_parcial";
+}
+
+export function calcCantidadPendiente(producto) {
+    const total = Number(producto?.cantidad ?? 1);
+    const entregada = Number(producto?.cantidad_entregada ?? 0);
+    const pendiente = total - entregada;
+    return pendiente > 0 ? pendiente : 0;
+}
+
+export function solicitudEntregaCompleta(solicitud) {
+    if (solicitud?.entrega_completa) return true;
+    const productos = filtrarProductosParaGestion(solicitud?.productos || []);
+    if (!productos.length) return false;
+    return productos.every((p) => calcCantidadPendiente(p) <= 0);
+}
+
+export function solicitudTieneEntregaPendiente(solicitud) {
+    if (typeof solicitud?.tiene_entrega_pendiente === "boolean") {
+        return solicitud.tiene_entrega_pendiente;
+    }
+    return filtrarProductosParaGestion(solicitud?.productos || []).some(
+        (p) => calcCantidadPendiente(p) > 0
+    );
+}
+
+function badgeEstadoEntrega(estado) {
+    const key = estado || "pendiente";
+    const cls =
+        {
+            pendiente: "badge-sg-pendiente",
+            parcial: "badge-sg-aprobacion",
+            entregado: "badge-sg-aprobado",
+        }[key] || "badge-sg-pendiente";
+    const label = ESTADO_ENTREGA_LABEL[key] || key;
+    return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
 function formatObservacionFecha(iso) {
@@ -351,10 +397,20 @@ export function badgeTipo(tipo) {
     return `<span class="badge ${cls}">${escapeHtml(TIPO_LABEL[tipo] || tipo)}</span>`;
 }
 
-export function badgeEstado(estado) {
+export function solicitudTieneOcRegistrada(solicitud) {
+    if (!solicitud) return false;
+    if (solicitud.tiene_tramite_oc_registrado) return true;
+    if ((solicitud.numero_tramite_oc || "").trim()) return true;
+    return (solicitud.productos || []).some((p) => (p.numero_tramite_oc || "").trim());
+}
+
+export function badgeEstado(estado, solicitud = null) {
     const key = normalizarEstado(estado);
     const cls = ESTADO_BADGE[key] || ESTADO_BADGE[estado] || "badge-sg-pendiente";
-    const label = ESTADO_LABEL[key] || ESTADO_LABEL[estado] || estado;
+    let label = ESTADO_LABEL[key] || ESTADO_LABEL[estado] || estado;
+    if (key === "tramitada_oc" && solicitudTieneOcRegistrada(solicitud)) {
+        label = "Orden OC registrada";
+    }
     return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
@@ -363,7 +419,7 @@ function buildTimelineItems(solicitud) {
         (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)
     );
     const current = normalizarEstado(solicitud.estado);
-    const terminal = ["cancelado", "entregado", "entregado_parcial"].includes(current);
+    const terminal = ["cancelado", "entregado"].includes(current);
 
     if (!historial.length) {
         return [
@@ -523,6 +579,40 @@ export function renderAprobacionParcialAlertHtml(s) {
         </div>`;
 }
 
+export function renderOrdenOcRegistradaAlertHtml(s, options = {}) {
+    const { contexto = "gestor" } = options;
+    const estado = normalizarEstado(s?.estado);
+    if (!["tramitada_oc", "entregado_parcial"].includes(estado)) return "";
+    if (!solicitudTieneOcRegistrada(s)) return "";
+    if (estado === "entregado_parcial") {
+        if (contexto === "solicitante") {
+            return `
+        <div class="alert alert-info sg-orden-oc-alert">
+            Tu solicitud tiene <strong>entregas parciales</strong> registradas.
+            ${solicitudTieneEntregaPendiente(s) ? "Aún hay ítems pendientes por entregar." : "Todos los ítems fueron entregados; la solicitud se cerrará cuando Compras marque Entregado."}
+        </div>`;
+        }
+        return `
+        <div class="alert alert-info sg-orden-oc-alert">
+            Hay entregas parciales registradas.
+            ${solicitudTieneEntregaPendiente(s) ? "Completa las entregas pendientes por ítem." : "Todos los ítems están entregados: puedes cerrar con el botón <strong>Entregado</strong>."}
+        </div>`;
+    }
+    if (contexto === "solicitante") {
+        return `
+        <div class="alert alert-info sg-orden-oc-alert">
+            Tu solicitud ya tiene <strong>orden de compra (OC)</strong> registrada.
+            Cuando los ítems estén listos para entrega, recibirás un correo de notificación.
+        </div>`;
+    }
+    return `
+        <div class="alert alert-info sg-orden-oc-alert">
+            Esta solicitud ya tiene <strong>orden de compra (OC)</strong> registrada.
+            El solicitante puede verlo en el estado <em>Orden OC registrada</em>.
+            Cuando los ítems estén listos, marca la entrega para notificarle por correo.
+        </div>`;
+}
+
 export function renderProductosTableHtml(productos, options = {}) {
     const {
         titulo = "Productos",
@@ -531,6 +621,11 @@ export function renderProductosTableHtml(productos, options = {}) {
         soloAprobados = false,
         excluirNoAprobados = false,
         resaltarNoAprobados = false,
+        cantidadEditable = false,
+        showTramiteOcParcial = false,
+        tramiteOcParcialEditable = false,
+        showEntregaInfo = false,
+        entregaParcialEditable = false,
         panelId = null,
     } = options;
 
@@ -553,6 +648,19 @@ export function renderProductosTableHtml(productos, options = {}) {
         ? `<th class="col-check sg-aprobacion-check-col">Aprobar</th>`
         : "";
     const estadoCol = showEstado ? `<th>Estado aprobación</th>` : "";
+    const tramiteParcialCol =
+        showTramiteOcParcial || tramiteOcParcialEditable
+            ? `<th>Trámite OC parcial</th>`
+            : "";
+    const entregaCols = showEntregaInfo
+        ? `<th class="col-cantidad">Entregada</th>
+           <th class="col-cantidad">Pendiente</th>
+           <th>Estado entrega</th>`
+        : "";
+    const entregaParcialCols = entregaParcialEditable
+        ? `<th class="col-check sg-entrega-parcial-check-col">Entregar</th>
+           <th class="col-cantidad">Cant. a entregar</th>`
+        : "";
 
     return `
         <div class="sg-detail-panel"${panelId ? ` id="${escapeHtml(panelId)}"` : ""}>
@@ -566,7 +674,11 @@ export function renderProductosTableHtml(productos, options = {}) {
                             <th>Unidad</th>
                             <th>Descripción</th>
                             <th>Centro costo</th>
+                            <th class="col-cantidad">Cantidad</th>
                             ${estadoCol}
+                            ${tramiteParcialCol}
+                            ${entregaCols}
+                            ${entregaParcialCols}
                         </tr>
                     </thead>
                     <tbody>
@@ -595,8 +707,76 @@ export function renderProductosTableHtml(productos, options = {}) {
                                     noAprobado && resaltarNoAprobados
                                         ? `<p class="sg-producto-no-aprobado-msg">El líder no aprobó este ítem</p>`
                                         : "";
+                                const cantidadVal = formatCantidad(p.cantidad ?? 1);
+                                const cantidadCell = cantidadEditable
+                                    ? `<td data-label="Cantidad">
+                                        <input
+                                            type="number"
+                                            class="input-table sg-producto-cantidad-input"
+                                            data-producto-id="${p.id}"
+                                            value="${escapeHtml(cantidadVal)}"
+                                            min="0.0001"
+                                            step="any"
+                                            aria-label="Cantidad de ${escapeHtml(p.descripcion)}"
+                                        />
+                                    </td>`
+                                    : `<td class="${cellClass} sg-producto-cantidad-cell" data-label="Cantidad">${escapeHtml(cantidadVal)}</td>`;
+                                const tramiteParcialVal = (p.numero_tramite_oc || "").trim();
+                                const tramiteParcialCell =
+                                    tramiteOcParcialEditable
+                                        ? `<td data-label="Trámite OC parcial">
+                                        <input
+                                            type="text"
+                                            class="input-table sg-tramite-oc-parcial-input"
+                                            data-producto-id="${p.id}"
+                                            value="${escapeHtml(tramiteParcialVal)}"
+                                            placeholder="Nº trámite parcial"
+                                            aria-label="Trámite OC parcial de ${escapeHtml(p.descripcion)}"
+                                        />
+                                    </td>`
+                                        : showTramiteOcParcial
+                                          ? `<td data-label="Trámite OC parcial">${escapeHtml(tramiteParcialVal || "—")}</td>`
+                                          : "";
+                                const entregadaVal = formatCantidad(p.cantidad_entregada ?? 0);
+                                const pendienteVal = formatCantidad(
+                                    p.cantidad_pendiente ?? calcCantidadPendiente(p)
+                                );
+                                const entregaInfoCells = showEntregaInfo
+                                    ? `<td class="sg-producto-cantidad-cell" data-label="Entregada">${escapeHtml(entregadaVal)}</td>
+                                       <td class="sg-producto-cantidad-cell" data-label="Pendiente">${escapeHtml(pendienteVal)}</td>
+                                       <td data-label="Estado entrega">${badgeEstadoEntrega(p.estado_entrega || (Number(p.cantidad_entregada || 0) <= 0 ? "pendiente" : Number(p.cantidad_entregada) >= Number(p.cantidad || 1) ? "entregado" : "parcial"))}</td>`
+                                    : "";
+                                const pendienteNum = calcCantidadPendiente(p);
+                                const entregaParcialCells =
+                                    entregaParcialEditable && pendienteNum > 0
+                                        ? `<td class="col-check sg-entrega-parcial-check-col" data-label="Entregar">
+                                        <input
+                                            type="checkbox"
+                                            class="entrega-parcial-check"
+                                            value="${p.id}"
+                                            data-pendiente="${pendienteNum}"
+                                            aria-label="Entregar ${escapeHtml(p.descripcion)}"
+                                        />
+                                    </td>
+                                    <td data-label="Cant. a entregar">
+                                        <input
+                                            type="number"
+                                            class="input-table sg-entrega-parcial-cantidad"
+                                            data-producto-id="${p.id}"
+                                            data-pendiente="${pendienteNum}"
+                                            value=""
+                                            min="0.0001"
+                                            max="${pendienteNum}"
+                                            step="any"
+                                            placeholder="Máx. ${escapeHtml(pendienteVal)}"
+                                            aria-label="Cantidad a entregar de ${escapeHtml(p.descripcion)}"
+                                        />
+                                    </td>`
+                                        : entregaParcialEditable
+                                          ? `<td colspan="2" class="muted" data-label="Entrega">Sin pendiente</td>`
+                                          : "";
                                 return `
-                            <tr class="${rowClass}">
+                            <tr class="${rowClass}" data-producto-id="${p.id}">
                                 ${checkCell}
                                 <td class="${cellClass}" data-label="Código Siimed">${escapeHtml(p.codigo_siimed || "—")}</td>
                                 <td class="${cellClass}" data-label="Unidad">${escapeHtml(p.unidad)}</td>
@@ -605,7 +785,11 @@ export function renderProductosTableHtml(productos, options = {}) {
                                     ${msgNoAprobado}
                                 </td>
                                 <td class="${cellClass}" data-label="Centro costo">${escapeHtml(p.centro_costo)}</td>
+                                ${cantidadCell}
                                 ${estadoCell}
+                                ${tramiteParcialCell}
+                                ${entregaInfoCells}
+                                ${entregaParcialCells}
                             </tr>`;
                             })
                             .join("")}
@@ -623,11 +807,16 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
             : s.presupuestado
               ? "Sí"
               : "No";
+    const tieneTramiteParcial = (s.productos || []).some((p) =>
+        Boolean((p.numero_tramite_oc || "").trim())
+    );
+    const tramiteGeneral = (s.numero_tramite_oc || "").trim();
 
     return `
         <div class="sg-detail-layout">
             ${renderWorkflowTimelineHtml(s)}
             ${showAprobacionParcialAlert ? renderAprobacionParcialAlertHtml(s) : ""}
+            ${renderOrdenOcRegistradaAlertHtml(s, { contexto: "solicitante" })}
 
             <div class="sg-detail-panel">
                 <h3 class="sg-detail-panel-title">Información general</h3>
@@ -638,7 +827,7 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
                     </div>
                     <div class="sg-detail-field">
                         <dt>Estado actual</dt>
-                        <dd>${badgeEstado(s.estado)}</dd>
+                        <dd>${badgeEstado(s.estado, s)}</dd>
                     </div>
                     <div class="sg-detail-field">
                         <dt>Centro de costo</dt>
@@ -668,6 +857,14 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
                     </div>`
                             : ""
                     }
+                    ${
+                        tramiteGeneral
+                            ? `<div class="sg-detail-field">
+                        <dt>Trámite Orden de Compra</dt>
+                        <dd>${escapeHtml(tramiteGeneral)}</dd>
+                    </div>`
+                            : ""
+                    }
                 </dl>
             </div>
 
@@ -682,6 +879,15 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
                     productosOptions.resaltarNoAprobados ??
                     (tieneProductosNoAprobados(s.productos) ||
                         Boolean(s.aprobacion_parcial)),
+                showTramiteOcParcial:
+                    productosOptions.showTramiteOcParcial ??
+                    (tieneTramiteParcial || Boolean(tramiteGeneral)),
+                showEntregaInfo:
+                    productosOptions.showEntregaInfo ??
+                    (esGestionEntrega(s.estado) ||
+                        (s.productos || []).some(
+                            (p) => Number(p.cantidad_entregada || 0) > 0
+                        )),
             })}
 
             ${renderObservacionesTrazabilidadHtml(s)}
@@ -712,7 +918,7 @@ export function renderPanelGestionHtml(s, lideresOptionsHtml) {
                     </div>
                     <div class="sg-detail-field">
                         <dt>Estado actual</dt>
-                        <dd>${badgeEstado(s.estado)}</dd>
+                        <dd>${badgeEstado(s.estado, s)}</dd>
                     </div>
                     <div class="sg-detail-field">
                         <dt>Centro de costo</dt>
@@ -800,6 +1006,154 @@ export function renderPanelGestionHtml(s, lideresOptionsHtml) {
                     </select>
                 </div>
             </div>
+        </div>`;
+}
+
+export function renderPanelTramiteOcHtml(s) {
+    const presupuestado =
+        s.presupuestado === null || s.presupuestado === undefined
+            ? "—"
+            : s.presupuestado
+              ? "Sí"
+              : "No";
+    const estado = normalizarEstado(s.estado);
+    const esEntregaParcial = estado === "entregado_parcial";
+    const mostrarEntregaInfo =
+        esEntregaParcial ||
+        (s.productos || []).some((p) => Number(p.cantidad_entregada || 0) > 0);
+
+    const panelOcEditable = !esEntregaParcial
+        ? `
+            <div class="sg-detail-panel sg-gestion-form-panel">
+                <h3 class="sg-detail-panel-title">Trámite Orden de Compra</h3>
+                <p class="muted sg-detail-panel-hint">
+                    Registra el número de trámite OC para toda la solicitud o, si aplica,
+                    un número distinto por cada ítem aprobado.
+                </p>
+                <div class="field">
+                    <label for="gestion-tramite-oc-general">
+                        Trámite Orden de Compra (solicitud completa)
+                    </label>
+                    <input
+                        type="text"
+                        id="gestion-tramite-oc-general"
+                        class="input-table"
+                        value="${escapeHtml(s.numero_tramite_oc || "")}"
+                        placeholder="Número de trámite OC general"
+                        autocomplete="off"
+                    />
+                </div>
+            </div>
+
+            ${renderProductosTableHtml(s.productos, {
+                titulo: tieneProductosNoAprobados(s.productos)
+                    ? "Trámite OC parcial por ítem aprobado"
+                    : "Trámite OC parcial por ítem",
+                excluirNoAprobados: true,
+                showEstado: false,
+                tramiteOcParcialEditable: true,
+            })}`
+        : `
+            <div class="sg-detail-panel">
+                <h3 class="sg-detail-panel-title">Trámite Orden de Compra</h3>
+                <dl class="sg-detail-grid">
+                    <div class="sg-detail-field">
+                        <dt>Trámite OC general</dt>
+                        <dd>${escapeHtml((s.numero_tramite_oc || "").trim() || "—")}</dd>
+                    </div>
+                </dl>
+            </div>`;
+
+    const panelEntregaParcial =
+        solicitudTieneOcRegistrada(s) && solicitudTieneEntregaPendiente(s)
+            ? `
+            <div class="sg-detail-panel sg-gestion-form-panel sg-entrega-parcial-panel" id="panel-entrega-parcial-wrap" hidden>
+                <h3 class="sg-detail-panel-title">Registrar entrega parcial</h3>
+                <p class="muted sg-detail-panel-hint">
+                    Selecciona los ítems a entregar e indica la cantidad de esta entrega.
+                    La cantidad pendiente se actualizará automáticamente.
+                </p>
+                ${renderProductosTableHtml(s.productos, {
+                    titulo: "Ítems pendientes de entrega",
+                    excluirNoAprobados: true,
+                    showEntregaInfo: true,
+                    entregaParcialEditable: true,
+                    panelId: "sg-entrega-parcial-table",
+                })}
+            </div>`
+            : "";
+
+    return `
+        <div class="sg-detail-layout">
+            ${renderWorkflowTimelineHtml(s)}
+
+            <div class="sg-detail-panel">
+                <h3 class="sg-detail-panel-title">Información general</h3>
+                <dl class="sg-detail-grid">
+                    <div class="sg-detail-field">
+                        <dt>Título</dt>
+                        <dd>${escapeHtml(s.titulo)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Estado actual</dt>
+                        <dd>${badgeEstado(s.estado, s)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Centro de costo</dt>
+                        <dd>${escapeHtml(s.centro_costo_area)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Líder aprobador inicial</dt>
+                        <dd>${escapeHtml(s.lider_area_label || "—")}</dd>
+                    </div>
+                    ${
+                        s.tipo === "compra"
+                            ? `<div class="sg-detail-field">
+                        <dt>Presupuestado</dt>
+                        <dd>${presupuestado}</dd>
+                    </div>`
+                            : ""
+                    }
+                    ${
+                        s.gestor_username
+                            ? `<div class="sg-detail-field">
+                        <dt>Gestor asignado</dt>
+                        <dd>${escapeHtml(s.gestor_username)}</dd>
+                    </div>`
+                            : ""
+                    }
+                </dl>
+            </div>
+
+            ${renderAprobacionParcialAlertHtml(s)}
+
+            ${renderOrdenOcRegistradaAlertHtml(s)}
+
+            ${panelOcEditable}
+
+            ${
+                mostrarEntregaInfo && esEntregaParcial
+                    ? renderProductosTableHtml(s.productos, {
+                          titulo: "Estado de entrega por ítem",
+                          excluirNoAprobados: true,
+                          showEntregaInfo: true,
+                      })
+                    : ""
+            }
+
+            ${panelEntregaParcial}
+
+            ${renderObservacionesTrazabilidadHtml(s)}
+
+            ${renderArchivosHtml(s)}
+
+            ${renderAgregarComentarioHtml({
+                showIntro: false,
+                showHint: false,
+                showSaveButton: false,
+                title: "Observación del gestor",
+                label: "Comentario",
+            })}
         </div>`;
 }
 

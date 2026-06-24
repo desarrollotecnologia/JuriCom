@@ -443,6 +443,117 @@ def run_all() -> None:
     migrar_observaciones_trazabilidad()
     migrar_archivos_observacion()
     migrar_productos_estado_aprobacion()
+    migrar_productos_cantidad()
+    migrar_tramite_oc()
+    migrar_users_email()
+    migrar_solicitudes_creado_por_email()
+    migrar_productos_cantidad_entregada()
+
+
+def migrar_productos_cantidad_entregada() -> None:
+    """Cantidad ya entregada por ítem (entrega parcial)."""
+    if not _tabla_existe("solicitudes_gestion_productos"):
+        return
+    if not _columna_existe("solicitudes_gestion_productos", "cantidad_entregada"):
+        with engine.begin() as conn:
+            logger.info(
+                "Agregando columna 'cantidad_entregada' a solicitudes_gestion_productos..."
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion_productos "
+                    "ADD COLUMN cantidad_entregada DECIMAL(18,4) NOT NULL DEFAULT 0.0000 "
+                    "AFTER cantidad"
+                )
+            )
+
+
+def migrar_users_email() -> None:
+    """Correo opcional del usuario para notificaciones."""
+    if not _tabla_existe("users"):
+        return
+    if not _columna_existe("users", "email"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'email' a users...")
+            conn.execute(
+                text(
+                    "ALTER TABLE users "
+                    "ADD COLUMN email VARCHAR(255) NOT NULL DEFAULT '' AFTER role"
+                )
+            )
+
+
+def migrar_solicitudes_creado_por_email() -> None:
+    """Correo del solicitante al momento de crear la solicitud."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    if not _columna_existe("solicitudes_gestion", "creado_por_email"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'creado_por_email' a solicitudes_gestion...")
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion "
+                    "ADD COLUMN creado_por_email VARCHAR(255) NOT NULL DEFAULT '' "
+                    "AFTER creado_por_id"
+                )
+            )
+            if _columna_existe("users", "email"):
+                conn.execute(
+                    text(
+                        "UPDATE solicitudes_gestion sg "
+                        "INNER JOIN users u ON u.id = sg.creado_por_id "
+                        "SET sg.creado_por_email = u.email "
+                        "WHERE u.email IS NOT NULL AND u.email <> ''"
+                    )
+                )
+
+
+def migrar_tramite_oc() -> None:
+    """Número de trámite OC general y parcial por ítem."""
+    if _tabla_existe("solicitudes_gestion") and not _columna_existe(
+        "solicitudes_gestion", "numero_tramite_oc"
+    ):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'numero_tramite_oc' a solicitudes_gestion...")
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion "
+                    "ADD COLUMN numero_tramite_oc VARCHAR(100) NOT NULL DEFAULT '' "
+                    "AFTER justificacion_cotizaciones"
+                )
+            )
+    if _tabla_existe("solicitudes_gestion_productos") and not _columna_existe(
+        "solicitudes_gestion_productos", "numero_tramite_oc"
+    ):
+        with engine.begin() as conn:
+            logger.info(
+                "Agregando columna 'numero_tramite_oc' a solicitudes_gestion_productos..."
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion_productos "
+                    "ADD COLUMN numero_tramite_oc VARCHAR(100) NOT NULL DEFAULT '' "
+                    "AFTER estado_aprobacion"
+                )
+            )
+
+
+def migrar_productos_cantidad() -> None:
+    """Cantidad por ítem en el detalle de la compra."""
+    if not _tabla_existe("solicitudes_gestion_productos"):
+        return
+    if not _columna_existe("solicitudes_gestion_productos", "cantidad"):
+        with engine.begin() as conn:
+            logger.info(
+                "Agregando columna 'cantidad' a solicitudes_gestion_productos..."
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion_productos "
+                    "ADD COLUMN cantidad DECIMAL(18,4) NOT NULL DEFAULT 1.0000 "
+                    "AFTER centro_costo"
+                )
+            )
 
 
 def migrar_productos_estado_aprobacion() -> None:

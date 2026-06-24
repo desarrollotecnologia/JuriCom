@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from app.application.interfaces.file_storage import FileStorage
@@ -85,12 +86,20 @@ class RegistrarSolicitudCompra:
                 raise ValueError(f"Producto {i}: la unidad es obligatoria.")
             if not centro:
                 raise ValueError(f"Producto {i}: el centro de costo es obligatorio.")
+            cantidad_raw = item.get("cantidad", 1)
+            try:
+                cantidad = Decimal(str(cantidad_raw).replace(",", ".").strip() or "1")
+            except (InvalidOperation, ValueError) as e:
+                raise ValueError(f"Producto {i}: cantidad inválida.") from e
+            if cantidad <= 0:
+                raise ValueError(f"Producto {i}: la cantidad debe ser mayor a cero.")
             productos.append(
                 SolicitudGestionProducto(
                     codigo_siimed=str(item.get("codigo_siimed") or "").strip(),
                     unidad=unidad,
                     descripcion=descripcion,
                     centro_costo=centro,
+                    cantidad=cantidad,
                 )
             )
 
@@ -104,6 +113,7 @@ class RegistrarSolicitudCompra:
             observaciones=observaciones or "",
             observaciones_texto=(observaciones_texto or "").strip(),
             creado_por_id=actor.id,
+            creado_por_email=(actor.email or "").strip(),
             estado=EstadoSolicitudGestion.SOLICITUD,
         )
 

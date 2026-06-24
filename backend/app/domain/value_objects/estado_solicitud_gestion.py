@@ -41,7 +41,7 @@ LABELS: dict[EstadoSolicitudGestion, str] = {
     EstadoSolicitudGestion.TRAMITADA_OC: "Tramitada OC",
     EstadoSolicitudGestion.CANCELADO: "Cancelado",
     EstadoSolicitudGestion.ENTREGADO: "Entregado",
-    EstadoSolicitudGestion.ENTREGADO_PARCIAL: "Entregado Parcial",
+    EstadoSolicitudGestion.ENTREGADO_PARCIAL: "Entrega parcial en curso",
     EstadoSolicitudGestion.REGISTRADA: "Solicitud",
     EstadoSolicitudGestion.APROBADA: "Primera Aprobación",
     EstadoSolicitudGestion.RECHAZADA: "Cancelado",
@@ -72,6 +72,10 @@ FLUJO_HISTORIAL: list[EstadoSolicitudGestion] = [
 ESTADOS_TERMINALES: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.CANCELADO,
     EstadoSolicitudGestion.ENTREGADO,
+]
+
+ESTADOS_ENTREGA_ABIERTA: list[EstadoSolicitudGestion] = [
+    EstadoSolicitudGestion.TRAMITADA_OC,
     EstadoSolicitudGestion.ENTREGADO_PARCIAL,
 ]
 
@@ -161,6 +165,10 @@ def es_pendiente_aprobacion(estado: EstadoSolicitudGestion) -> bool:
 
 def es_estado_terminal(estado: EstadoSolicitudGestion) -> bool:
     return normalizar_estado(estado) in ESTADOS_TERMINALES
+
+
+def es_estado_entrega_abierta(estado: EstadoSolicitudGestion | str) -> bool:
+    return normalizar_estado(estado) in ESTADOS_ENTREGA_ABIERTA
 
 
 def es_visible_en_panel(estado: EstadoSolicitudGestion | str) -> bool:
