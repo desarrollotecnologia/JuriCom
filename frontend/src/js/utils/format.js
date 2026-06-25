@@ -12,6 +12,18 @@ export function formatMoney(amount, moneda) {
     return `${symbol} ${num}`;
 }
 
+export function formatValorTramiteOc(amount) {
+    if (amount === null || amount === undefined || amount === "") return "—";
+    const num = Number(amount);
+    if (Number.isNaN(num)) return "—";
+    return num.toLocaleString("es-CO", {
+        style: "currency",
+        currency: "COP",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    });
+}
+
 export function formatPlazo(cantidad, unidad) {
     return `${cantidad} ${UNIDAD_LABEL[unidad] || unidad}`;
 }

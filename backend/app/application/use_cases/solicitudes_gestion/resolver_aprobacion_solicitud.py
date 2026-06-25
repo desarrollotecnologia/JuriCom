@@ -73,7 +73,10 @@ class ResolverAprobacionSolicitud:
                 productos_aprobados_ids,
             )
 
-        proxima = siguiente_etapa(etapa_actual)
+        if etapa_actual == EstadoSolicitudGestion.EN_APROBACION:
+            proxima = EstadoSolicitudGestion.TRAMITANDO_OC
+        else:
+            proxima = siguiente_etapa(etapa_actual)
         if proxima is None:
             raise ValueError("La solicitud ya completó el flujo de aprobación.")
 

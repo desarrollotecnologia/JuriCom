@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Aprobar solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=3" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=5" />
     </head>
     <body>
         <div class="app-shell">
@@ -14,8 +14,7 @@
                     <div>
                         <h1>Aprobar solicitudes</h1>
                         <p class="muted">
-                            Revisa y aprueba las solicitudes de compra registradas por los usuarios del sistema.
-                            El líder Colbeef del formulario es referencia del área; la aprobación la realiza aquí un usuario Compras o Admin.
+                            Revisa y aprueba solicitudes de compra y anticipos de OC registrados por Compras.
                         </p>
                     </div>
                     <div class="page-header-actions">
@@ -32,7 +31,7 @@
                 <div class="alert alert-success" id="alert-success"></div>
 
                 <div class="card">
-                    <h2 class="card-title">Solicitudes de compra pendientes</h2>
+                    <h2 class="card-title">Solicitudes de compra y anticipos pendientes</h2>
 
                     <div class="search-bar">
                         <input
@@ -154,7 +153,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=3";
+            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=6";
 
             session.requireAuth();
             session.requireRole(["compras", "admin"]);

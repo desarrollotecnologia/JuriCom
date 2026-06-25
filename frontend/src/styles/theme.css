@@ -773,6 +773,58 @@ table.clickable-rows tbody tr[data-id]:focus {
     font-size: 0.85rem;
     margin: -6px 0 14px;
 }
+.sg-obs-collapsible {
+    padding: 0;
+    overflow: hidden;
+}
+.sg-obs-collapsible-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 18px 20px;
+    margin: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+}
+.sg-obs-collapsible-toggle:hover .sg-detail-panel-title,
+.sg-obs-collapsible-toggle:focus-visible .sg-detail-panel-title {
+    color: var(--color-primary);
+}
+.sg-obs-collapsible-toggle:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
+}
+.sg-obs-collapsible-toggle .sg-detail-panel-title {
+    margin: 0;
+    flex: 1;
+}
+.sg-obs-collapsible-count {
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+.sg-obs-collapsible-chevron {
+    flex-shrink: 0;
+    color: var(--color-primary);
+    transition: transform 0.2s ease;
+}
+.sg-obs-collapsible--open .sg-obs-collapsible-chevron {
+    transform: rotate(180deg);
+}
+.sg-obs-collapsible-body {
+    padding: 0 20px 18px;
+    border-top: 1px solid var(--color-border);
+}
+.sg-obs-collapsible-body .sg-obs-timeline {
+    margin-top: 14px;
+}
+.sg-obs-collapsible-body .sg-obs-timeline-empty {
+    margin-top: 14px;
+}
 .sg-detail-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1108,6 +1160,21 @@ table.clickable-rows tbody tr[data-id]:focus {
 
 .sg-gestion-form-panel .field:first-of-type {
     margin-top: 0;
+}
+
+.sg-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-3) 0;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.sg-anticipo-campos {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-color, #e5e7eb);
 }
 
 .sg-cotizaciones-upload {

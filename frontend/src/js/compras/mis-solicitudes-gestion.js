@@ -1,15 +1,23 @@
 import { api, ApiError } from "../api/client.js";
+import { createObservacionConAdjuntos } from "../components/observacion-editor.js";
 import { escapeHtml, formatDate } from "../utils/format.js";
 import {
     attachGestionDownloadHandlers,
     badgeEstado,
     badgeTipo,
     hydrateInlineObservacionImages,
+    puedeComentarPosteriorCotizacion,
+    renderAgregarComentarioHtml,
     renderDetalleSolicitudHtml,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=7";
+} from "./gestion-solicitudes-common.js?v=18";
 
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+
+const COMENTARIO_EDITOR_ID = "mis-sol-comentario-cotizacion-editor";
+const COMENTARIO_FILE_INPUT_ID = "mis-sol-comentario-cotizacion-adjuntos";
+const COMENTARIO_FILE_LIST_ID = "mis-sol-comentario-cotizacion-file-list";
+const COMENTARIO_BTN_ID = "btn-mis-sol-guardar-comentario-cotizacion";
 
 export function initMisSolicitudesGestion({ esAdmin }) {
     const tbody = document.getElementById("gestion-tbody");
@@ -17,14 +25,24 @@ export function initMisSolicitudesGestion({ esAdmin }) {
     const filterTipo = document.getElementById("gestion-filter-tipo");
     const resultCount = document.getElementById("gestion-result-count");
     const alertError = document.getElementById("alert-error");
+    const alertSuccess = document.getElementById("alert-success");
     const modal = document.getElementById("modal-gestion-detail");
     const detailContent = document.getElementById("gestion-detail-content");
     const detailTitle = document.getElementById("gestion-detail-title");
 
     function showError(msg) {
+        alertSuccess?.classList.remove("show");
         if (!alertError) return;
         alertError.textContent = msg;
         alertError.classList.add("show");
+    }
+
+    function showSuccess(msg) {
+        alertError?.classList.remove("show");
+        if (!alertSuccess) return;
+        alertSuccess.textContent = msg;
+        alertSuccess.classList.add("show");
+        setTimeout(() => alertSuccess.classList.remove("show"), 4000);
     }
 
     if (!tbody) {
@@ -40,6 +58,25 @@ export function initMisSolicitudesGestion({ esAdmin }) {
     }
 
     let items = [];
+    let selectedSolicitudId = null;
+    let observacionControl = null;
+
+    function destroyObservacionEditor() {
+        observacionControl?.destroy();
+        observacionControl = null;
+    }
+
+    function initObservacionEditor() {
+        destroyObservacionEditor();
+        if (!document.getElementById(COMENTARIO_EDITOR_ID)) return;
+        observacionControl = createObservacionConAdjuntos({
+            editorContainerId: COMENTARIO_EDITOR_ID,
+            fileInputId: COMENTARIO_FILE_INPUT_ID,
+            fileListId: COMENTARIO_FILE_LIST_ID,
+            name: "comentario_cotizacion",
+            placeholder: "Escribe un comentario sobre la cotización o el proceso de compra...",
+        });
+    }
 
     function buildQuery() {
         const params = new URLSearchParams();
@@ -114,23 +151,93 @@ export function initMisSolicitudesGestion({ esAdmin }) {
         }
     }
 
+    function renderDetalleConComentario(s) {
+        const puedeComentar = puedeComentarPosteriorCotizacion(s.estado);
+        const detalle = renderDetalleSolicitudHtml(s, {
+            productosOptions: {
+                resaltarNoAprobados: true,
+                showEstado: true,
+                titulo: "Productos solicitados",
+            },
+        });
+        if (!puedeComentar) return detalle;
+
+        return (
+            detalle +
+            renderAgregarComentarioHtml({
+                editorContainerId: COMENTARIO_EDITOR_ID,
+                fileInputId: COMENTARIO_FILE_INPUT_ID,
+                fileListId: COMENTARIO_FILE_LIST_ID,
+                btnId: COMENTARIO_BTN_ID,
+                title: "Comentario sobre la cotización",
+                label: "Nuevo comentario",
+                showIntro: true,
+                showHint: true,
+                showSaveButton: true,
+            })
+        );
+    }
+
     async function openDetail(id) {
         try {
             const s = await api.get(`/solicitudes-gestion/${id}`);
+            selectedSolicitudId = s.id;
             detailTitle.textContent = `${s.codigo} · ${TIPO_LABEL[s.tipo] || s.tipo}`;
-            detailContent.innerHTML = renderDetalleSolicitudHtml(s, {
-                productosOptions: {
-                    resaltarNoAprobados: true,
-                    showEstado: true,
-                    titulo: "Productos solicitados",
-                },
-            });
+            detailContent.innerHTML = renderDetalleConComentario(s);
+            initObservacionEditor();
             await hydrateInlineObservacionImages(detailContent, s.id);
             modal.classList.add("show");
         } catch (err) {
             showError(
                 err instanceof ApiError ? err.message : "No se pudo cargar el detalle."
             );
+        }
+    }
+
+    async function guardarComentarioCotizacion() {
+        if (!selectedSolicitudId || !observacionControl) return;
+
+        observacionControl.editor.syncHidden();
+        const contenido = observacionControl.editor.getHtml() ?? "";
+        const contenidoTexto = observacionControl.editor.getText() ?? "";
+        const adjuntos = observacionControl.getFiles() ?? [];
+
+        if (!contenidoTexto.trim() && !contenido.trim() && !adjuntos.length) {
+            showError("Escribe un comentario o adjunta al menos un archivo.");
+            return;
+        }
+
+        const btn = document.getElementById(COMENTARIO_BTN_ID);
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "Guardando...";
+        }
+
+        const formData = new FormData();
+        formData.append("contenido", contenido);
+        formData.append("contenido_texto", contenidoTexto);
+        formData.append("contexto_rol", "solicitante");
+        adjuntos.forEach((file) => formData.append("adjuntos", file));
+
+        try {
+            await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitudId}/observaciones`,
+                formData
+            );
+            showSuccess("Comentario registrado en el historial de la solicitud.");
+            const s = await api.get(`/solicitudes-gestion/${selectedSolicitudId}`);
+            detailContent.innerHTML = renderDetalleConComentario(s);
+            initObservacionEditor();
+            await hydrateInlineObservacionImages(detailContent, s.id);
+        } catch (err) {
+            showError(
+                err instanceof ApiError ? err.message : "No se pudo guardar el comentario."
+            );
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = "Guardar comentario";
+            }
         }
     }
 
@@ -142,11 +249,21 @@ export function initMisSolicitudesGestion({ esAdmin }) {
         showError("No se pudieron habilitar las descargas de archivos.");
     }
 
-    document.getElementById("btn-gestion-detail-close")?.addEventListener("click", () => {
-        modal.classList.remove("show");
+    detailContent?.addEventListener("click", (e) => {
+        if (e.target.closest(`#${COMENTARIO_BTN_ID}`)) {
+            guardarComentarioCotizacion();
+        }
     });
+
+    function closeModal() {
+        modal.classList.remove("show");
+        destroyObservacionEditor();
+        selectedSolicitudId = null;
+    }
+
+    document.getElementById("btn-gestion-detail-close")?.addEventListener("click", closeModal);
     modal?.addEventListener("click", (e) => {
-        if (e.target === modal) modal.classList.remove("show");
+        if (e.target === modal) closeModal();
     });
 
     let debounce;

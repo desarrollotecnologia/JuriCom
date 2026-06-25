@@ -7,9 +7,12 @@ from app.domain.entities.solicitud_gestion import SolicitudGestion
 from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
 from app.domain.value_objects.estado_solicitud_gestion import (
+    ETAPAS_GESTION_ANTICIPO,
+    ETAPAS_PENDIENTES_APROBACION_ANTICIPO,
     es_estado_terminal,
     es_pendiente_aprobacion,
     es_visible_en_panel,
+    normalizar_estado,
 )
 
 
@@ -22,9 +25,14 @@ class GetSolicitudGestion:
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
         if actor.is_compras() and not actor.is_admin() and solicitud.creado_por_id != actor.id:
-            if es_visible_en_panel(solicitud.estado) or es_pendiente_aprobacion(solicitud.estado):
+            estado = normalizar_estado(solicitud.estado)
+            if es_visible_en_panel(estado) or es_pendiente_aprobacion(estado):
                 return solicitud
-            if es_estado_terminal(solicitud.estado):
+            if estado in ETAPAS_GESTION_ANTICIPO or estado in ETAPAS_PENDIENTES_APROBACION_ANTICIPO:
+                return solicitud
+            if solicitud.gestor_anticipo_id == actor.id:
+                return solicitud
+            if es_estado_terminal(estado):
                 raise UnauthorizedError("No tienes permiso para ver esta solicitud.")
             raise UnauthorizedError("No tienes permiso para ver esta solicitud.")
         return solicitud

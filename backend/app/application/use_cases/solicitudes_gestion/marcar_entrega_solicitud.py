@@ -70,7 +70,7 @@ class MarcarEntregaSolicitud:
 
         if not es_estado_entrega_abierta(solicitud.estado):
             raise ValueError(
-                "La solicitud debe estar en Tramitada OC o Entrega parcial en curso."
+                "La solicitud debe estar en Recepción de Insumos o Entrega parcial realizada."
             )
 
         if not solicitud.tiene_tramite_oc_registrado:
@@ -78,26 +78,40 @@ class MarcarEntregaSolicitud:
                 "Debes registrar el trámite OC antes de marcar la entrega."
             )
 
-        if solicitud.gestor_id and solicitud.gestor_id != actor.id and not actor.is_admin():
+        if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
             raise UnauthorizedError("Sólo el gestor asignado puede registrar la entrega.")
 
-        if solicitud.tiene_entrega_pendiente:
-            pendientes = [
-                f"«{p.descripcion}» (pendiente {p.cantidad_pendiente})"
-                for p in solicitud.productos_para_entrega
-                if p.cantidad_pendiente > 0
-            ]
+        productos_entrega = solicitud.productos_para_entrega
+        if not productos_entrega:
+            raise ValueError("No hay ítems aprobados para entregar.")
+
+        pendientes_recepcion = [
+            p for p in productos_entrega if p.cantidad_pendiente_recepcion > 0
+        ]
+        if pendientes_recepcion:
+            nombres = ", ".join(f"«{p.descripcion}»" for p in pendientes_recepcion)
             raise ValueError(
-                "Aún hay ítems pendientes de entrega. Registra las entregas parciales "
-                "o completa las cantidades antes de cerrar. Pendientes: "
-                + ", ".join(pendientes)
+                f"Aún hay ítems sin recepción física completa: {nombres}. "
+                "Registra la llegada o usa entrega parcial de lo recibido."
+            )
+
+        pendientes_entrega = [
+            p for p in productos_entrega if p.cantidad_disponible_entrega <= 0
+        ]
+        if len(pendientes_entrega) == len(productos_entrega):
+            raise ValueError(
+                "No hay cantidades recibidas pendientes de entrega al solicitante."
             )
 
         cantidades_finales: dict[int, Decimal] = {}
-        for producto in solicitud.productos_para_entrega:
+        for producto in productos_entrega:
             if producto.id is None:
                 continue
-            cantidades_finales[producto.id] = producto.cantidad
+            if producto.cantidad_disponible_entrega <= 0:
+                continue
+            cantidades_finales[producto.id] = producto.cantidad_entregada + (
+                producto.cantidad_disponible_entrega
+            )
 
         if cantidades_finales:
             self._solicitudes.update_productos_cantidad_entregada(

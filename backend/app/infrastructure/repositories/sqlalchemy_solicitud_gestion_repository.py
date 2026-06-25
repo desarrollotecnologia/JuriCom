@@ -88,6 +88,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model: SolicitudGestionModel,
         creado_por_username: str = "",
         gestor_username: str = "",
+        gestor_anticipo_username: str = "",
     ) -> SolicitudGestion:
         return SolicitudGestion(
             id=model.id,
@@ -106,6 +107,15 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones_gestion=getattr(model, "observaciones_gestion", "") or "",
             justificacion_cotizaciones=getattr(model, "justificacion_cotizaciones", "") or "",
             numero_tramite_oc=getattr(model, "numero_tramite_oc", "") or "",
+            valor_tramite_oc=getattr(model, "valor_tramite_oc", None),
+            requiere_anticipo=bool(getattr(model, "requiere_anticipo", False)),
+            porcentaje_anticipo=getattr(model, "porcentaje_anticipo", None),
+            lider_anticipo_id=getattr(model, "lider_anticipo_id", "") or "",
+            lider_anticipo_label=getattr(model, "lider_anticipo_label", "") or "",
+            monto_anticipo=getattr(model, "monto_anticipo", None),
+            observaciones_anticipo=getattr(model, "observaciones_anticipo", "") or "",
+            gestor_anticipo_id=getattr(model, "gestor_anticipo_id", None),
+            gestor_anticipo_username=gestor_anticipo_username,
             gestor_id=getattr(model, "gestor_id", None),
             gestor_username=gestor_username,
             estado=normalizar_estado(model.estado),
@@ -123,11 +133,13 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
                     descripcion=p.descripcion,
                     centro_costo=p.centro_costo,
                     cantidad=getattr(p, "cantidad", None) or Decimal("1"),
+                    cantidad_recibida=getattr(p, "cantidad_recibida", None) or Decimal("0"),
                     cantidad_entregada=getattr(p, "cantidad_entregada", None) or Decimal("0"),
                     estado_aprobacion=normalizar_estado_aprobacion_producto(
                         getattr(p, "estado_aprobacion", None)
                     ),
                     numero_tramite_oc=getattr(p, "numero_tramite_oc", "") or "",
+                    valor_tramite_oc=getattr(p, "valor_tramite_oc", None),
                 )
                 for p in model.productos
             ],
@@ -203,14 +215,20 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
 
     def get_by_id(self, solicitud_id: int) -> Optional[SolicitudGestion]:
         GestorUser = aliased(UserModel)
+        GestorAnticipoUser = aliased(UserModel)
         row = (
             self._db.query(
                 SolicitudGestionModel,
                 UserModel.username,
                 GestorUser.username,
+                GestorAnticipoUser.username,
             )
             .join(UserModel, SolicitudGestionModel.creado_por_id == UserModel.id)
             .outerjoin(GestorUser, SolicitudGestionModel.gestor_id == GestorUser.id)
+            .outerjoin(
+                GestorAnticipoUser,
+                SolicitudGestionModel.gestor_anticipo_id == GestorAnticipoUser.id,
+            )
             .options(
                 selectinload(SolicitudGestionModel.productos),
                 selectinload(SolicitudGestionModel.archivos),
@@ -223,14 +241,20 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         )
         if not row:
             return None
-        model, username, gestor_username = row
-        return self._to_entity(model, username, gestor_username or "")
+        model, username, gestor_username, gestor_anticipo_username = row
+        return self._to_entity(
+            model,
+            username,
+            gestor_username or "",
+            gestor_anticipo_username or "",
+        )
 
     def list_all(
         self,
         *,
         creador_id: Optional[int] = None,
         excluir_creador_id: Optional[int] = None,
+        gestor_anticipo_id: Optional[int] = None,
         tipo: Optional[TipoSolicitudGestion] = None,
         estados: Optional[list[EstadoSolicitudGestion]] = None,
         query: Optional[str] = None,
@@ -251,6 +275,8 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             q = q.filter(SolicitudGestionModel.creado_por_id == creador_id)
         if excluir_creador_id is not None:
             q = q.filter(SolicitudGestionModel.creado_por_id != excluir_creador_id)
+        if gestor_anticipo_id is not None:
+            q = q.filter(SolicitudGestionModel.gestor_anticipo_id == gestor_anticipo_id)
         if tipo is not None:
             q = q.filter(SolicitudGestionModel.tipo == tipo.value)
         if estados:
@@ -291,6 +317,14 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model.observaciones_gestion = solicitud.observaciones_gestion
         model.justificacion_cotizaciones = solicitud.justificacion_cotizaciones
         model.numero_tramite_oc = solicitud.numero_tramite_oc or ""
+        model.valor_tramite_oc = solicitud.valor_tramite_oc
+        model.requiere_anticipo = solicitud.requiere_anticipo
+        model.porcentaje_anticipo = solicitud.porcentaje_anticipo
+        model.lider_anticipo_id = solicitud.lider_anticipo_id or ""
+        model.lider_anticipo_label = solicitud.lider_anticipo_label or ""
+        model.monto_anticipo = solicitud.monto_anticipo
+        model.observaciones_anticipo = solicitud.observaciones_anticipo or ""
+        model.gestor_anticipo_id = solicitud.gestor_anticipo_id
         model.gestor_id = solicitud.gestor_id
         model.lider_segunda_aprobacion_id = solicitud.lider_segunda_aprobacion_id
         model.lider_segunda_aprobacion_label = solicitud.lider_segunda_aprobacion_label
@@ -462,7 +496,9 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         solicitud_id: int,
         *,
         numero_tramite_oc: Optional[str] = None,
+        valor_tramite_oc: Optional[Decimal] = None,
         numeros_por_producto: Optional[dict[int, str]] = None,
+        valores_por_producto: Optional[dict[int, Decimal]] = None,
     ) -> None:
         if numero_tramite_oc is not None:
             model = (
@@ -473,16 +509,19 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             if model is None:
                 raise ValueError(f"No existe la solicitud {solicitud_id}.")
             model.numero_tramite_oc = (numero_tramite_oc or "").strip()
+            model.valor_tramite_oc = valor_tramite_oc
 
-        if numeros_por_producto:
+        if numeros_por_producto or valores_por_producto:
             rows = (
                 self._db.query(SolicitudGestionProductoModel)
                 .filter(SolicitudGestionProductoModel.solicitud_id == solicitud_id)
                 .all()
             )
             for row in rows:
-                if row.id in numeros_por_producto:
+                if numeros_por_producto and row.id in numeros_por_producto:
                     row.numero_tramite_oc = (numeros_por_producto[row.id] or "").strip()
+                if valores_por_producto and row.id in valores_por_producto:
+                    row.valor_tramite_oc = valores_por_producto[row.id]
 
         self._db.commit()
         self._db.expire_all()
@@ -502,6 +541,24 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         for row in rows:
             if row.id in cantidades_por_id:
                 row.cantidad_entregada = cantidades_por_id[row.id]
+        self._db.commit()
+        self._db.expire_all()
+
+    def update_productos_cantidad_recibida(
+        self,
+        solicitud_id: int,
+        cantidades_por_id: dict[int, Decimal],
+    ) -> None:
+        if not cantidades_por_id:
+            return
+        rows = (
+            self._db.query(SolicitudGestionProductoModel)
+            .filter(SolicitudGestionProductoModel.solicitud_id == solicitud_id)
+            .all()
+        )
+        for row in rows:
+            if row.id in cantidades_por_id:
+                row.cantidad_recibida = cantidades_por_id[row.id]
         self._db.commit()
         self._db.expire_all()
 

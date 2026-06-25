@@ -186,12 +186,22 @@ class SolicitudGestionModel(Base):
     observaciones_gestion: Mapped[str] = mapped_column(Text, nullable=False, default="")
     justificacion_cotizaciones: Mapped[str] = mapped_column(Text, nullable=False, default="")
     numero_tramite_oc: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    valor_tramite_oc: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
     gestor_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     lider_segunda_aprobacion_id: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     lider_segunda_aprobacion_label: Mapped[str] = mapped_column(
         String(500), nullable=False, default=""
+    )
+    requiere_anticipo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    porcentaje_anticipo: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    lider_anticipo_id: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    lider_anticipo_label: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    monto_anticipo: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
+    observaciones_anticipo: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    gestor_anticipo_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     estado: Mapped[str] = mapped_column(
         String(30), nullable=False, default="solicitud", index=True
@@ -279,10 +289,14 @@ class SolicitudGestionProductoModel(Base):
     cantidad_entregada: Mapped[Decimal] = mapped_column(
         Numeric(18, 4), nullable=False, default=Decimal("0")
     )
+    cantidad_recibida: Mapped[Decimal] = mapped_column(
+        Numeric(18, 4), nullable=False, default=Decimal("0")
+    )
     estado_aprobacion: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pendiente"
     )
     numero_tramite_oc: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    valor_tramite_oc: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
 
     solicitud: Mapped["SolicitudGestionModel"] = relationship(
         "SolicitudGestionModel", back_populates="productos"

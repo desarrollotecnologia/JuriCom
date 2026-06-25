@@ -20,14 +20,19 @@ from app.application.use_cases.solicitudes_gestion import (
     ArchivoEntradaSolicitud,
     EnviarCotizacionSolicitud,
     GetSolicitudGestion,
+    GestionarAnticipoSolicitud,
     GestionarSolicitudPanel,
+    ListarGestionAnticipo,
     ListarPendientesAprobacion,
+    ListarPendientesAprobacionAnticipo,
     ListarSolicitudesGestion,
     ListarSolicitudesPanelGestion,
     MarcarEntregaSolicitud,
     RegistrarEntregaParcialSolicitud,
+    RegistrarRecepcionInsumosSolicitud,
     RegistrarSolicitudCompra,
     RegistrarTramiteOcSolicitud,
+    ResolverAprobacionAnticipo,
     ResolverAprobacionSolicitud,
     SolicitarRecotizacionSolicitud,
 )
@@ -50,12 +55,14 @@ from app.presentation.api.v1.dependencies import (
     get_user_repository,
 )
 from app.presentation.api.v1.schemas.solicitud_gestion_schemas import (
+    RechazarAnticipoBody,
     RechazarSolicitudGestionBody,
     SolicitudGestionArchivoResponse,
     SolicitudGestionHistorialEstadoResponse,
     SolicitudGestionListItem,
     MarcarEntregaSolicitudResponse,
     EntregaParcialSolicitudResponse,
+    RecepcionInsumosSolicitudResponse,
     SolicitudGestionObservacionResponse,
     SolicitudGestionProductoResponse,
     SolicitudGestionResponse,
@@ -81,6 +88,9 @@ def _to_producto_item(p) -> SolicitudGestionProductoResponse:
         descripcion=p.descripcion,
         centro_costo=p.centro_costo,
         cantidad=float(p.cantidad) if p.cantidad is not None else 1.0,
+        cantidad_recibida=float(p.cantidad_recibida)
+        if getattr(p, "cantidad_recibida", None) is not None
+        else 0.0,
         cantidad_entregada=float(p.cantidad_entregada)
         if getattr(p, "cantidad_entregada", None) is not None
         else 0.0,
@@ -91,10 +101,28 @@ def _to_producto_item(p) -> SolicitudGestionProductoResponse:
             float(p.cantidad or 1)
             - float(getattr(p, "cantidad_entregada", 0) or 0),
         ),
+        cantidad_pendiente_recepcion=float(p.cantidad_pendiente_recepcion)
+        if getattr(p, "cantidad_pendiente_recepcion", None) is not None
+        else max(
+            0.0,
+            float(p.cantidad or 1)
+            - float(getattr(p, "cantidad_recibida", 0) or 0),
+        ),
+        cantidad_disponible_entrega=float(p.cantidad_disponible_entrega)
+        if getattr(p, "cantidad_disponible_entrega", None) is not None
+        else max(
+            0.0,
+            float(getattr(p, "cantidad_recibida", 0) or 0)
+            - float(getattr(p, "cantidad_entregada", 0) or 0),
+        ),
+        estado_recepcion=getattr(p, "estado_recepcion", "pendiente") or "pendiente",
         estado_entrega=getattr(p, "estado_entrega", "pendiente") or "pendiente",
         estado_aprobacion=estado_enum.value,
         estado_aprobacion_label=LABELS_APROB_PRODUCTO.get(estado_enum, estado_enum.value),
         numero_tramite_oc=getattr(p, "numero_tramite_oc", "") or "",
+        valor_tramite_oc=float(p.valor_tramite_oc)
+        if getattr(p, "valor_tramite_oc", None) is not None
+        else None,
     )
 
 
@@ -108,16 +136,27 @@ def _to_list_item(s: SolicitudGestion) -> SolicitudGestionListItem:
         centro_costo_area=s.centro_costo_area,
         lider_area_label=s.lider_area_label,
         estado=s.estado,
+        estado_label=s.estado.label,
         cantidad_productos=s.cantidad_productos,
         cantidad_productos_aprobados=s.cantidad_productos_aprobados,
         aprobacion_parcial=s.aprobacion_parcial,
         tiene_tramite_oc_registrado=s.tiene_tramite_oc_registrado,
         entrega_completa=s.entrega_completa,
         tiene_entrega_pendiente=s.tiene_entrega_pendiente,
+        tiene_recepcion_pendiente=s.tiene_recepcion_pendiente,
+        recepcion_completa=s.recepcion_completa,
         cantidad_archivos=len(s.archivos),
         creado_por_username=s.creado_por_username,
         gestor_id=s.gestor_id,
         gestor_username=s.gestor_username,
+        requiere_anticipo=s.requiere_anticipo,
+        porcentaje_anticipo=float(s.porcentaje_anticipo)
+        if s.porcentaje_anticipo is not None
+        else None,
+        lider_anticipo_label=s.lider_anticipo_label or "",
+        monto_anticipo=float(s.monto_anticipo) if s.monto_anticipo is not None else None,
+        gestor_anticipo_id=s.gestor_anticipo_id,
+        gestor_anticipo_username=s.gestor_anticipo_username or "",
         created_at=s.created_at,
     )
 
@@ -177,10 +216,23 @@ def _to_response(
         observaciones_gestion=s.observaciones_gestion,
         justificacion_cotizaciones=s.justificacion_cotizaciones,
         numero_tramite_oc=s.numero_tramite_oc or "",
+        valor_tramite_oc=float(s.valor_tramite_oc)
+        if s.valor_tramite_oc is not None
+        else None,
         lider_segunda_aprobacion_id=s.lider_segunda_aprobacion_id,
         lider_segunda_aprobacion_label=s.lider_segunda_aprobacion_label,
         gestor_id=s.gestor_id,
         gestor_username=s.gestor_username,
+        requiere_anticipo=s.requiere_anticipo,
+        porcentaje_anticipo=float(s.porcentaje_anticipo)
+        if s.porcentaje_anticipo is not None
+        else None,
+        lider_anticipo_id=s.lider_anticipo_id or "",
+        lider_anticipo_label=s.lider_anticipo_label or "",
+        monto_anticipo=float(s.monto_anticipo) if s.monto_anticipo is not None else None,
+        observaciones_anticipo=s.observaciones_anticipo or "",
+        gestor_anticipo_id=s.gestor_anticipo_id,
+        gestor_anticipo_username=s.gestor_anticipo_username or "",
         estado=s.estado,
         creado_por_id=s.creado_por_id,
         creado_por_username=s.creado_por_username,
@@ -200,6 +252,8 @@ def _to_response(
         tiene_tramite_oc_registrado=s.tiene_tramite_oc_registrado,
         entrega_completa=s.entrega_completa,
         tiene_entrega_pendiente=s.tiene_entrega_pendiente,
+        tiene_recepcion_pendiente=s.tiene_recepcion_pendiente,
+        recepcion_completa=s.recepcion_completa,
     )
 
 
@@ -221,6 +275,31 @@ def listar_pendientes_aprobacion(
 ) -> list[SolicitudGestionListItem]:
     try:
         items = ListarPendientesAprobacion(repo).execute(current)
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    return [_to_list_item(s) for s in items]
+
+
+@router.get("/pendientes-aprobacion-anticipo", response_model=list[SolicitudGestionListItem])
+def listar_pendientes_aprobacion_anticipo(
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> list[SolicitudGestionListItem]:
+    try:
+        items = ListarPendientesAprobacionAnticipo(repo).execute(current)
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    return [_to_list_item(s) for s in items]
+
+
+@router.get("/gestion-anticipo", response_model=list[SolicitudGestionListItem])
+def listar_gestion_anticipo(
+    q: Optional[str] = Query(None, description="Buscar por código, título o solicitante."),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> list[SolicitudGestionListItem]:
+    try:
+        items = ListarGestionAnticipo(repo).execute(current, query=q)
     except UnauthorizedError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     return [_to_list_item(s) for s in items]
@@ -593,7 +672,14 @@ async def enviar_cotizacion_solicitud(
 async def registrar_tramite_oc_solicitud(
     solicitud_id: int,
     numero_tramite_oc: str = Form(""),
+    valor_tramite_oc: str = Form(""),
     productos_tramite_oc: str = Form("{}"),
+    productos_valor_tramite_oc: str = Form("{}"),
+    requiere_anticipo: str = Form("false"),
+    porcentaje_anticipo: str = Form(""),
+    lider_anticipo_id: str = Form(""),
+    lider_anticipo_label: str = Form(""),
+    observaciones_anticipo: str = Form(""),
     nueva_observacion: str = Form(""),
     nueva_observacion_texto: str = Form(""),
     adjuntos: list[UploadFile] = File(default=[]),
@@ -611,6 +697,17 @@ async def registrar_tramite_oc_solicitud(
                 numeros_por_producto[int(key)] = str(value or "")
             except (TypeError, ValueError) as exc:
                 raise ValueError("Identificador de producto inválido en trámite parcial.") from exc
+        raw_valores = json.loads(productos_valor_tramite_oc or "{}")
+        if not isinstance(raw_valores, dict):
+            raise ValueError("El formato de valor parcial por ítem no es válido.")
+        valores_por_producto: dict[int, str] = {}
+        for key, value in raw_valores.items():
+            try:
+                valores_por_producto[int(key)] = str(value or "")
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "Identificador de producto inválido en valor de trámite parcial."
+                ) from exc
     except json.JSONDecodeError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -640,7 +737,106 @@ async def registrar_tramite_oc_solicitud(
             current,
             solicitud_id,
             numero_tramite_oc=numero_tramite_oc,
+            valor_tramite_oc=valor_tramite_oc,
             numeros_por_producto=numeros_por_producto,
+            valores_por_producto=valores_por_producto,
+            requiere_anticipo=(requiere_anticipo or "").strip().lower() in ("1", "true", "si", "sí"),
+            porcentaje_anticipo=porcentaje_anticipo,
+            lider_anticipo_id=lider_anticipo_id,
+            lider_anticipo_label=lider_anticipo_label,
+            observaciones_anticipo=observaciones_anticipo,
+            nueva_observacion=nueva_observacion,
+            nueva_observacion_texto=nueva_observacion_texto,
+            archivos_observacion=adjuntos_entradas,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial)
+
+
+@router.post("/{solicitud_id}/aprobar-anticipo", response_model=SolicitudGestionResponse)
+async def aprobar_anticipo_solicitud(
+    solicitud_id: int,
+    observacion: str = Form(""),
+    observacion_texto: str = Form(""),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> SolicitudGestionResponse:
+    try:
+        solicitud = ResolverAprobacionAnticipo(repo).aprobar(
+            current,
+            solicitud_id,
+            observacion=observacion,
+            observacion_texto=observacion_texto,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial)
+
+
+@router.post("/{solicitud_id}/rechazar-anticipo", response_model=SolicitudGestionResponse)
+def rechazar_anticipo_solicitud(
+    solicitud_id: int,
+    body: RechazarAnticipoBody,
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> SolicitudGestionResponse:
+    try:
+        solicitud = ResolverAprobacionAnticipo(repo).rechazar(
+            current, solicitud_id, motivo=body.motivo
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial)
+
+
+@router.post("/{solicitud_id}/gestionar-anticipo", response_model=SolicitudGestionResponse)
+async def gestionar_anticipo_solicitud(
+    solicitud_id: int,
+    nueva_observacion: str = Form(""),
+    nueva_observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+) -> SolicitudGestionResponse:
+    adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        adjuntos_entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud = GestionarAnticipoSolicitud(repo, storage).execute(
+            current,
+            solicitud_id,
             nueva_observacion=nueva_observacion,
             nueva_observacion_texto=nueva_observacion_texto,
             archivos_observacion=adjuntos_entradas,
@@ -705,6 +901,81 @@ async def marcar_entrega_solicitud(
     return MarcarEntregaSolicitudResponse(
         solicitud=_to_response(solicitud, historial),
         email_enviado=email_enviado,
+    )
+
+
+@router.post("/{solicitud_id}/recepcion-insumos", response_model=RecepcionInsumosSolicitudResponse)
+async def registrar_recepcion_insumos_solicitud(
+    solicitud_id: int,
+    productos_recepcion: str = Form("{}"),
+    observacion: str = Form(""),
+    observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    users: UserRepository = Depends(get_user_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+) -> RecepcionInsumosSolicitudResponse:
+    try:
+        raw_map = json.loads(productos_recepcion or "{}")
+        if not isinstance(raw_map, dict):
+            raise ValueError("El formato de recepción por ítem no es válido.")
+        cantidades: dict[int, Decimal] = {}
+        for key, value in raw_map.items():
+            try:
+                cantidad = Decimal(str(value))
+            except (InvalidOperation, TypeError) as exc:
+                raise ValueError("Cantidad de recepción inválida.") from exc
+            if cantidad <= 0:
+                continue
+            cantidades[int(key)] = cantidad
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El JSON de recepción no es válido.",
+        ) from exc
+
+    adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        adjuntos_entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud, email_enviado, lineas = RegistrarRecepcionInsumosSolicitud(
+            repo, users, notifier, storage
+        ).execute(
+            current,
+            solicitud_id,
+            productos_recepcion=cantidades,
+            observacion=observacion,
+            observacion_texto=observacion_texto,
+            archivos_observacion=adjuntos_entradas,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return RecepcionInsumosSolicitudResponse(
+        solicitud=_to_response(solicitud, historial),
+        email_enviado=email_enviado,
+        lineas_recepcion=lineas,
     )
 
 

@@ -16,12 +16,17 @@ class SolicitudGestionProductoResponse(BaseModel):
     descripcion: str
     centro_costo: str
     cantidad: float = 1.0
+    cantidad_recibida: float = 0.0
     cantidad_entregada: float = 0.0
     cantidad_pendiente: float = 1.0
+    cantidad_pendiente_recepcion: float = 1.0
+    cantidad_disponible_entrega: float = 0.0
+    estado_recepcion: str = "pendiente"
     estado_entrega: str = "pendiente"
     estado_aprobacion: str = "pendiente"
     estado_aprobacion_label: str = "Pendiente"
     numero_tramite_oc: str = ""
+    valor_tramite_oc: Optional[float] = None
 
 
 class SolicitudGestionArchivoResponse(BaseModel):
@@ -64,16 +69,25 @@ class SolicitudGestionListItem(BaseModel):
     centro_costo_area: str
     lider_area_label: str
     estado: EstadoSolicitudGestion
+    estado_label: str = ""
     cantidad_productos: int
     cantidad_productos_aprobados: int = 0
     aprobacion_parcial: bool = False
     tiene_tramite_oc_registrado: bool = False
     entrega_completa: bool = False
     tiene_entrega_pendiente: bool = False
+    tiene_recepcion_pendiente: bool = False
+    recepcion_completa: bool = False
     cantidad_archivos: int
     creado_por_username: str = ""
     gestor_id: Optional[int] = None
     gestor_username: str = ""
+    requiere_anticipo: bool = False
+    porcentaje_anticipo: Optional[float] = None
+    lider_anticipo_label: str = ""
+    monto_anticipo: Optional[float] = None
+    gestor_anticipo_id: Optional[int] = None
+    gestor_anticipo_username: str = ""
     created_at: Optional[datetime] = None
 
 
@@ -101,10 +115,19 @@ class SolicitudGestionResponse(BaseModel):
     observaciones_gestion: str = ""
     justificacion_cotizaciones: str = ""
     numero_tramite_oc: str = ""
+    valor_tramite_oc: Optional[float] = None
     lider_segunda_aprobacion_id: str = ""
     lider_segunda_aprobacion_label: str = ""
     gestor_id: Optional[int] = None
     gestor_username: str = ""
+    requiere_anticipo: bool = False
+    porcentaje_anticipo: Optional[float] = None
+    lider_anticipo_id: str = ""
+    lider_anticipo_label: str = ""
+    monto_anticipo: Optional[float] = None
+    observaciones_anticipo: str = ""
+    gestor_anticipo_id: Optional[int] = None
+    gestor_anticipo_username: str = ""
     estado: EstadoSolicitudGestion
     creado_por_id: int
     creado_por_username: str = ""
@@ -119,6 +142,12 @@ class SolicitudGestionResponse(BaseModel):
     tiene_tramite_oc_registrado: bool = False
     entrega_completa: bool = False
     tiene_entrega_pendiente: bool = False
+    tiene_recepcion_pendiente: bool = False
+    recepcion_completa: bool = False
+
+
+class RechazarAnticipoBody(BaseModel):
+    motivo: str = ""
 
 
 class MarcarEntregaSolicitudResponse(BaseModel):
@@ -130,3 +159,9 @@ class EntregaParcialSolicitudResponse(BaseModel):
     solicitud: SolicitudGestionResponse
     email_enviado: bool = False
     lineas_entrega: list[str] = []
+
+
+class RecepcionInsumosSolicitudResponse(BaseModel):
+    solicitud: SolicitudGestionResponse
+    email_enviado: bool = False
+    lineas_recepcion: list[str] = []

@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Panel de solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=4" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=5" />
     </head>
     <body>
         <div class="app-shell">
@@ -102,7 +102,23 @@
                         id="btn-panel-entregado"
                         hidden
                     >
-                        Entregado
+                        Entrega total
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        id="btn-panel-registrar-recepcion"
+                        hidden
+                    >
+                        Registrar llegada
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-confirmar-recepcion"
+                        hidden
+                    >
+                        Confirmar recepción
                     </button>
                     <button
                         type="button"
@@ -110,7 +126,7 @@
                         id="btn-panel-entregado-parcial"
                         hidden
                     >
-                        Entregado Parcial
+                        Entrega parcial
                     </button>
                     <button
                         type="button"
@@ -132,7 +148,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=9";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=20";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

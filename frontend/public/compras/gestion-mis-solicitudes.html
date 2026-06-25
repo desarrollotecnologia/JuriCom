@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Mis Solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=3" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=5" />
     </head>
     <body>
         <div class="app-shell">
@@ -32,6 +32,7 @@
                 </div>
 
                 <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
 
                 <div class="card">
                     <h2 class="card-title">Mis Solicitudes</h2>
@@ -91,7 +92,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=7";
+            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=14";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

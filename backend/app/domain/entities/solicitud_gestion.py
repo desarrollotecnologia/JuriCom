@@ -51,8 +51,10 @@ class SolicitudGestionProducto:
     descripcion: str
     centro_costo: str
     cantidad: Decimal = field(default_factory=lambda: Decimal("1"))
+    cantidad_recibida: Decimal = field(default_factory=lambda: Decimal("0"))
     cantidad_entregada: Decimal = field(default_factory=lambda: Decimal("0"))
     numero_tramite_oc: str = ""
+    valor_tramite_oc: Optional[Decimal] = None
     id: Optional[int] = None
     solicitud_id: Optional[int] = None
     estado_aprobacion: EstadoAprobacionProducto = EstadoAprobacionProducto.PENDIENTE
@@ -63,12 +65,62 @@ class SolicitudGestionProducto:
         return pendiente if pendiente > 0 else Decimal("0")
 
     @property
+    def cantidad_pendiente_recepcion(self) -> Decimal:
+        pendiente = self.cantidad - self.cantidad_recibida
+        return pendiente if pendiente > 0 else Decimal("0")
+
+    @property
+    def cantidad_disponible_entrega(self) -> Decimal:
+        disponible = self.cantidad_recibida - self.cantidad_entregada
+        return disponible if disponible > 0 else Decimal("0")
+
+    @property
+    def estado_recepcion(self) -> str:
+        if self.cantidad_recibida <= 0:
+            return "pendiente"
+        if self.cantidad_recibida >= self.cantidad:
+            return "recibido"
+        return "parcial"
+
+    @property
     def estado_entrega(self) -> str:
         if self.cantidad_entregada <= 0:
             return "pendiente"
         if self.cantidad_entregada >= self.cantidad:
             return "entregado"
         return "parcial"
+
+    @staticmethod
+    def _formatear_cantidad(cantidad: Decimal) -> str:
+        if cantidad == cantidad.to_integral_value():
+            return str(int(cantidad))
+        texto = format(cantidad.normalize(), "f")
+        return texto.rstrip("0").rstrip(".") or "0"
+
+    @property
+    def unidad_etiqueta(self) -> str:
+        return (self.unidad or "").strip() or "UND"
+
+    def etiqueta_cantidad(self, cantidad: Decimal) -> str:
+        return f"{self._formatear_cantidad(cantidad)} {self.unidad_etiqueta}"
+
+    def linea_historial_recepcion(
+        self, cantidad_delta: Decimal, total_recibido: Decimal
+    ) -> str:
+        return (
+            f"{self.descripcion}: +{self._formatear_cantidad(cantidad_delta)} "
+            f"(recibido {self.etiqueta_cantidad(total_recibido)} "
+            f"de {self.etiqueta_cantidad(self.cantidad)})"
+        )
+
+    def linea_historial_entrega(
+        self, cantidad_delta: Decimal, total_entregado: Decimal
+    ) -> str:
+        return (
+            f"{self.descripcion}: +{self._formatear_cantidad(cantidad_delta)} "
+            f"(entregado {self.etiqueta_cantidad(total_entregado)} "
+            f"de {self.etiqueta_cantidad(self.cantidad)})"
+        )
 
 
 @dataclass
@@ -101,10 +153,19 @@ class SolicitudGestion:
     observaciones_gestion: str = ""
     justificacion_cotizaciones: str = ""
     numero_tramite_oc: str = ""
+    valor_tramite_oc: Optional[Decimal] = None
     gestor_id: Optional[int] = None
     gestor_username: str = ""
     lider_segunda_aprobacion_id: str = ""
     lider_segunda_aprobacion_label: str = ""
+    requiere_anticipo: bool = False
+    porcentaje_anticipo: Optional[Decimal] = None
+    lider_anticipo_id: str = ""
+    lider_anticipo_label: str = ""
+    monto_anticipo: Optional[Decimal] = None
+    observaciones_anticipo: str = ""
+    gestor_anticipo_id: Optional[int] = None
+    gestor_anticipo_username: str = ""
     id: Optional[int] = None
     codigo: Optional[str] = None
     estado: EstadoSolicitudGestion = EstadoSolicitudGestion.SOLICITUD
@@ -154,5 +215,24 @@ class SolicitudGestion:
         return all(p.cantidad_entregada >= p.cantidad for p in productos)
 
     @property
+    def tiene_recepcion_pendiente(self) -> bool:
+        return any(p.cantidad_pendiente_recepcion > 0 for p in self.productos_para_entrega)
+
+    @property
+    def recepcion_completa(self) -> bool:
+        productos = self.productos_para_entrega
+        if not productos:
+            return False
+        return all(p.cantidad_recibida >= p.cantidad for p in productos)
+
+    @property
     def tiene_entrega_pendiente(self) -> bool:
-        return any(p.cantidad_pendiente > 0 for p in self.productos_para_entrega)
+        return any(p.cantidad_entregada < p.cantidad for p in self.productos_para_entrega)
+
+    def actor_puede_gestionar(self, actor_id: int, *, is_admin: bool = False) -> bool:
+        """True si el usuario puede operar la solicitud en panel o entrega."""
+        if is_admin:
+            return True
+        if not self.gestor_id and not self.gestor_anticipo_id:
+            return True
+        return actor_id in (self.gestor_id, self.gestor_anticipo_id)

@@ -15,10 +15,8 @@ import {
     normalizarEstado,
 
     renderDetalleSolicitudHtml,
-
     TIPO_LABEL,
-
-} from "./gestion-solicitudes-common.js?v=3";
+} from "./gestion-solicitudes-common.js?v=18";
 
 
 
@@ -32,6 +30,8 @@ const APROBACION_HINT = {
 
     en_aprobacion: "Segunda aprobación — comenta por qué apruebas, o usa «Solicitar recotización» para devolver la solicitud al gestor.",
 
+    aprobacion_anticipo: "Aprobación de anticipo — revisa el porcentaje, monto y líder asignado antes de aprobar.",
+
 };
 
 
@@ -41,6 +41,8 @@ function etiquetaAprobacion(estado) {
     const key = normalizarEstado(estado);
 
     if (key === "en_aprobacion") return "Segunda aprobación";
+
+    if (key === "aprobacion_anticipo") return "Aprobación anticipo";
 
     return "Primera aprobación";
 
@@ -58,6 +60,10 @@ function esPrimeraAprobacion(estado) {
 
 function esSegundaAprobacion(estado) {
     return normalizarEstado(estado) === "en_aprobacion";
+}
+
+function esAprobacionAnticipo(estado) {
+    return normalizarEstado(estado) === "aprobacion_anticipo";
 }
 
 
@@ -378,7 +384,12 @@ export function initAprobarSolicitudesGestion() {
 
         try {
 
-            items = await api.get("/solicitudes-gestion/pendientes-aprobacion");
+            const [pendientes, anticipos] = await Promise.all([
+                api.get("/solicitudes-gestion/pendientes-aprobacion"),
+                api.get("/solicitudes-gestion/pendientes-aprobacion-anticipo"),
+            ]);
+
+            items = [...(Array.isArray(pendientes) ? pendientes : []), ...(Array.isArray(anticipos) ? anticipos : [])];
 
             renderTable();
 
@@ -430,6 +441,12 @@ export function initAprobarSolicitudesGestion() {
             }
         }
 
+        if (btnRechazar) {
+            btnRechazar.textContent = esAprobacionAnticipo(estado)
+                ? "Rechazar anticipo"
+                : "Cancelar solicitud";
+        }
+
     }
 
 
@@ -462,8 +479,8 @@ export function initAprobarSolicitudesGestion() {
 
             const isPrimera = esPrimeraAprobacion(s.estado);
 
-            detailContent.innerHTML = renderDetalleSolicitudHtml(s, {
-
+            detailContent.innerHTML =
+                renderDetalleSolicitudHtml(s, {
                 showAprobacionParcialAlert: false,
 
                 productosOptions: isPrimera
@@ -487,13 +504,13 @@ export function initAprobarSolicitudesGestion() {
                           cantidadEditable: false,
                       },
 
-            });
-
-
+            }) ;
 
             if (isPrimera) {
                 primeraPanel?.removeAttribute("hidden");
                 syncTipoAprobacionUI();
+            } else {
+                primeraPanel?.setAttribute("hidden", "");
             }
 
 
@@ -559,6 +576,7 @@ export function initAprobarSolicitudesGestion() {
         const etiqueta = etiquetaAprobacion(selectedEstado || "solicitud");
 
         const isPrimera = esPrimeraAprobacion(selectedEstado || "solicitud");
+        const isAnticipo = esAprobacionAnticipo(selectedEstado || "solicitud");
 
 
 
@@ -652,17 +670,17 @@ export function initAprobarSolicitudesGestion() {
 
         try {
 
-            await api.postForm(`/solicitudes-gestion/${solicitudId}/aprobar`, formData);
-
-            const msgParcial =
-
-                isPrimera && tipoAprobacion === "parcial"
-
-                    ? `Aprobación parcial registrada (${productosAprobados.length} ítem(s)).`
-
-                    : `Solicitud aprobada correctamente (${etiqueta}).`;
-
-            showSuccess(msgParcial);
+            if (isAnticipo) {
+                await api.postForm(`/solicitudes-gestion/${solicitudId}/aprobar-anticipo`, formData);
+                showSuccess("Anticipo aprobado — pasa a Gestión anticipo.");
+            } else {
+                await api.postForm(`/solicitudes-gestion/${solicitudId}/aprobar`, formData);
+                const msgParcial =
+                    isPrimera && tipoAprobacion === "parcial"
+                        ? `Aprobación parcial registrada (${productosAprobados.length} ítem(s)).`
+                        : `Solicitud aprobada correctamente (${etiqueta}).`;
+                showSuccess(msgParcial);
+            }
 
             closeModal();
 
@@ -714,15 +732,23 @@ export function initAprobarSolicitudesGestion() {
 
         }
 
-        if (!confirm("¿Confirmas la cancelación de esta solicitud?")) return;
+        if (!confirm(
+            esAprobacionAnticipo(selectedEstado)
+                ? "¿Confirmas rechazar el anticipo? La solicitud continuará en Tramitada OC sin anticipo."
+                : "¿Confirmas la cancelación de esta solicitud?"
+        )) return;
 
 
 
         try {
 
-            await api.post(`/solicitudes-gestion/${selectedId}/rechazar`, { motivo });
-
-            showSuccess("Solicitud cancelada.");
+            if (esAprobacionAnticipo(selectedEstado)) {
+                await api.post(`/solicitudes-gestion/${selectedId}/rechazar-anticipo`, { motivo });
+                showSuccess("Anticipo rechazado.");
+            } else {
+                await api.post(`/solicitudes-gestion/${selectedId}/rechazar`, { motivo });
+                showSuccess("Solicitud cancelada.");
+            }
 
             closeModal();
 

@@ -8,7 +8,12 @@ class EstadoSolicitudGestion(str, Enum):
     PRIMERA_APROBACION = "primera_aprobacion"
     COTIZACION = "cotizacion"
     EN_APROBACION = "en_aprobacion"
+    TRAMITANDO_OC = "tramitando_oc"
     TRAMITADA_OC = "tramitada_oc"
+    ITEMS_EN_CAMINO = "items_en_camino"
+    RECEPCION_INSUMOS = "recepcion_insumos"
+    APROBACION_ANTICIPO = "aprobacion_anticipo"
+    GESTION_ANTICIPO = "gestion_anticipo"
     CANCELADO = "cancelado"
     ENTREGADO = "entregado"
     ENTREGADO_PARCIAL = "entregado_parcial"
@@ -38,10 +43,15 @@ LABELS: dict[EstadoSolicitudGestion, str] = {
     EstadoSolicitudGestion.PRIMERA_APROBACION: "Primera Aprobación",
     EstadoSolicitudGestion.COTIZACION: "Cotización",
     EstadoSolicitudGestion.EN_APROBACION: "En Aprobación",
+    EstadoSolicitudGestion.TRAMITANDO_OC: "Tramitando OC",
     EstadoSolicitudGestion.TRAMITADA_OC: "Tramitada OC",
+    EstadoSolicitudGestion.ITEMS_EN_CAMINO: "Ítems en camino",
+    EstadoSolicitudGestion.RECEPCION_INSUMOS: "Recepción de Insumos",
+    EstadoSolicitudGestion.APROBACION_ANTICIPO: "Aprobación anticipo",
+    EstadoSolicitudGestion.GESTION_ANTICIPO: "Gestión anticipo",
     EstadoSolicitudGestion.CANCELADO: "Cancelado",
     EstadoSolicitudGestion.ENTREGADO: "Entregado",
-    EstadoSolicitudGestion.ENTREGADO_PARCIAL: "Entrega parcial en curso",
+    EstadoSolicitudGestion.ENTREGADO_PARCIAL: "Entrega parcial realizada",
     EstadoSolicitudGestion.REGISTRADA: "Solicitud",
     EstadoSolicitudGestion.APROBADA: "Primera Aprobación",
     EstadoSolicitudGestion.RECHAZADA: "Cancelado",
@@ -53,6 +63,7 @@ FLUJO_ORDEN: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.PRIMERA_APROBACION,
     EstadoSolicitudGestion.COTIZACION,
     EstadoSolicitudGestion.EN_APROBACION,
+    EstadoSolicitudGestion.TRAMITANDO_OC,
     EstadoSolicitudGestion.TRAMITADA_OC,
     EstadoSolicitudGestion.ENTREGADO,
 ]
@@ -63,7 +74,12 @@ FLUJO_HISTORIAL: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.PRIMERA_APROBACION,
     EstadoSolicitudGestion.COTIZACION,
     EstadoSolicitudGestion.EN_APROBACION,
+    EstadoSolicitudGestion.TRAMITANDO_OC,
     EstadoSolicitudGestion.TRAMITADA_OC,
+    EstadoSolicitudGestion.ITEMS_EN_CAMINO,
+    EstadoSolicitudGestion.RECEPCION_INSUMOS,
+    EstadoSolicitudGestion.APROBACION_ANTICIPO,
+    EstadoSolicitudGestion.GESTION_ANTICIPO,
     EstadoSolicitudGestion.CANCELADO,
     EstadoSolicitudGestion.ENTREGADO,
     EstadoSolicitudGestion.ENTREGADO_PARCIAL,
@@ -75,7 +91,13 @@ ESTADOS_TERMINALES: list[EstadoSolicitudGestion] = [
 ]
 
 ESTADOS_ENTREGA_ABIERTA: list[EstadoSolicitudGestion] = [
-    EstadoSolicitudGestion.TRAMITADA_OC,
+    EstadoSolicitudGestion.RECEPCION_INSUMOS,
+    EstadoSolicitudGestion.ENTREGADO_PARCIAL,
+]
+
+ESTADOS_RECEPCION_ABIERTA: list[EstadoSolicitudGestion] = [
+    EstadoSolicitudGestion.ITEMS_EN_CAMINO,
+    EstadoSolicitudGestion.RECEPCION_INSUMOS,
     EstadoSolicitudGestion.ENTREGADO_PARCIAL,
 ]
 
@@ -86,12 +108,23 @@ ETAPAS_PENDIENTES_APROBACION: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.APROBACION_LIDER_AREA,
 ]
 
+ETAPAS_PENDIENTES_APROBACION_ANTICIPO: list[EstadoSolicitudGestion] = [
+    EstadoSolicitudGestion.APROBACION_ANTICIPO,
+]
+
+ETAPAS_GESTION_ANTICIPO: list[EstadoSolicitudGestion] = [
+    EstadoSolicitudGestion.GESTION_ANTICIPO,
+]
+
 # Solicitudes visibles en el panel de gestión (ya aprobadas al menos una vez).
 ETAPAS_PANEL_GESTION: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.PRIMERA_APROBACION,
     EstadoSolicitudGestion.COTIZACION,
     EstadoSolicitudGestion.EN_APROBACION,
+    EstadoSolicitudGestion.TRAMITANDO_OC,
     EstadoSolicitudGestion.TRAMITADA_OC,
+    EstadoSolicitudGestion.ITEMS_EN_CAMINO,
+    EstadoSolicitudGestion.RECEPCION_INSUMOS,
     EstadoSolicitudGestion.ENTREGADO,
     EstadoSolicitudGestion.ENTREGADO_PARCIAL,
     # Valores legacy ya normalizados en consultas
@@ -120,9 +153,23 @@ def normalizar_estado(valor: str | EstadoSolicitudGestion) -> EstadoSolicitudGes
     if isinstance(valor, EstadoSolicitudGestion):
         estado = valor
     else:
+        raw = (str(valor or "")).strip().lower()
+        if not raw:
+            return EstadoSolicitudGestion.SOLICITUD
         try:
-            estado = EstadoSolicitudGestion(valor)
+            estado = EstadoSolicitudGestion(raw)
         except ValueError:
+            # Valores válidos en BD que aún no estén en el enum cargado en memoria.
+            if raw == "tramitando_oc":
+                return EstadoSolicitudGestion.TRAMITANDO_OC
+            if raw == "aprobacion_anticipo":
+                return EstadoSolicitudGestion.APROBACION_ANTICIPO
+            if raw == "gestion_anticipo":
+                return EstadoSolicitudGestion.GESTION_ANTICIPO
+            if raw == "items_en_camino":
+                return EstadoSolicitudGestion.ITEMS_EN_CAMINO
+            if raw == "recepcion_insumos":
+                return EstadoSolicitudGestion.RECEPCION_INSUMOS
             return EstadoSolicitudGestion.SOLICITUD
     return _LEGACY_MAP.get(estado.value, estado)
 
@@ -169,6 +216,10 @@ def es_estado_terminal(estado: EstadoSolicitudGestion) -> bool:
 
 def es_estado_entrega_abierta(estado: EstadoSolicitudGestion | str) -> bool:
     return normalizar_estado(estado) in ESTADOS_ENTREGA_ABIERTA
+
+
+def es_estado_recepcion_abierta(estado: EstadoSolicitudGestion | str) -> bool:
+    return normalizar_estado(estado) in ESTADOS_RECEPCION_ABIERTA
 
 
 def es_visible_en_panel(estado: EstadoSolicitudGestion | str) -> bool:

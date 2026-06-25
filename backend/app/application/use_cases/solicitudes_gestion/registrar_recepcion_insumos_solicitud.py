@@ -1,4 +1,4 @@
-"""Registra entrega parcial por ítem con cantidades."""
+"""Registra la recepción física de ítems y avanza a Recepción de Insumos."""
 
 import logging
 from decimal import Decimal
@@ -24,14 +24,14 @@ from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
 from app.domain.value_objects.estado_aprobacion_producto import EstadoAprobacionProducto
 from app.domain.value_objects.estado_solicitud_gestion import (
     EstadoSolicitudGestion,
-    es_estado_entrega_abierta,
+    es_estado_recepcion_abierta,
     normalizar_estado,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class RegistrarEntregaParcialSolicitud:
+class RegistrarRecepcionInsumosSolicitud:
     def __init__(
         self,
         solicitudes: SolicitudGestionRepository,
@@ -49,29 +49,29 @@ class RegistrarEntregaParcialSolicitud:
         actor: User,
         solicitud_id: int,
         *,
-        productos_entrega: dict[int, Decimal],
+        productos_recepcion: dict[int, Decimal],
         observacion: str = "",
         observacion_texto: str = "",
         archivos_observacion: list[ArchivoEntradaSolicitud] | None = None,
     ) -> tuple[SolicitudGestion, bool, list[str]]:
         if not (actor.is_admin() or actor.is_compras()):
-            raise UnauthorizedError("Sólo Compras o Admin pueden registrar entregas parciales.")
+            raise UnauthorizedError("Sólo Compras o Admin pueden registrar recepciones.")
 
         solicitud = self._solicitudes.get_by_id(solicitud_id)
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
 
-        if not es_estado_entrega_abierta(solicitud.estado):
+        if not es_estado_recepcion_abierta(solicitud.estado):
             raise ValueError(
-                "Sólo se pueden registrar entregas en Recepción de Insumos "
-                "o Entrega parcial realizada."
+                "Sólo se puede registrar recepción en Ítems en camino, "
+                "Recepción de Insumos o Entrega parcial realizada."
             )
 
         if not solicitud.tiene_tramite_oc_registrado:
-            raise ValueError("Debes registrar el trámite OC antes de la entrega.")
+            raise ValueError("Debes registrar el trámite OC antes de la recepción.")
 
         if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
-            raise UnauthorizedError("Sólo el gestor asignado puede registrar la entrega.")
+            raise UnauthorizedError("Sólo el gestor asignado puede registrar la recepción.")
 
         productos_por_id = {
             p.id: p for p in solicitud.productos if p.id is not None
@@ -79,39 +79,39 @@ class RegistrarEntregaParcialSolicitud:
         nuevas_cantidades: dict[int, Decimal] = {}
         lineas: list[str] = []
 
-        for producto_id, cantidad_raw in productos_entrega.items():
-            cantidad_a_entregar = Decimal(str(cantidad_raw))
-            if cantidad_a_entregar <= 0:
+        for producto_id, cantidad_raw in productos_recepcion.items():
+            cantidad_a_recibir = Decimal(str(cantidad_raw))
+            if cantidad_a_recibir <= 0:
                 continue
 
             producto = productos_por_id.get(int(producto_id))
             if producto is None:
-                raise ValueError(f"No existe el ítem #{producto_id} en la solicitud.")
+                raise ValueError(f"No existe el ítem {producto_id} en esta solicitud.")
 
             if producto.estado_aprobacion == EstadoAprobacionProducto.NO_APROBADO:
                 raise ValueError(
-                    f"El ítem «{producto.descripcion}» no está aprobado y no puede entregarse."
+                    f"El ítem «{producto.descripcion}» no está aprobado y no puede recibirse."
                 )
 
-            pendiente = producto.cantidad_disponible_entrega
-            if cantidad_a_entregar > pendiente:
+            pendiente = producto.cantidad_pendiente_recepcion
+            if cantidad_a_recibir > pendiente:
                 raise ValueError(
-                    f"La cantidad a entregar de «{producto.descripcion}» supera lo recibido "
-                    f"disponible ({pendiente})."
+                    f"La cantidad recibida de «{producto.descripcion}» supera lo pendiente "
+                    f"({pendiente})."
                 )
 
-            total_entregado = producto.cantidad_entregada + cantidad_a_entregar
-            nuevas_cantidades[producto.id] = total_entregado
+            total_recibido = producto.cantidad_recibida + cantidad_a_recibir
+            nuevas_cantidades[producto.id] = total_recibido
             lineas.append(
-                producto.linea_historial_entrega(cantidad_a_entregar, total_entregado)
+                producto.linea_historial_recepcion(cantidad_a_recibir, total_recibido)
             )
 
         if not nuevas_cantidades:
             raise ValueError(
-                "Selecciona al menos un ítem e indica la cantidad a entregar."
+                "Selecciona al menos un ítem e indica la cantidad recibida."
             )
 
-        self._solicitudes.update_productos_cantidad_entregada(
+        self._solicitudes.update_productos_cantidad_recibida(
             solicitud_id, nuevas_cantidades
         )
 
@@ -132,16 +132,25 @@ class RegistrarEntregaParcialSolicitud:
         if solicitud is None:
             raise RuntimeError("No se pudo recuperar la solicitud actualizada.")
 
-        solicitud.estado = EstadoSolicitudGestion.ENTREGADO_PARCIAL
-        self._solicitudes.update(solicitud)
-
-        comentario = "Entrega parcial realizada — " + "; ".join(lineas)
-        self._solicitudes.registrar_historial(
-            solicitud_id,
-            EstadoSolicitudGestion.ENTREGADO_PARCIAL,
-            usuario_id=actor.id,
-            comentario=comentario,
-        )
+        estado_actual = normalizar_estado(solicitud.estado)
+        if estado_actual != EstadoSolicitudGestion.RECEPCION_INSUMOS:
+            solicitud.estado = EstadoSolicitudGestion.RECEPCION_INSUMOS
+            self._solicitudes.update(solicitud)
+            comentario = "Recepción de insumos — " + "; ".join(lineas)
+            self._solicitudes.registrar_historial(
+                solicitud_id,
+                EstadoSolicitudGestion.RECEPCION_INSUMOS,
+                usuario_id=actor.id,
+                comentario=comentario,
+            )
+        else:
+            comentario = "Recepción adicional — " + "; ".join(lineas)
+            self._solicitudes.registrar_historial(
+                solicitud_id,
+                EstadoSolicitudGestion.RECEPCION_INSUMOS,
+                usuario_id=actor.id,
+                comentario=comentario,
+            )
 
         actualizada = self._solicitudes.get_by_id(solicitud_id)
         if actualizada is None:
@@ -164,12 +173,12 @@ class RegistrarEntregaParcialSolicitud:
             )
             return False
         if not self._notifier.disponible:
-            logger.warning("SMTP no disponible; omito notificación de entrega parcial.")
+            logger.warning("SMTP no disponible; omito notificación de recepción.")
             return False
 
         from app.infrastructure.email.templates import (
-            render_entrega_parcial_solicitud_html,
-            render_entrega_parcial_solicitud_texto,
+            render_recepcion_insumos_solicitud_html,
+            render_recepcion_insumos_solicitud_texto,
         )
 
         try:
@@ -177,13 +186,13 @@ class RegistrarEntregaParcialSolicitud:
                 EmailMessage(
                     asunto=(
                         f"[JURICOM_BEEF] Solicitud {solicitud.codigo} — "
-                        "Entrega parcial registrada"
+                        "Insumos disponibles para reclamar"
                     ),
                     destinatarios=[destinatario],
-                    cuerpo_html=render_entrega_parcial_solicitud_html(
+                    cuerpo_html=render_recepcion_insumos_solicitud_html(
                         solicitud, actor.username, lineas
                     ),
-                    cuerpo_texto=render_entrega_parcial_solicitud_texto(
+                    cuerpo_texto=render_recepcion_insumos_solicitud_texto(
                         solicitud, actor.username, lineas
                     ),
                 )
@@ -191,7 +200,7 @@ class RegistrarEntregaParcialSolicitud:
             return True
         except Exception:
             logger.exception(
-                "Error enviando correo de entrega parcial para solicitud %s",
+                "Error enviando correo de recepción para solicitud %s",
                 solicitud.codigo,
             )
             return False

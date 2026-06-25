@@ -694,3 +694,49 @@ def render_entrega_parcial_solicitud_texto(
         f"Detalle:\n{lineas_txt}\n\n"
         f"Consulta el detalle en: {url}\n"
     )
+
+
+def render_recepcion_insumos_solicitud_html(
+    solicitud,
+    gestor_username: str,
+    lineas: list[str],
+) -> str:
+    url = f"{settings.public_url.rstrip('/')}/app/compras/gestion-mis-solicitudes.html"
+    items_html = "".join(f"<li>{escape(linea)}</li>" for linea in lineas)
+    cuerpo = f"""
+        <h2>Insumos disponibles para reclamar</h2>
+        <p>Hola <strong>{escape(solicitud.creado_por_username or "solicitante")}</strong>,</p>
+        <p>Compras recibió físicamente ítems de tu solicitud. Ya puedes pasar a reclamarlos.</p>
+        <div class="row">
+            <span class="label">Consecutivo</span>
+            <span class="value"><span class="codigo">{escape(solicitud.codigo or "")}</span></span>
+        </div>
+        <div class="row">
+            <span class="label">Gestor</span>
+            <span class="value">{escape(gestor_username or "Compras")}</span>
+        </div>
+        <p><strong>Ítems recibidos en esta recepción:</strong></p>
+        <ul>{items_html}</ul>
+        <p style="margin-top: 20px;">
+            <a class="btn" href="{escape(url)}">Ver mis solicitudes</a>
+        </p>
+    """
+    return _shell(f"Solicitud {solicitud.codigo} — Recepción de insumos", cuerpo)
+
+
+def render_recepcion_insumos_solicitud_texto(
+    solicitud,
+    gestor_username: str,
+    lineas: list[str],
+) -> str:
+    url = f"{settings.public_url.rstrip('/')}/app/compras/gestion-mis-solicitudes.html"
+    lineas_txt = "\n".join(f"- {linea}" for linea in lineas)
+    return (
+        "JURICOM_BEEF — Insumos disponibles para reclamar\n\n"
+        f"Hola {solicitud.creado_por_username or 'solicitante'},\n\n"
+        "Compras recibió físicamente ítems de tu solicitud. Ya puedes pasar a reclamarlos.\n\n"
+        f"Consecutivo: {solicitud.codigo}\n"
+        f"Gestor: {gestor_username or 'Compras'}\n\n"
+        f"Ítems recibidos:\n{lineas_txt}\n\n"
+        f"Consulta el detalle en: {url}\n"
+    )

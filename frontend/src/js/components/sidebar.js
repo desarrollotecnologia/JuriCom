@@ -22,6 +22,7 @@ const GESTION_COMPRAS_PATHS = new Set([
     "/app/compras/gestion-mis-solicitudes.html",
     "/app/compras/gestion-aprobar-solicitudes.html",
     "/app/compras/gestion-panel-solicitudes.html",
+    "/app/compras/gestion-anticipo.html",
     "/app/compras/reporte-indicadores.html",
 ]);
 

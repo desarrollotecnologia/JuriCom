@@ -1,7 +1,8 @@
 import { session } from "../auth/session.js";
+import { LIDERES_COLBEEF } from "../catalogos/lideres-colbeef.js";
 import { renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js";
 import { API_BASE } from "../utils/config.js";
-import { escapeHtml, formatCantidad, formatDate, formatFileSize } from "../utils/format.js";
+import { escapeHtml, formatCantidad, formatDate, formatFileSize, formatValorTramiteOc } from "../utils/format.js";
 
 export const TIPO_LABEL = {
     compra: "Solicitud de Compra",
@@ -33,9 +34,14 @@ export const ESTADO_LABEL = {
     cotizacion: "Cotización",
     en_aprobacion: "En Aprobación",
     tramitada_oc: "Tramitada OC",
+    items_en_camino: "Ítems en camino",
+    recepcion_insumos: "Recepción de Insumos",
+    tramitando_oc: "Tramitando OC",
+    aprobacion_anticipo: "Aprobación anticipo",
+    gestion_anticipo: "Gestión anticipo",
     cancelado: "Cancelado",
     entregado: "Entregado",
-    entregado_parcial: "Entrega parcial en curso",
+    entregado_parcial: "Entrega parcial realizada",
     registrada: "Solicitud",
     aprobada: "Primera Aprobación",
     rechazada: "Cancelado",
@@ -46,7 +52,12 @@ export const ESTADO_BADGE = {
     primera_aprobacion: "badge-sg-aprobacion",
     cotizacion: "badge-sg-aprobacion",
     en_aprobacion: "badge-sg-aprobacion",
-    tramitada_oc: "badge-sg-aprobacion",
+    tramitada_oc: "badge-sg-aprobado",
+    items_en_camino: "badge-sg-aprobacion",
+    recepcion_insumos: "badge-sg-aprobado",
+    tramitando_oc: "badge-sg-aprobacion",
+    aprobacion_anticipo: "badge-sg-aprobacion",
+    gestion_anticipo: "badge-sg-aprobacion",
     cancelado: "badge-sg-rechazado",
     entregado: "badge-sg-aprobado",
     entregado_parcial: "badge-sg-aprobado",
@@ -54,6 +65,22 @@ export const ESTADO_BADGE = {
     aprobada: "badge-sg-aprobacion",
     rechazada: "badge-sg-rechazado",
 };
+
+/** Estados en los que el solicitante puede agregar comentarios sobre la cotización. */
+const ESTADOS_COMENTARIO_COTIZACION = new Set([
+    "cotizacion",
+    "en_aprobacion",
+    "tramitada_oc",
+    "items_en_camino",
+    "recepcion_insumos",
+    "tramitando_oc",
+    "entregado_parcial",
+    "entregado",
+]);
+
+export function puedeComentarPosteriorCotizacion(estado) {
+    return ESTADOS_COMENTARIO_COTIZACION.has(normalizarEstado(estado));
+}
 
 export function normalizarEstado(estado) {
     return LEGACY_ESTADO[estado] || estado;
@@ -65,9 +92,85 @@ export const ESTADO_ENTREGA_LABEL = {
     entregado: "Entregado",
 };
 
+export const ESTADO_RECEPCION_LABEL = {
+    pendiente: "En camino",
+    parcial: "Recepción parcial",
+    recibido: "Recibido",
+};
+
 export function esGestionEntrega(estado) {
     const key = normalizarEstado(estado);
-    return key === "tramitada_oc" || key === "entregado_parcial";
+    return (
+        key === "tramitando_oc" ||
+        key === "items_en_camino" ||
+        key === "recepcion_insumos" ||
+        key === "entregado_parcial" ||
+        key === "tramitada_oc"
+    );
+}
+
+export function esEstadoRecepcion(estado) {
+    const key = normalizarEstado(estado);
+    return (
+        key === "items_en_camino" ||
+        key === "recepcion_insumos" ||
+        key === "entregado_parcial"
+    );
+}
+
+export function esEstadoEntregaSolicitante(estado) {
+    const key = normalizarEstado(estado);
+    return key === "recepcion_insumos" || key === "entregado_parcial";
+}
+
+export function calcCantidadPendienteRecepcion(producto) {
+    if (producto?.cantidad_pendiente_recepcion != null) {
+        return Math.max(0, Number(producto.cantidad_pendiente_recepcion));
+    }
+    const total = Number(producto?.cantidad ?? 1);
+    const recibida = Number(producto?.cantidad_recibida ?? 0);
+    const pendiente = total - recibida;
+    return pendiente > 0 ? pendiente : 0;
+}
+
+export function calcCantidadDisponibleEntrega(producto) {
+    if (producto?.cantidad_disponible_entrega != null) {
+        return Math.max(0, Number(producto.cantidad_disponible_entrega));
+    }
+    const recibida = Number(producto?.cantidad_recibida ?? 0);
+    const entregada = Number(producto?.cantidad_entregada ?? 0);
+    const disponible = recibida - entregada;
+    return disponible > 0 ? disponible : 0;
+}
+
+export function solicitudTieneRecepcionPendiente(solicitud) {
+    if (typeof solicitud?.tiene_recepcion_pendiente === "boolean") {
+        return solicitud.tiene_recepcion_pendiente;
+    }
+    return filtrarProductosParaGestion(solicitud?.productos || []).some(
+        (p) => calcCantidadPendienteRecepcion(p) > 0
+    );
+}
+
+export function solicitudTieneDisponibleEntrega(solicitud) {
+    return filtrarProductosParaGestion(solicitud?.productos || []).some(
+        (p) => calcCantidadDisponibleEntrega(p) > 0
+    );
+}
+
+export function solicitudRecepcionCompleta(solicitud) {
+    if (typeof solicitud?.recepcion_completa === "boolean") {
+        return solicitud.recepcion_completa;
+    }
+    const productos = filtrarProductosParaGestion(solicitud?.productos || []);
+    if (!productos.length) return false;
+    return productos.every((p) => calcCantidadPendienteRecepcion(p) <= 0);
+}
+
+/** True si puede cerrarse con entrega total (todo recibido y aún hay stock por entregar). */
+export function solicitudPuedeEntregaTotal(solicitud) {
+    if (!solicitudRecepcionCompleta(solicitud)) return false;
+    return solicitudTieneDisponibleEntrega(solicitud);
 }
 
 export function calcCantidadPendiente(producto) {
@@ -91,6 +194,18 @@ export function solicitudTieneEntregaPendiente(solicitud) {
     return filtrarProductosParaGestion(solicitud?.productos || []).some(
         (p) => calcCantidadPendiente(p) > 0
     );
+}
+
+function badgeEstadoRecepcion(estado) {
+    const key = estado || "pendiente";
+    const cls =
+        {
+            pendiente: "badge-sg-aprobacion",
+            parcial: "badge-sg-aprobacion",
+            recibido: "badge-sg-aprobado",
+        }[key] || "badge-sg-pendiente";
+    const label = ESTADO_RECEPCION_LABEL[key] || key;
+    return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
 function badgeEstadoEntrega(estado) {
@@ -260,6 +375,8 @@ export function renderObservacionesTrazabilidadHtml(
     { titulo = "Historial de observaciones", panelId = "sg-obs-trazabilidad-panel" } = {}
 ) {
     const items = collectObservacionesTrazabilidad(solicitud);
+    const bodyId = `${panelId}-body`;
+    const countLabel = items.length === 1 ? "1 observación" : `${items.length} observaciones`;
 
     const lista =
         items.length > 0
@@ -287,9 +404,34 @@ export function renderObservacionesTrazabilidadHtml(
             : `<p class="muted sg-obs-timeline-empty">Sin observaciones registradas.</p>`;
 
     return `
-        <div class="sg-detail-panel" id="${escapeHtml(panelId)}">
-            <h3 class="sg-detail-panel-title">${escapeHtml(titulo)}</h3>
-            ${lista}
+        <div class="sg-detail-panel sg-obs-collapsible" id="${escapeHtml(panelId)}">
+            <button
+                type="button"
+                class="sg-obs-collapsible-toggle"
+                aria-expanded="false"
+                aria-controls="${escapeHtml(bodyId)}"
+            >
+                <span class="sg-detail-panel-title">${escapeHtml(titulo)}</span>
+                <span class="sg-obs-collapsible-count muted">${escapeHtml(countLabel)}</span>
+                <svg
+                    class="sg-obs-collapsible-chevron"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <div class="sg-obs-collapsible-body" id="${escapeHtml(bodyId)}" hidden>
+                ${lista}
+            </div>
         </div>`;
 }
 function renderObservacionesGestionHtml(raw) {
@@ -407,9 +549,22 @@ export function solicitudTieneOcRegistrada(solicitud) {
 export function badgeEstado(estado, solicitud = null) {
     const key = normalizarEstado(estado);
     const cls = ESTADO_BADGE[key] || ESTADO_BADGE[estado] || "badge-sg-pendiente";
-    let label = ESTADO_LABEL[key] || ESTADO_LABEL[estado] || estado;
-    if (key === "tramitada_oc" && solicitudTieneOcRegistrada(solicitud)) {
-        label = "Orden OC registrada";
+    let label =
+        ESTADO_LABEL[key] ||
+        ESTADO_LABEL[estado] ||
+        (solicitud?.estado_label || "").trim() ||
+        estado;
+    if (key === "tramitando_oc") {
+        label = "Tramitando OC";
+    }
+    if (key === "items_en_camino") {
+        label = "Ítems en camino";
+    }
+    if (key === "recepcion_insumos") {
+        label = "Recepción de Insumos";
+    }
+    if (key === "entregado_parcial") {
+        label = "Entrega parcial realizada";
     }
     return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
@@ -447,6 +602,7 @@ function buildTimelineItems(solicitud) {
             if (key === "cancelado" || current === "cancelado") status = "rejected";
             else if (terminal) status = "done";
             else if (key === current) status = "active";
+            else status = "done";
         }
 
         return {
@@ -456,7 +612,19 @@ function buildTimelineItems(solicitud) {
             comentario: h.comentario,
             status,
         };
-    });
+    }).concat(
+        !terminal && historial.length && normalizarEstado(historial[historial.length - 1].etapa) !== current
+            ? [
+                  {
+                      label: ESTADO_LABEL[current] || current,
+                      fecha: solicitud.updated_at || solicitud.created_at,
+                      usuario: solicitud.gestor_username || "",
+                      comentario: "",
+                      status: "active",
+                  },
+              ]
+            : []
+    );
 }
 
 export function renderWorkflowTimelineHtml(solicitud) {
@@ -582,34 +750,186 @@ export function renderAprobacionParcialAlertHtml(s) {
 export function renderOrdenOcRegistradaAlertHtml(s, options = {}) {
     const { contexto = "gestor" } = options;
     const estado = normalizarEstado(s?.estado);
-    if (!["tramitada_oc", "entregado_parcial"].includes(estado)) return "";
+    if (
+        ![
+            "tramitada_oc",
+            "items_en_camino",
+            "recepcion_insumos",
+            "entregado_parcial",
+        ].includes(estado)
+    ) {
+        return "";
+    }
     if (!solicitudTieneOcRegistrada(s)) return "";
-    if (estado === "entregado_parcial") {
+    if (estado === "recepcion_insumos") {
+        if (contexto === "solicitante") {
+            return `
+        <div class="alert alert-success sg-orden-oc-alert">
+            <strong>Insumos disponibles.</strong> Compras recibió físicamente ítems de tu solicitud.
+            Puedes pasar a reclamarlos; Compras registrará la entrega cuando te los haga llegar.
+        </div>`;
+        }
+        return `
+        <div class="alert alert-success sg-orden-oc-alert">
+            Recepción registrada. Usa <strong>Entrega total</strong> o <strong>Entrega parcial</strong>
+            cuando entregues los ítems al solicitante.
+        </div>`;
+    }
+    if (estado === "items_en_camino") {
         if (contexto === "solicitante") {
             return `
         <div class="alert alert-info sg-orden-oc-alert">
-            Tu solicitud tiene <strong>entregas parciales</strong> registradas.
-            ${solicitudTieneEntregaPendiente(s) ? "Aún hay ítems pendientes por entregar." : "Todos los ítems fueron entregados; la solicitud se cerrará cuando Compras marque Entregado."}
+            Tu solicitud tiene <strong>orden de compra (OC)</strong> registrada.
+            Los ítems están <strong>en camino</strong>; te avisaremos cuando lleguen físicamente a Compras.
         </div>`;
         }
         return `
         <div class="alert alert-info sg-orden-oc-alert">
-            Hay entregas parciales registradas.
-            ${solicitudTieneEntregaPendiente(s) ? "Completa las entregas pendientes por ítem." : "Todos los ítems están entregados: puedes cerrar con el botón <strong>Entregado</strong>."}
+            OC registrada (estado <em>Tramitada OC</em> completado). Los ítems están <strong>en camino</strong>.
+            Cuando lleguen físicamente, registra la recepción indicando qué ítems recibiste.
+        </div>`;
+    }
+    if (estado === "entregado_parcial") {
+        if (contexto === "solicitante") {
+            return `
+        <div class="alert alert-info sg-orden-oc-alert">
+            Se registró una <strong>entrega parcial realizada</strong>.
+            ${solicitudTieneRecepcionPendiente(s) ? "Aún hay ítems en camino hacia Compras." : ""}
+            ${solicitudTieneDisponibleEntrega(s) ? "Hay insumos recibidos pendientes de entrega." : ""}
+            ${!solicitudTieneRecepcionPendiente(s) && !solicitudTieneDisponibleEntrega(s) && solicitudTieneEntregaPendiente(s) ? "Falta completar la entrega de algunos ítems." : ""}
+        </div>`;
+        }
+        return `
+        <div class="alert alert-info sg-orden-oc-alert">
+            <strong>Entrega parcial realizada.</strong>
+            ${solicitudTieneRecepcionPendiente(s) ? "Puedes registrar la llegada de ítems pendientes con <strong>Registrar llegada</strong>." : ""}
+            ${solicitudTieneDisponibleEntrega(s) ? " Hay stock recibido para nueva entrega parcial o total." : ""}
+            ${solicitudPuedeEntregaTotal(s) ? " Si ya está todo recibido, usa <strong>Entrega total</strong> para cerrar." : ""}
         </div>`;
     }
     if (contexto === "solicitante") {
         return `
         <div class="alert alert-info sg-orden-oc-alert">
             Tu solicitud ya tiene <strong>orden de compra (OC)</strong> registrada.
-            Cuando los ítems estén listos para entrega, recibirás un correo de notificación.
+            Los ítems están en camino hacia Compras.
         </div>`;
     }
     return `
         <div class="alert alert-info sg-orden-oc-alert">
             Esta solicitud ya tiene <strong>orden de compra (OC)</strong> registrada.
-            El solicitante puede verlo en el estado <em>Orden OC registrada</em>.
-            Cuando los ítems estén listos, marca la entrega para notificarle por correo.
+            El solicitante ve el avance en el historial del flujo.
+        </div>`;
+}
+
+export function renderTramitandoOcAlertHtml(s, options = {}) {
+    const { contexto = "solicitante" } = options;
+    const estado = normalizarEstado(s?.estado);
+    if (estado !== "tramitando_oc") return "";
+
+    if (contexto === "gestor") {
+        return `
+        <div class="alert alert-info sg-tramitando-oc-alert">
+            Esta solicitud está lista para <strong>registrar la orden de compra (OC)</strong>.
+            Indica el número y valor del trámite (general o por ítem) y guarda para continuar
+            el proceso hacia entrega.
+        </div>`;
+    }
+
+    return `
+        <div class="alert alert-info sg-tramitando-oc-alert">
+            Tu solicitud fue aprobada y está <strong>en trámite de orden de compra (OC)</strong>.
+            Compras registrará el número y valor; recibirás notificación cuando la OC quede registrada.
+        </div>`;
+}
+
+export function buildLideresOptionsHtml(selectedId = "") {
+    return LIDERES_COLBEEF.map(
+        (l) =>
+            `<option value="${escapeHtml(l.id)}" data-label="${escapeHtml(l.label)}"${
+                l.id === selectedId ? " selected" : ""
+            }>${escapeHtml(l.label)}</option>`
+    ).join("");
+}
+
+export function renderAnticipoDetalleHtml(s) {
+    if (!s?.requiere_anticipo) return "";
+    const pct =
+        s.porcentaje_anticipo !== null && s.porcentaje_anticipo !== undefined
+            ? `${Number(s.porcentaje_anticipo)}%`
+            : "—";
+    return `
+        <div class="sg-detail-panel">
+            <h3 class="sg-detail-panel-title">Anticipo</h3>
+            <dl class="sg-detail-grid">
+                <div class="sg-detail-field">
+                    <dt>Porcentaje</dt>
+                    <dd>${escapeHtml(pct)}</dd>
+                </div>
+                <div class="sg-detail-field">
+                    <dt>Monto estimado</dt>
+                    <dd>${formatValorTramiteOc(s.monto_anticipo)}</dd>
+                </div>
+                <div class="sg-detail-field">
+                    <dt>Líder aprobador</dt>
+                    <dd>${escapeHtml(s.lider_anticipo_label || "—")}</dd>
+                </div>
+                ${
+                    s.observaciones_anticipo
+                        ? `<div class="sg-detail-field sg-detail-field-full">
+                    <dt>Observaciones</dt>
+                    <dd>${escapeHtml(s.observaciones_anticipo)}</dd>
+                </div>`
+                        : ""
+                }
+            </dl>
+        </div>`;
+}
+
+export function renderAnticipoTramiteFormHtml(lideresOptionsHtml = "") {
+    return `
+        <div class="sg-detail-panel sg-gestion-form-panel sg-anticipo-panel" id="panel-anticipo-tramite">
+            <h3 class="sg-detail-panel-title">Anticipo</h3>
+            <p class="muted sg-detail-panel-hint">
+                Indica si esta orden de compra requiere anticipo. Si aplica, el líder seleccionado
+                deberá aprobarlo antes de pasar al módulo de Gestión anticipo.
+            </p>
+            <label class="sg-checkbox-row">
+                <input type="checkbox" id="gestion-requiere-anticipo" />
+                Requiere anticipo
+            </label>
+            <div id="gestion-anticipo-campos" class="sg-anticipo-campos" hidden>
+                <div class="row-2">
+                    <div class="field">
+                        <label for="gestion-porcentaje-anticipo">Porcentaje de anticipo (%)</label>
+                        <input
+                            type="number"
+                            id="gestion-porcentaje-anticipo"
+                            class="input-table"
+                            min="0.01"
+                            max="100"
+                            step="0.01"
+                            placeholder="Ej: 30"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <div class="field">
+                        <label for="gestion-lider-anticipo">Líder aprobador del anticipo</label>
+                        <select id="gestion-lider-anticipo" class="input-table">
+                            <option value="">Seleccione líder...</option>
+                            ${lideresOptionsHtml}
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="gestion-observaciones-anticipo">Observaciones del anticipo</label>
+                    <textarea
+                        id="gestion-observaciones-anticipo"
+                        rows="3"
+                        class="input-table"
+                        placeholder="Detalle o soporte del anticipo (opcional)"
+                    ></textarea>
+                </div>
+            </div>
         </div>`;
 }
 
@@ -624,8 +944,12 @@ export function renderProductosTableHtml(productos, options = {}) {
         cantidadEditable = false,
         showTramiteOcParcial = false,
         tramiteOcParcialEditable = false,
+        showValorTramiteOcParcial = false,
+        tramiteValorOcParcialEditable = false,
         showEntregaInfo = false,
         entregaParcialEditable = false,
+        showRecepcionInfo = false,
+        recepcionParcialEditable = false,
         panelId = null,
     } = options;
 
@@ -652,6 +976,10 @@ export function renderProductosTableHtml(productos, options = {}) {
         showTramiteOcParcial || tramiteOcParcialEditable
             ? `<th>Trámite OC parcial</th>`
             : "";
+    const valorTramiteParcialCol =
+        showValorTramiteOcParcial || tramiteValorOcParcialEditable || tramiteOcParcialEditable
+            ? `<th>Valor trámite OC</th>`
+            : "";
     const entregaCols = showEntregaInfo
         ? `<th class="col-cantidad">Entregada</th>
            <th class="col-cantidad">Pendiente</th>
@@ -660,6 +988,15 @@ export function renderProductosTableHtml(productos, options = {}) {
     const entregaParcialCols = entregaParcialEditable
         ? `<th class="col-check sg-entrega-parcial-check-col">Entregar</th>
            <th class="col-cantidad">Cant. a entregar</th>`
+        : "";
+    const recepcionCols = showRecepcionInfo
+        ? `<th class="col-cantidad">Recibida</th>
+           <th class="col-cantidad">Pend. recepción</th>
+           <th>Estado recepción</th>`
+        : "";
+    const recepcionParcialCols = recepcionParcialEditable
+        ? `<th class="col-check sg-recepcion-parcial-check-col">Recibió</th>
+           <th class="col-cantidad">Cant. recibida</th>`
         : "";
 
     return `
@@ -677,8 +1014,11 @@ export function renderProductosTableHtml(productos, options = {}) {
                             <th class="col-cantidad">Cantidad</th>
                             ${estadoCol}
                             ${tramiteParcialCol}
+                            ${valorTramiteParcialCol}
                             ${entregaCols}
                             ${entregaParcialCols}
+                            ${recepcionCols}
+                            ${recepcionParcialCols}
                         </tr>
                     </thead>
                     <tbody>
@@ -722,6 +1062,10 @@ export function renderProductosTableHtml(productos, options = {}) {
                                     </td>`
                                     : `<td class="${cellClass} sg-producto-cantidad-cell" data-label="Cantidad">${escapeHtml(cantidadVal)}</td>`;
                                 const tramiteParcialVal = (p.numero_tramite_oc || "").trim();
+                                const valorTramiteVal =
+                                    p.valor_tramite_oc !== null && p.valor_tramite_oc !== undefined
+                                        ? String(p.valor_tramite_oc)
+                                        : "";
                                 const tramiteParcialCell =
                                     tramiteOcParcialEditable
                                         ? `<td data-label="Trámite OC parcial">
@@ -737,6 +1081,23 @@ export function renderProductosTableHtml(productos, options = {}) {
                                         : showTramiteOcParcial
                                           ? `<td data-label="Trámite OC parcial">${escapeHtml(tramiteParcialVal || "—")}</td>`
                                           : "";
+                                const valorTramiteParcialCell =
+                                    tramiteValorOcParcialEditable || tramiteOcParcialEditable
+                                        ? `<td data-label="Valor trámite OC">
+                                        <input
+                                            type="number"
+                                            class="input-table sg-tramite-oc-valor-input"
+                                            data-producto-id="${p.id}"
+                                            value="${escapeHtml(valorTramiteVal)}"
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="Valor OC"
+                                            aria-label="Valor trámite OC de ${escapeHtml(p.descripcion)}"
+                                        />
+                                    </td>`
+                                        : showValorTramiteOcParcial || showTramiteOcParcial
+                                          ? `<td data-label="Valor trámite OC">${formatValorTramiteOc(p.valor_tramite_oc)}</td>`
+                                          : "";
                                 const entregadaVal = formatCantidad(p.cantidad_entregada ?? 0);
                                 const pendienteVal = formatCantidad(
                                     p.cantidad_pendiente ?? calcCantidadPendiente(p)
@@ -747,14 +1108,15 @@ export function renderProductosTableHtml(productos, options = {}) {
                                        <td data-label="Estado entrega">${badgeEstadoEntrega(p.estado_entrega || (Number(p.cantidad_entregada || 0) <= 0 ? "pendiente" : Number(p.cantidad_entregada) >= Number(p.cantidad || 1) ? "entregado" : "parcial"))}</td>`
                                     : "";
                                 const pendienteNum = calcCantidadPendiente(p);
+                                const disponibleEntregaNum = calcCantidadDisponibleEntrega(p);
                                 const entregaParcialCells =
-                                    entregaParcialEditable && pendienteNum > 0
+                                    entregaParcialEditable && disponibleEntregaNum > 0
                                         ? `<td class="col-check sg-entrega-parcial-check-col" data-label="Entregar">
                                         <input
                                             type="checkbox"
                                             class="entrega-parcial-check"
                                             value="${p.id}"
-                                            data-pendiente="${pendienteNum}"
+                                            data-pendiente="${disponibleEntregaNum}"
                                             aria-label="Entregar ${escapeHtml(p.descripcion)}"
                                         />
                                     </td>
@@ -763,17 +1125,64 @@ export function renderProductosTableHtml(productos, options = {}) {
                                             type="number"
                                             class="input-table sg-entrega-parcial-cantidad"
                                             data-producto-id="${p.id}"
-                                            data-pendiente="${pendienteNum}"
+                                            data-pendiente="${disponibleEntregaNum}"
                                             value=""
                                             min="0.0001"
-                                            max="${pendienteNum}"
+                                            max="${disponibleEntregaNum}"
                                             step="any"
-                                            placeholder="Máx. ${escapeHtml(pendienteVal)}"
+                                            placeholder="Máx. ${escapeHtml(formatCantidad(disponibleEntregaNum))}"
                                             aria-label="Cantidad a entregar de ${escapeHtml(p.descripcion)}"
                                         />
                                     </td>`
                                         : entregaParcialEditable
-                                          ? `<td colspan="2" class="muted" data-label="Entrega">Sin pendiente</td>`
+                                          ? `<td colspan="2" class="muted" data-label="Entrega">Sin stock recibido</td>`
+                                          : "";
+                                const recibidaVal = formatCantidad(p.cantidad_recibida ?? 0);
+                                const pendienteRecepcionVal = formatCantidad(
+                                    p.cantidad_pendiente_recepcion ??
+                                        calcCantidadPendienteRecepcion(p)
+                                );
+                                const recepcionInfoCells = showRecepcionInfo
+                                    ? `<td class="sg-producto-cantidad-cell" data-label="Recibida">${escapeHtml(recibidaVal)}</td>
+                                       <td class="sg-producto-cantidad-cell" data-label="Pend. recepción">${escapeHtml(pendienteRecepcionVal)}</td>
+                                       <td data-label="Estado recepción">${badgeEstadoRecepcion(
+                                           p.estado_recepcion ||
+                                               (Number(p.cantidad_recibida || 0) <= 0
+                                                   ? "pendiente"
+                                                   : Number(p.cantidad_recibida) >=
+                                                       Number(p.cantidad || 1)
+                                                     ? "recibido"
+                                                     : "parcial")
+                                       )}</td>`
+                                    : "";
+                                const pendienteRecepcionNum = calcCantidadPendienteRecepcion(p);
+                                const recepcionParcialCells =
+                                    recepcionParcialEditable && pendienteRecepcionNum > 0
+                                        ? `<td class="col-check sg-recepcion-parcial-check-col" data-label="Recibió">
+                                        <input
+                                            type="checkbox"
+                                            class="recepcion-parcial-check"
+                                            value="${p.id}"
+                                            data-pendiente="${pendienteRecepcionNum}"
+                                            aria-label="Recibir ${escapeHtml(p.descripcion)}"
+                                        />
+                                    </td>
+                                    <td data-label="Cant. recibida">
+                                        <input
+                                            type="number"
+                                            class="input-table sg-recepcion-parcial-cantidad"
+                                            data-producto-id="${p.id}"
+                                            data-pendiente="${pendienteRecepcionNum}"
+                                            value=""
+                                            min="0.0001"
+                                            max="${pendienteRecepcionNum}"
+                                            step="any"
+                                            placeholder="Máx. ${escapeHtml(pendienteRecepcionVal)}"
+                                            aria-label="Cantidad recibida de ${escapeHtml(p.descripcion)}"
+                                        />
+                                    </td>`
+                                        : recepcionParcialEditable
+                                          ? `<td colspan="2" class="muted" data-label="Recepción">Completo</td>`
                                           : "";
                                 return `
                             <tr class="${rowClass}" data-producto-id="${p.id}">
@@ -788,8 +1197,11 @@ export function renderProductosTableHtml(productos, options = {}) {
                                 ${cantidadCell}
                                 ${estadoCell}
                                 ${tramiteParcialCell}
+                                ${valorTramiteParcialCell}
                                 ${entregaInfoCells}
                                 ${entregaParcialCells}
+                                ${recepcionInfoCells}
+                                ${recepcionParcialCells}
                             </tr>`;
                             })
                             .join("")}
@@ -816,6 +1228,7 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
         <div class="sg-detail-layout">
             ${renderWorkflowTimelineHtml(s)}
             ${showAprobacionParcialAlert ? renderAprobacionParcialAlertHtml(s) : ""}
+            ${renderTramitandoOcAlertHtml(s, { contexto: "solicitante" })}
             ${renderOrdenOcRegistradaAlertHtml(s, { contexto: "solicitante" })}
 
             <div class="sg-detail-panel">
@@ -865,6 +1278,14 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
                     </div>`
                             : ""
                     }
+                    ${
+                        s.valor_tramite_oc !== null && s.valor_tramite_oc !== undefined
+                            ? `<div class="sg-detail-field">
+                        <dt>Valor trámite OC</dt>
+                        <dd>${formatValorTramiteOc(s.valor_tramite_oc)}</dd>
+                    </div>`
+                            : ""
+                    }
                 </dl>
             </div>
 
@@ -882,9 +1303,19 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
                 showTramiteOcParcial:
                     productosOptions.showTramiteOcParcial ??
                     (tieneTramiteParcial || Boolean(tramiteGeneral)),
+                showValorTramiteOcParcial:
+                    productosOptions.showValorTramiteOcParcial ??
+                    (tieneTramiteParcial ||
+                        Boolean(tramiteGeneral) ||
+                        (s.productos || []).some(
+                            (p) =>
+                                p.valor_tramite_oc !== null && p.valor_tramite_oc !== undefined
+                        )),
                 showEntregaInfo:
                     productosOptions.showEntregaInfo ??
-                    (esGestionEntrega(s.estado) ||
+                    (["tramitada_oc", "entregado_parcial", "entregado"].includes(
+                        normalizarEstado(s.estado)
+                    ) ||
                         (s.productos || []).some(
                             (p) => Number(p.cantidad_entregada || 0) > 0
                         )),
@@ -893,6 +1324,7 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
             ${renderObservacionesTrazabilidadHtml(s)}
 
             ${renderArchivosHtml(s)}
+            ${renderAnticipoDetalleHtml(s)}
         </div>`;
 }
 
@@ -1018,30 +1450,59 @@ export function renderPanelTramiteOcHtml(s) {
               : "No";
     const estado = normalizarEstado(s.estado);
     const esEntregaParcial = estado === "entregado_parcial";
+    const esTramitandoOc = estado === "tramitando_oc";
+    const esItemsEnCamino = estado === "items_en_camino";
+    const esRecepcionInsumos = estado === "recepcion_insumos";
     const mostrarEntregaInfo =
         esEntregaParcial ||
+        esRecepcionInsumos ||
         (s.productos || []).some((p) => Number(p.cantidad_entregada || 0) > 0);
+    const mostrarRecepcionInfo =
+        esItemsEnCamino ||
+        esRecepcionInsumos ||
+        (s.productos || []).some((p) => Number(p.cantidad_recibida || 0) > 0);
 
-    const panelOcEditable = !esEntregaParcial
+    const panelOcEditable = esTramitandoOc && !esEntregaParcial
         ? `
             <div class="sg-detail-panel sg-gestion-form-panel">
                 <h3 class="sg-detail-panel-title">Trámite Orden de Compra</h3>
                 <p class="muted sg-detail-panel-hint">
-                    Registra el número de trámite OC para toda la solicitud o, si aplica,
-                    un número distinto por cada ítem aprobado.
+                    Registra el número y valor del trámite OC para toda la solicitud o, si aplica,
+                    un registro distinto por cada ítem aprobado.
                 </p>
-                <div class="field">
-                    <label for="gestion-tramite-oc-general">
-                        Trámite Orden de Compra (solicitud completa)
-                    </label>
-                    <input
-                        type="text"
-                        id="gestion-tramite-oc-general"
-                        class="input-table"
-                        value="${escapeHtml(s.numero_tramite_oc || "")}"
-                        placeholder="Número de trámite OC general"
-                        autocomplete="off"
-                    />
+                <div class="row-2">
+                    <div class="field">
+                        <label for="gestion-tramite-oc-general">
+                            Trámite Orden de Compra (solicitud completa)
+                        </label>
+                        <input
+                            type="text"
+                            id="gestion-tramite-oc-general"
+                            class="input-table"
+                            value="${escapeHtml(s.numero_tramite_oc || "")}"
+                            placeholder="Número de trámite OC general"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <div class="field">
+                        <label for="gestion-tramite-oc-valor-general">
+                            Valor trámite OC (solicitud completa)
+                        </label>
+                        <input
+                            type="number"
+                            id="gestion-tramite-oc-valor-general"
+                            class="input-table"
+                            value="${
+                                s.valor_tramite_oc !== null && s.valor_tramite_oc !== undefined
+                                    ? escapeHtml(String(s.valor_tramite_oc))
+                                    : ""
+                            }"
+                            min="0"
+                            step="0.01"
+                            placeholder="Valor en pesos"
+                            autocomplete="off"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -1052,7 +1513,10 @@ export function renderPanelTramiteOcHtml(s) {
                 excluirNoAprobados: true,
                 showEstado: false,
                 tramiteOcParcialEditable: true,
-            })}`
+                tramiteValorOcParcialEditable: true,
+            })}
+
+            ${renderAnticipoTramiteFormHtml(buildLideresOptionsHtml())}`
         : `
             <div class="sg-detail-panel">
                 <h3 class="sg-detail-panel-title">Trámite Orden de Compra</h3>
@@ -1061,22 +1525,53 @@ export function renderPanelTramiteOcHtml(s) {
                         <dt>Trámite OC general</dt>
                         <dd>${escapeHtml((s.numero_tramite_oc || "").trim() || "—")}</dd>
                     </div>
+                    <div class="sg-detail-field">
+                        <dt>Valor trámite OC general</dt>
+                        <dd>${formatValorTramiteOc(s.valor_tramite_oc)}</dd>
+                    </div>
                 </dl>
-            </div>`;
+            </div>
+            ${renderProductosTableHtml(s.productos, {
+                titulo: "Trámite OC por ítem",
+                excluirNoAprobados: true,
+                showEstado: false,
+                showTramiteOcParcial: solicitudTieneOcRegistrada(s),
+                showValorTramiteOcParcial: solicitudTieneOcRegistrada(s),
+            })}`;
 
-    const panelEntregaParcial =
-        solicitudTieneOcRegistrada(s) && solicitudTieneEntregaPendiente(s)
+    const panelRecepcionParcial =
+        solicitudTieneOcRegistrada(s) && solicitudTieneRecepcionPendiente(s)
             ? `
-            <div class="sg-detail-panel sg-gestion-form-panel sg-entrega-parcial-panel" id="panel-entrega-parcial-wrap" hidden>
-                <h3 class="sg-detail-panel-title">Registrar entrega parcial</h3>
+            <div class="sg-detail-panel sg-gestion-form-panel sg-recepcion-parcial-panel" id="panel-recepcion-parcial-wrap" hidden>
+                <h3 class="sg-detail-panel-title">Registrar llegada de ítems</h3>
                 <p class="muted sg-detail-panel-hint">
-                    Selecciona los ítems a entregar e indica la cantidad de esta entrega.
-                    La cantidad pendiente se actualizará automáticamente.
+                    Selecciona los ítems que llegaron físicamente a Compras e indica la cantidad recibida.
+                    El solicitante será notificado cuando pase a <strong>Recepción de Insumos</strong>.
                 </p>
                 ${renderProductosTableHtml(s.productos, {
-                    titulo: "Ítems pendientes de entrega",
+                    titulo: "Ítems pendientes de recepción",
+                    excluirNoAprobados: true,
+                    showRecepcionInfo: true,
+                    recepcionParcialEditable: true,
+                    panelId: "sg-recepcion-parcial-table",
+                })}
+            </div>`
+            : "";
+
+    const panelEntregaParcial =
+        solicitudTieneOcRegistrada(s) && solicitudTieneDisponibleEntrega(s)
+            ? `
+            <div class="sg-detail-panel sg-gestion-form-panel sg-entrega-parcial-panel" id="panel-entrega-parcial-wrap" hidden>
+                <h3 class="sg-detail-panel-title">Registrar entrega parcial al solicitante</h3>
+                <p class="muted sg-detail-panel-hint">
+                    Selecciona los ítems a entregar e indica la cantidad de esta entrega
+                    (solo lo ya recibido físicamente en Compras).
+                </p>
+                ${renderProductosTableHtml(s.productos, {
+                    titulo: "Ítems disponibles para entrega",
                     excluirNoAprobados: true,
                     showEntregaInfo: true,
+                    showRecepcionInfo: true,
                     entregaParcialEditable: true,
                     panelId: "sg-entrega-parcial-table",
                 })}
@@ -1127,21 +1622,38 @@ export function renderPanelTramiteOcHtml(s) {
 
             ${renderAprobacionParcialAlertHtml(s)}
 
+            ${esTramitandoOc ? renderTramitandoOcAlertHtml(s, { contexto: "gestor" }) : ""}
+
             ${renderOrdenOcRegistradaAlertHtml(s)}
 
             ${panelOcEditable}
 
             ${
-                mostrarEntregaInfo && esEntregaParcial
+                mostrarRecepcionInfo && (esRecepcionInsumos || esItemsEnCamino)
+                    ? renderProductosTableHtml(s.productos, {
+                          titulo: "Estado de recepción por ítem",
+                          excluirNoAprobados: true,
+                          showRecepcionInfo: true,
+                      })
+                    : ""
+            }
+
+            ${panelRecepcionParcial}
+
+            ${
+                mostrarEntregaInfo && (esEntregaParcial || esRecepcionInsumos)
                     ? renderProductosTableHtml(s.productos, {
                           titulo: "Estado de entrega por ítem",
                           excluirNoAprobados: true,
                           showEntregaInfo: true,
+                          showRecepcionInfo: true,
                       })
                     : ""
             }
 
             ${panelEntregaParcial}
+
+            ${renderAnticipoDetalleHtml(s)}
 
             ${renderObservacionesTrazabilidadHtml(s)}
 
@@ -1159,6 +1671,23 @@ export function renderPanelTramiteOcHtml(s) {
 
 export function attachGestionDownloadHandlers(container, onError) {
     if (!container) return;
+
+    container.addEventListener("click", (e) => {
+        const toggle = e.target.closest(".sg-obs-collapsible-toggle");
+        if (toggle) {
+            const panel = toggle.closest(".sg-obs-collapsible");
+            const bodyId = toggle.getAttribute("aria-controls");
+            const body = bodyId ? document.getElementById(bodyId) : null;
+            if (!panel || !body) return;
+
+            const expanded = toggle.getAttribute("aria-expanded") === "true";
+            const next = !expanded;
+            toggle.setAttribute("aria-expanded", next ? "true" : "false");
+            panel.classList.toggle("sg-obs-collapsible--open", next);
+            body.hidden = !next;
+            return;
+        }
+    });
 
     container.addEventListener("click", async (e) => {
         const link = e.target.closest("a[data-download-url]");

@@ -448,6 +448,229 @@ def run_all() -> None:
     migrar_users_email()
     migrar_solicitudes_creado_por_email()
     migrar_productos_cantidad_entregada()
+    migrar_valor_tramite_oc()
+    migrar_estado_tramitando_oc()
+    migrar_numero_tramite_oc_desde_historial()
+    migrar_campos_anticipo()
+    migrar_productos_cantidad_recibida()
+    migrar_estados_flujo_recepcion()
+
+
+def migrar_campos_anticipo() -> None:
+    """Campos de anticipo en solicitudes de compra."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    columnas = {
+        "requiere_anticipo": (
+            "ALTER TABLE solicitudes_gestion "
+            "ADD COLUMN requiere_anticipo TINYINT(1) NOT NULL DEFAULT 0 "
+            "AFTER lider_segunda_aprobacion_label"
+        ),
+        "porcentaje_anticipo": (
+            "ALTER TABLE solicitudes_gestion "
+            "ADD COLUMN porcentaje_anticipo DECIMAL(5,2) NULL "
+            "AFTER requiere_anticipo"
+        ),
+        "lider_anticipo_id": (
+            "ALTER TABLE solicitudes_gestion "
+            "ADD COLUMN lider_anticipo_id VARCHAR(50) NOT NULL DEFAULT '' "
+            "AFTER porcentaje_anticipo"
+        ),
+        "lider_anticipo_label": (
+            "ALTER TABLE solicitudes_gestion "
+            "ADD COLUMN lider_anticipo_label VARCHAR(500) NOT NULL DEFAULT '' "
+            "AFTER lider_anticipo_id"
+        ),
+        "monto_anticipo": (
+            "ALTER TABLE solicitudes_gestion "
+            "ADD COLUMN monto_anticipo DECIMAL(18,2) NULL "
+            "AFTER lider_anticipo_label"
+        ),
+        "observaciones_anticipo": (
+            "ALTER TABLE solicitudes_gestion "
+            "ADD COLUMN observaciones_anticipo TEXT NOT NULL "
+            "AFTER monto_anticipo"
+        ),
+        "gestor_anticipo_id": (
+            "ALTER TABLE solicitudes_gestion "
+            "ADD COLUMN gestor_anticipo_id INT NULL "
+            "AFTER observaciones_anticipo"
+        ),
+    }
+    with engine.begin() as conn:
+        for col, ddl in columnas.items():
+            if not _columna_existe("solicitudes_gestion", col):
+                logger.info("Agregando columna '%s' a solicitudes_gestion...", col)
+                conn.execute(text(ddl))
+        if not _indice_existe("solicitudes_gestion", "ix_solicitudes_gestion_gestor_anticipo_id"):
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE solicitudes_gestion "
+                        "ADD INDEX ix_solicitudes_gestion_gestor_anticipo_id (gestor_anticipo_id)"
+                    )
+                )
+            except Exception as e:
+                logger.warning("No se pudo crear índice gestor_anticipo_id: %s", e)
+
+
+def migrar_productos_cantidad_recibida() -> None:
+    """Cantidad físicamente recibida por ítem en Compras."""
+    if not _tabla_existe("solicitudes_gestion_productos"):
+        return
+    if not _columna_existe("solicitudes_gestion_productos", "cantidad_recibida"):
+        with engine.begin() as conn:
+            logger.info(
+                "Agregando columna 'cantidad_recibida' a solicitudes_gestion_productos..."
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion_productos "
+                    "ADD COLUMN cantidad_recibida DECIMAL(18,4) NOT NULL DEFAULT 0.0000 "
+                    "AFTER cantidad_entregada"
+                )
+            )
+
+
+def migrar_estados_flujo_recepcion() -> None:
+    """Solicitudes en Tramitada OC pasan a Ítems en camino (nuevo flujo post-OC)."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                UPDATE solicitudes_gestion
+                SET estado = 'items_en_camino'
+                WHERE estado IN ('tramitada_oc', 'en_proceso', 'pendiente')
+                """
+            )
+        )
+        if result.rowcount:
+            logger.info(
+                "Migradas %s solicitud(es) de tramitada_oc a items_en_camino.",
+                result.rowcount,
+            )
+
+
+def migrar_numero_tramite_oc_desde_historial() -> None:
+    """Recupera numero_tramite_oc borrado por update() posterior al guardar trámite OC."""
+    if not _tabla_existe("solicitudes_gestion") or not _tabla_existe(
+        "solicitudes_gestion_historial_estados"
+    ):
+        return
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                UPDATE solicitudes_gestion s
+                INNER JOIN solicitudes_gestion_historial_estados h
+                    ON h.solicitud_id = s.id
+                SET s.numero_tramite_oc = TRIM(
+                    SUBSTRING_INDEX(
+                        SUBSTRING_INDEX(h.comentario, 'Trámite OC general: ', -1),
+                        ' (',
+                        1
+                    )
+                )
+                WHERE TRIM(COALESCE(s.numero_tramite_oc, '')) = ''
+                  AND h.comentario LIKE '%Trámite OC general:%'
+                  AND TRIM(
+                    SUBSTRING_INDEX(
+                        SUBSTRING_INDEX(h.comentario, 'Trámite OC general: ', -1),
+                        ' (',
+                        1
+                    )
+                  ) <> ''
+                """
+            )
+        )
+        if result.rowcount:
+            logger.info(
+                "Recuperado numero_tramite_oc en %s solicitud(es) desde historial.",
+                result.rowcount,
+            )
+
+
+def migrar_valor_tramite_oc() -> None:
+    """Valor monetario asociado al trámite OC (general y por ítem)."""
+    if _tabla_existe("solicitudes_gestion") and not _columna_existe(
+        "solicitudes_gestion", "valor_tramite_oc"
+    ):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'valor_tramite_oc' a solicitudes_gestion...")
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion "
+                    "ADD COLUMN valor_tramite_oc DECIMAL(18,2) NULL "
+                    "AFTER numero_tramite_oc"
+                )
+            )
+    if _tabla_existe("solicitudes_gestion_productos") and not _columna_existe(
+        "solicitudes_gestion_productos", "valor_tramite_oc"
+    ):
+        with engine.begin() as conn:
+            logger.info(
+                "Agregando columna 'valor_tramite_oc' a solicitudes_gestion_productos..."
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion_productos "
+                    "ADD COLUMN valor_tramite_oc DECIMAL(18,2) NULL "
+                    "AFTER numero_tramite_oc"
+                )
+            )
+
+
+def migrar_estado_tramitando_oc() -> None:
+    """Solicitudes en Tramitada OC sin OC registrada pasan a Tramitando OC."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                UPDATE solicitudes_gestion s
+                SET s.estado = 'tramitando_oc'
+                WHERE s.estado = 'tramitada_oc'
+                  AND TRIM(COALESCE(s.numero_tramite_oc, '')) = ''
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM solicitudes_gestion_productos p
+                      WHERE p.solicitud_id = s.id
+                        AND TRIM(COALESCE(p.numero_tramite_oc, '')) <> ''
+                  )
+                """
+            )
+        )
+        if result.rowcount:
+            logger.info(
+                "Corregidas %s solicitud(es) de tramitada_oc a tramitando_oc (sin OC registrada).",
+                result.rowcount,
+            )
+
+        if _tabla_existe("solicitudes_gestion_historial_estados"):
+            hist = conn.execute(
+                text(
+                    """
+                    UPDATE solicitudes_gestion_historial_estados h
+                    INNER JOIN (
+                        SELECT solicitud_id, MAX(id) AS max_id
+                        FROM solicitudes_gestion_historial_estados
+                        GROUP BY solicitud_id
+                    ) ult ON h.id = ult.max_id
+                    INNER JOIN solicitudes_gestion s ON s.id = h.solicitud_id
+                    SET h.etapa = 'tramitando_oc'
+                    WHERE s.estado = 'tramitando_oc'
+                      AND h.etapa = 'tramitada_oc'
+                    """
+                )
+            )
+            if hist.rowcount:
+                logger.info(
+                    "Alineado historial en %s solicitud(es) con estado tramitando_oc.",
+                    hist.rowcount,
+                )
 
 
 def migrar_productos_cantidad_entregada() -> None:

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Gestionar anticipo · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css?v=5" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Gestionar anticipo</h1>
+                        <p class="muted">
+                            Solicitudes con anticipo aprobado por el líder, listas para gestión
+                            por Compras o Admin asignado.
+                        </p>
+                    </div>
+                    <div class="page-header-actions">
+                        <a href="/app/compras/gestion-solicitudes.html" class="btn btn-secondary">
+                            Volver
+                        </a>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card">
+                    <h2 class="card-title">Anticipos aprobados</h2>
+                    <div class="search-bar">
+                        <input
+                            type="text"
+                            id="anticipo-search"
+                            placeholder="Buscar por consecutivo, título o solicitante..."
+                            autocomplete="off"
+                        />
+                        <span class="info" id="anticipo-result-count"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table-gestion-solicitudes">
+                            <thead>
+                                <tr>
+                                    <th>Consecutivo</th>
+                                    <th>Solicitante</th>
+                                    <th>Tipo</th>
+                                    <th>Anticipo</th>
+                                    <th>Estado</th>
+                                    <th>Fecha</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="anticipo-tbody">
+                                <tr>
+                                    <td colspan="7" class="muted text-center">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div class="modal-overlay" id="modal-anticipo-detail">
+            <div class="modal modal-wide modal-detail-solicitud">
+                <h2 id="anticipo-detail-title">Detalle</h2>
+                <div class="sg-modal-detail-body">
+                    <div id="anticipo-detail-content"></div>
+                    <div
+                        class="sg-detail-panel sg-aprobacion-obs-panel"
+                        id="anticipo-gestion-panel"
+                        hidden
+                    >
+                        <h3 class="sg-detail-panel-title">Observación de gestión del anticipo</h3>
+                        <p class="muted sg-detail-panel-hint" id="anticipo-obs-hint">
+                            Opcional. Tu comentario quedará registrado en el historial de
+                            observaciones de la solicitud.
+                        </p>
+                        <div class="field sg-observacion-field">
+                            <label for="anticipo-observacion-editor">Comentario del gestor</label>
+                            <div id="anticipo-observacion-editor"></div>
+                            <input
+                                type="file"
+                                id="anticipo-observacion-adjuntos"
+                                multiple
+                                hidden
+                                accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.webp,.gif"
+                            />
+                            <ul class="file-list" id="anticipo-observacion-file-list" hidden></ul>
+                            <span class="hint">
+                                Usa el clip en la barra del editor para adjuntar archivos (también
+                                puedes arrastrarlos sobre el área de texto). Usa el botón de imagen
+                                para insertar una foto dentro del comentario.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-anticipo-detail-close">
+                        Cerrar
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btn-anticipo-gestionar" hidden>
+                        Anticipo gestionado
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { initGestionAnticipo } from "/static/js/compras/gestion-anticipo.js?v=5";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+            initGestionAnticipo();
+        </script>
+    </body>
+</html>

@@ -28,6 +28,7 @@ class SolicitudGestionRepository(ABC):
         *,
         creador_id: Optional[int] = None,
         excluir_creador_id: Optional[int] = None,
+        gestor_anticipo_id: Optional[int] = None,
         tipo: Optional[TipoSolicitudGestion] = None,
         estados: Optional[list[EstadoSolicitudGestion]] = None,
         query: Optional[str] = None,
@@ -108,12 +109,22 @@ class SolicitudGestionRepository(ABC):
         solicitud_id: int,
         *,
         numero_tramite_oc: Optional[str] = None,
+        valor_tramite_oc: Optional["Decimal"] = None,
         numeros_por_producto: Optional[dict[int, str]] = None,
+        valores_por_producto: Optional[dict[int, "Decimal"]] = None,
     ) -> None:
         ...
 
     @abstractmethod
     def update_productos_cantidad_entregada(
+        self,
+        solicitud_id: int,
+        cantidades_por_id: dict[int, "Decimal"],
+    ) -> None:
+        ...
+
+    @abstractmethod
+    def update_productos_cantidad_recibida(
         self,
         solicitud_id: int,
         cantidades_por_id: dict[int, "Decimal"],
