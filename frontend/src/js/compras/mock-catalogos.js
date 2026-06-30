@@ -12,6 +12,17 @@ export const CENTROS_COSTO = [
     { id: "CC-700", label: "CC-700 · Calidad y SST" },
 ];
 
+export const AREAS_CONSUMO = [
+    { id: "AC-ADM", label: "AC-ADM · Administración" },
+    { id: "AC-PROD", label: "AC-PROD · Producción" },
+    { id: "AC-LOG", label: "AC-LOG · Logística" },
+    { id: "AC-COM", label: "AC-COM · Comercial" },
+    { id: "AC-TI", label: "AC-TI · Tecnología" },
+    { id: "AC-GH", label: "AC-GH · Gestión Humana" },
+    { id: "AC-CAL", label: "AC-CAL · Calidad y SST" },
+    { id: "AC-MNT", label: "AC-MNT · Mantenimiento" },
+];
+
 export const UNIDADES_MEDIDA = [
     { id: "UND", label: "Unidad (UND)" },
     { id: "KG", label: "Kilogramo (KG)" },

@@ -21,8 +21,17 @@ class ListarPendientesAprobacion:
             )
 
         excluir_id = actor.id if actor.is_compras() and not actor.is_admin() else None
-        return self._solicitudes.list_all(
-            tipo=TipoSolicitudGestion.COMPRA,
-            estados=ETAPAS_PENDIENTES_APROBACION,
-            excluir_creador_id=excluir_id,
-        )
+        items: list[SolicitudGestion] = []
+        for tipo in (
+            TipoSolicitudGestion.COMPRA,
+            TipoSolicitudGestion.SALIDAS_ALMACEN,
+        ):
+            items.extend(
+                self._solicitudes.list_all(
+                    tipo=tipo,
+                    estados=ETAPAS_PENDIENTES_APROBACION,
+                    excluir_creador_id=excluir_id,
+                )
+            )
+        items.sort(key=lambda s: s.id or 0, reverse=True)
+        return items

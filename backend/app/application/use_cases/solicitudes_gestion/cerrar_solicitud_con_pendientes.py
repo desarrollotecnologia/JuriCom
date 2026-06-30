@@ -1,7 +1,6 @@
-"""Marca una solicitud como entregada (cierre del flujo) y notifica al solicitante."""
+"""Cierra la solicitud como entregada dejando cantidades pendientes por entregar."""
 
 import logging
-from decimal import Decimal
 
 from app.application.interfaces.email_notifier import EmailMessage, EmailNotifier
 from app.application.interfaces.file_storage import FileStorage
@@ -12,35 +11,37 @@ from app.application.interfaces.user_repository import UserRepository
 from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
     AgregarObservacionSolicitud,
 )
+from app.application.use_cases.solicitudes_gestion.marcar_entrega_solicitud import (
+    _resolver_email_solicitante,
+)
 from app.application.use_cases.solicitudes_gestion.registrar_solicitud_compra import (
     ArchivoEntradaSolicitud,
 )
-from app.domain.entities.solicitud_gestion import SolicitudGestion
+from app.domain.entities.solicitud_gestion import SolicitudGestion, SolicitudGestionProducto
 from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
 from app.domain.value_objects.estado_solicitud_gestion import (
     EstadoSolicitudGestion,
     es_estado_entrega_abierta,
 )
-from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
 
 logger = logging.getLogger(__name__)
 
 
-def _resolver_email_solicitante(
-    solicitud: SolicitudGestion,
-    users: UserRepository,
-) -> str:
-    if (solicitud.creado_por_email or "").strip():
-        return solicitud.creado_por_email.strip()
+def _lineas_pendientes_entrega(productos: list[SolicitudGestionProducto]) -> list[str]:
+    lineas: list[str] = []
+    for producto in productos:
+        pendiente = producto.cantidad - producto.cantidad_entregada
+        if pendiente <= 0:
+            continue
+        lineas.append(
+            f"«{producto.descripcion}»: entregado {producto.cantidad_entregada} de "
+            f"{producto.cantidad} (pendiente {pendiente})"
+        )
+    return lineas
 
-    user = users.get_by_id(solicitud.creado_por_id)
-    if user and (user.email or "").strip():
-        return user.email.strip()
-    return ""
 
-
-class MarcarEntregaSolicitud:
+class CerrarSolicitudConPendientes:
     def __init__(
         self,
         solicitudes: SolicitudGestionRepository,
@@ -63,7 +64,7 @@ class MarcarEntregaSolicitud:
         archivos_observacion: list[ArchivoEntradaSolicitud] | None = None,
     ) -> tuple[SolicitudGestion, bool]:
         if not (actor.is_admin() or actor.is_compras()):
-            raise UnauthorizedError("Sólo Compras o Admin pueden registrar la entrega.")
+            raise UnauthorizedError("Sólo Compras o Admin pueden cerrar solicitudes.")
 
         solicitud = self._solicitudes.get_by_id(solicitud_id)
         if solicitud is None:
@@ -71,68 +72,29 @@ class MarcarEntregaSolicitud:
 
         if not es_estado_entrega_abierta(solicitud.estado):
             raise ValueError(
-                "La solicitud debe estar en Recepción de Insumos o Entrega parcial realizada."
+                "Sólo se puede cerrar con pendientes en Recepción de Insumos "
+                "o Entrega parcial realizada."
             )
 
-        es_salidas = solicitud.es_salidas_almacen
-
-        if not es_salidas and not solicitud.tiene_tramite_oc_registrado:
-            raise ValueError(
-                "Debes registrar el trámite OC antes de marcar la entrega."
-            )
+        if not solicitud.es_salidas_almacen and not solicitud.tiene_tramite_oc_registrado:
+            raise ValueError("Debes registrar el trámite OC antes de cerrar la solicitud.")
 
         if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
-            raise UnauthorizedError("Sólo el gestor asignado puede registrar la entrega.")
+            raise UnauthorizedError("Sólo el gestor asignado puede cerrar la solicitud.")
 
-        productos_entrega = solicitud.productos_para_entrega
-        if not productos_entrega:
-            raise ValueError("No hay ítems aprobados para entregar.")
+        productos = solicitud.productos_para_entrega
+        if not productos:
+            raise ValueError("No hay ítems aprobados en la solicitud.")
 
-        if not es_salidas:
-            pendientes_recepcion = [
-                p for p in productos_entrega if p.cantidad_pendiente_recepcion > 0
-            ]
-            if pendientes_recepcion:
-                nombres = ", ".join(f"«{p.descripcion}»" for p in pendientes_recepcion)
-                raise ValueError(
-                    f"Aún hay ítems sin recepción física completa: {nombres}. "
-                    "Registra la llegada o usa entrega parcial de lo recibido."
-                )
-
-        pendientes_entrega = [
-            p
-            for p in productos_entrega
-            if (
-                (p.cantidad - p.cantidad_entregada)
-                if es_salidas
-                else p.cantidad_disponible_entrega
-            )
-            <= 0
-        ]
-        if len(pendientes_entrega) == len(productos_entrega):
+        if not any(p.cantidad_entregada > 0 for p in productos):
             raise ValueError(
-                "No hay cantidades pendientes de entrega al solicitante."
+                "Debes registrar al menos una entrega parcial antes de cerrar con pendientes."
             )
 
-        cantidades_finales: dict[int, Decimal] = {}
-        for producto in productos_entrega:
-            if producto.id is None:
-                continue
-            if es_salidas:
-                pendiente = producto.cantidad - producto.cantidad_entregada
-                if pendiente <= 0:
-                    continue
-                cantidades_finales[producto.id] = producto.cantidad_entregada + pendiente
-            else:
-                if producto.cantidad_disponible_entrega <= 0:
-                    continue
-                cantidades_finales[producto.id] = producto.cantidad_entregada + (
-                    producto.cantidad_disponible_entrega
-                )
-
-        if cantidades_finales:
-            self._solicitudes.update_productos_cantidad_entregada(
-                solicitud_id, cantidades_finales
+        lineas_pendientes = _lineas_pendientes_entrega(productos)
+        if not lineas_pendientes:
+            raise ValueError(
+                "No hay cantidades pendientes por entregar; usa Entrega total para cerrar."
             )
 
         nota_texto = (observacion_texto or "").strip()
@@ -154,25 +116,26 @@ class MarcarEntregaSolicitud:
 
         solicitud.estado = EstadoSolicitudGestion.ENTREGADO
         actualizada = self._solicitudes.update(solicitud)
+        comentario = (
+            "Cierre con ítems pendientes por entregar — "
+            + "; ".join(_lineas_pendientes_entrega(solicitud.productos_para_entrega))
+        )
         self._solicitudes.registrar_historial(
             solicitud_id,
             EstadoSolicitudGestion.ENTREGADO,
             usuario_id=actor.id,
-            comentario=f"Entrega total registrada por {actor.username}",
+            comentario=comentario,
         )
 
-        email_enviado = self._notificar_solicitante(
-            actualizada, EstadoSolicitudGestion.ENTREGADO, actor
-        )
-
+        email_enviado = self._notificar_solicitante(actualizada, actor, lineas_pendientes)
         refreshed = self._solicitudes.get_by_id(solicitud_id)
         return (refreshed or actualizada, email_enviado)
 
     def _notificar_solicitante(
         self,
         solicitud: SolicitudGestion,
-        estado: EstadoSolicitudGestion,
         actor: User,
+        lineas_pendientes: list[str],
     ) -> bool:
         destinatario = _resolver_email_solicitante(solicitud, self._users)
         if not destinatario:
@@ -182,7 +145,7 @@ class MarcarEntregaSolicitud:
             )
             return False
         if not self._notifier.disponible:
-            logger.warning("SMTP no disponible; omito notificación de entrega.")
+            logger.warning("SMTP no disponible; omito notificación de cierre con pendientes.")
             return False
 
         from app.infrastructure.email.templates import (
@@ -195,21 +158,25 @@ class MarcarEntregaSolicitud:
                 EmailMessage(
                     asunto=(
                         f"[JURICOM_BEEF] Solicitud {solicitud.codigo} — "
-                        f"{estado.label}"
+                        "Cerrada con ítems pendientes"
                     ),
                     destinatarios=[destinatario],
                     cuerpo_html=render_entrega_solicitud_html(
-                        solicitud, estado, actor.username
+                        solicitud, EstadoSolicitudGestion.ENTREGADO, actor.username
                     ),
-                    cuerpo_texto=render_entrega_solicitud_texto(
-                        solicitud, estado, actor.username
+                    cuerpo_texto=(
+                        render_entrega_solicitud_texto(
+                            solicitud, EstadoSolicitudGestion.ENTREGADO, actor.username
+                        )
+                        + "\n\nÍtems que quedaron pendientes:\n"
+                        + "\n".join(f"- {linea}" for linea in lineas_pendientes)
                     ),
                 )
             )
             return True
         except Exception:
             logger.exception(
-                "Error enviando correo de entrega para solicitud %s",
+                "Error enviando correo de cierre con pendientes para solicitud %s",
                 solicitud.codigo,
             )
             return False

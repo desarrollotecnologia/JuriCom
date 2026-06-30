@@ -27,6 +27,7 @@ from app.domain.value_objects.estado_solicitud_gestion import (
     es_estado_entrega_abierta,
     normalizar_estado,
 )
+from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,9 @@ class RegistrarEntregaParcialSolicitud:
                 "o Entrega parcial realizada."
             )
 
-        if not solicitud.tiene_tramite_oc_registrado:
+        es_salidas = solicitud.es_salidas_almacen
+
+        if not es_salidas and not solicitud.tiene_tramite_oc_registrado:
             raise ValueError("Debes registrar el trámite OC antes de la entrega.")
 
         if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
@@ -93,12 +96,22 @@ class RegistrarEntregaParcialSolicitud:
                     f"El ítem «{producto.descripcion}» no está aprobado y no puede entregarse."
                 )
 
-            pendiente = producto.cantidad_disponible_entrega
+            pendiente = (
+                producto.cantidad - producto.cantidad_entregada
+                if es_salidas
+                else producto.cantidad_disponible_entrega
+            )
             if cantidad_a_entregar > pendiente:
-                raise ValueError(
-                    f"La cantidad a entregar de «{producto.descripcion}» supera lo recibido "
-                    f"disponible ({pendiente})."
+                msg = (
+                    f"La cantidad a entregar de «{producto.descripcion}» supera lo pendiente "
+                    f"en almacén ({pendiente})."
+                    if es_salidas
+                    else (
+                        f"La cantidad a entregar de «{producto.descripcion}» supera lo recibido "
+                        f"disponible ({pendiente})."
+                    )
                 )
+                raise ValueError(msg)
 
             total_entregado = producto.cantidad_entregada + cantidad_a_entregar
             nuevas_cantidades[producto.id] = total_entregado

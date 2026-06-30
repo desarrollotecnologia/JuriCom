@@ -28,11 +28,16 @@ from .listar_solicitudes_panel import ListarSolicitudesPanelGestion
 
 from .registrar_solicitud_compra import ArchivoEntradaSolicitud, RegistrarSolicitudCompra
 
+from .registrar_solicitud_salidas_almacen import RegistrarSolicitudSalidasAlmacen
 
+
+
+from .cerrar_solicitud_con_pendientes import CerrarSolicitudConPendientes
 
 from .marcar_entrega_solicitud import MarcarEntregaSolicitud
 
 from .registrar_entrega_parcial_solicitud import RegistrarEntregaParcialSolicitud
+from .registrar_factura_solicitud import RegistrarFacturaSolicitud
 from .registrar_recepcion_insumos_solicitud import RegistrarRecepcionInsumosSolicitud
 
 from .registrar_tramite_oc_solicitud import RegistrarTramiteOcSolicitud
@@ -85,15 +90,21 @@ __all__ = [
 
 
 
+    "CerrarSolicitudConPendientes",
+
     "MarcarEntregaSolicitud",
 
 
 
     "RegistrarSolicitudCompra",
 
+    "RegistrarSolicitudSalidasAlmacen",
+
 
 
     "RegistrarEntregaParcialSolicitud",
+
+    "RegistrarFacturaSolicitud",
 
     "RegistrarRecepcionInsumosSolicitud",
 

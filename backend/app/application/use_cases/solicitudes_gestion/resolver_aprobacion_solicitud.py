@@ -200,8 +200,13 @@ class ResolverAprobacionSolicitud:
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
 
-        if solicitud.tipo != TipoSolicitudGestion.COMPRA:
-            raise ValueError("Sólo se pueden aprobar solicitudes de compra.")
+        if solicitud.tipo not in (
+            TipoSolicitudGestion.COMPRA,
+            TipoSolicitudGestion.SALIDAS_ALMACEN,
+        ):
+            raise ValueError(
+                "Sólo se pueden aprobar solicitudes de compra o salidas de almacén."
+            )
 
         if not es_pendiente_aprobacion(solicitud.estado):
             raise ValueError("Esta solicitud ya fue procesada o no está en etapa de aprobación.")

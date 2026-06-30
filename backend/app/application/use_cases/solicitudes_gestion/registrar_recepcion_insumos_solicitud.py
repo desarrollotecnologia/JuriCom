@@ -61,6 +61,14 @@ class RegistrarRecepcionInsumosSolicitud:
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
 
+        from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
+
+        if es_flujo_salidas_almacen(solicitud.tipo):
+            raise ValueError(
+                "Las salidas de almacén no requieren recepción física; "
+                "registra la entrega directamente."
+            )
+
         if not es_estado_recepcion_abierta(solicitud.estado):
             raise ValueError(
                 "Sólo se puede registrar recepción en Ítems en camino, "

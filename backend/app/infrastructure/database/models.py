@@ -203,6 +203,10 @@ class SolicitudGestionModel(Base):
     gestor_anticipo_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    factura_registrada_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    factura_registrada_por_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     estado: Mapped[str] = mapped_column(
         String(30), nullable=False, default="solicitud", index=True
     )
@@ -282,6 +286,7 @@ class SolicitudGestionProductoModel(Base):
     codigo_siimed: Mapped[str] = mapped_column(String(80), nullable=False, default="")
     unidad: Mapped[str] = mapped_column(String(20), nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
+    area_consumo: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     centro_costo: Mapped[str] = mapped_column(String(100), nullable=False)
     cantidad: Mapped[Decimal] = mapped_column(
         Numeric(18, 4), nullable=False, default=Decimal("1")

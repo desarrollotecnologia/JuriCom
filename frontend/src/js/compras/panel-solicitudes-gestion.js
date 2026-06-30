@@ -1,7 +1,7 @@
 import { api, ApiError } from "../api/client.js";
 import { session } from "../auth/session.js";
 import { LIDERES_COLBEEF } from "../catalogos/lideres-colbeef.js";
-import { createObservacionConAdjuntos } from "../components/observacion-editor.js";
+import { createObservacionConAdjuntos, renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js";
 import { escapeHtml, formatDate } from "../utils/format.js";
 import {
     attachGestionDownloadHandlers,
@@ -14,7 +14,9 @@ import {
     renderDetalleSolicitudHtml,
     renderPanelGestionHtml,
     renderPanelTramiteOcHtml,
+    renderFacturasHistorialHtml,
     esGestionEntrega,
+    esSolicitudSalidasAlmacen,
     esEstadoRecepcion,
     esEstadoEntregaSolicitante,
     solicitudEntregaCompleta,
@@ -22,12 +24,14 @@ import {
     solicitudTieneRecepcionPendiente,
     solicitudTieneDisponibleEntrega,
     solicitudPuedeEntregaTotal,
+    solicitudPuedeCerrarConPendientes,
     solicitudTieneOcRegistrada,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=18";
+} from "./gestion-solicitudes-common.js?v=22";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const FACTURA_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`;
 
 function buildLideresOptions(selectedId = "") {
     return LIDERES_COLBEEF.map(
@@ -61,6 +65,49 @@ function contarCotizaciones(solicitud, nuevosArchivos = []) {
     return existentes + nuevosArchivos.length;
 }
 
+function esSolicitudFacturaCerrada(solicitud) {
+    return (
+        normalizarEstado(solicitud?.estado) === "facturada" ||
+        Boolean(solicitud?.factura_registrada || solicitud?.factura_registrada_at)
+    );
+}
+
+function puedeGestionarFactura(solicitud) {
+    const estado = normalizarEstado(solicitud?.estado);
+    return estado === "entregado" || estado === "facturada";
+}
+
+function tieneFacturasRegistradas(solicitud) {
+    return (
+        Number(solicitud?.cantidad_facturas || 0) > 0 || esSolicitudFacturaCerrada(solicitud)
+    );
+}
+
+function esSalidasAlmacenEntregada(solicitud) {
+    return (
+        esSolicitudSalidasAlmacen(solicitud) &&
+        normalizarEstado(solicitud?.estado) === "entregado"
+    );
+}
+
+function esPanelFilaCerrada(solicitud) {
+    return esSolicitudFacturaCerrada(solicitud) || esSalidasAlmacenEntregada(solicitud);
+}
+
+function sortPanelItems(list) {
+    return [...list].sort((a, b) => {
+        const aCerrada = esPanelFilaCerrada(a);
+        const bCerrada = esPanelFilaCerrada(b);
+        if (aCerrada !== bCerrada) return aCerrada ? 1 : -1;
+        if (aCerrada && bCerrada) {
+            const aDate = a.factura_registrada_at || a.updated_at || a.created_at || 0;
+            const bDate = b.factura_registrada_at || b.updated_at || b.created_at || 0;
+            return new Date(aDate) - new Date(bDate);
+        }
+        return (b.id || 0) - (a.id || 0);
+    });
+}
+
 export function initPanelSolicitudesGestion() {
     const tbody = document.getElementById("panel-tbody");
     const searchInput = document.getElementById("panel-search");
@@ -76,10 +123,23 @@ export function initPanelSolicitudesGestion() {
     const btnGuardarTramite = document.getElementById("btn-panel-guardar-tramite-oc");
     const btnEntregado = document.getElementById("btn-panel-entregado");
     const btnEntregadoParcial = document.getElementById("btn-panel-entregado-parcial");
+    const btnCerrarPendientes = document.getElementById("btn-panel-cerrar-pendientes");
     const btnConfirmarEntregaParcial = document.getElementById("btn-panel-confirmar-entrega-parcial");
     const btnRegistrarRecepcion = document.getElementById("btn-panel-registrar-recepcion");
     const btnConfirmarRecepcion = document.getElementById("btn-panel-confirmar-recepcion");
     const modalActionsGestion = document.getElementById("panel-modal-actions-gestion");
+    const modalFactura = document.getElementById("modal-panel-factura");
+    const facturaTitle = document.getElementById("panel-factura-title");
+    const facturaIntro = document.getElementById("panel-factura-intro");
+    const facturaContent = document.getElementById("panel-factura-content");
+    const btnFacturaCancel = document.getElementById("btn-panel-factura-cancel");
+    const btnFacturaGuardar = document.getElementById("btn-panel-factura-guardar");
+    const facturaAlert = document.getElementById("panel-factura-alert");
+    const modalFacturaDetalle = document.getElementById("modal-panel-factura-detalle");
+    const facturaDetalleContent = document.getElementById("panel-factura-detalle-content");
+    const facturaDetalleCodigo = document.getElementById("panel-factura-detalle-codigo");
+    const btnFacturaDetalleCerrar = document.getElementById("btn-panel-factura-detalle-cerrar");
+    const btnFacturaDetalleAgregar = document.getElementById("btn-panel-factura-detalle-agregar");
 
     const currentUser = session.getUser();
     const isAdmin = currentUser?.role === "admin";
@@ -107,6 +167,10 @@ export function initPanelSolicitudesGestion() {
     let selectedSolicitud = null;
     let modoGestion = false;
     let observacionControl = null;
+    let facturaObservacionControl = null;
+    let selectedFacturaSolicitudId = null;
+    let selectedFacturaDetalleId = null;
+    let facturaEsAdicional = false;
 
     function initObservacionesEditor() {
         observacionControl?.destroy();
@@ -123,6 +187,176 @@ export function initPanelSolicitudesGestion() {
     function destroyObservacionesEditor() {
         observacionControl?.destroy();
         observacionControl = null;
+    }
+
+    function destroyFacturaEditor() {
+        facturaObservacionControl?.destroy();
+        facturaObservacionControl = null;
+    }
+
+    function initFacturaEditor() {
+        destroyFacturaEditor();
+        facturaObservacionControl = createObservacionConAdjuntos({
+            editorContainerId: "panel-factura-editor",
+            fileInputId: "panel-factura-adjuntos",
+            fileListId: "panel-factura-file-list",
+            name: "factura_observacion",
+            placeholder: "Comentario interno sobre la factura (opcional)...",
+            minHeight: 140,
+        });
+    }
+
+    function clearFacturaAlert() {
+        if (!facturaAlert) return;
+        facturaAlert.textContent = "";
+        facturaAlert.classList.remove("show", "alert-error", "alert-success");
+    }
+
+    function showFacturaAlert(msg, type = "error") {
+        if (!facturaAlert) {
+            showError(msg);
+            return;
+        }
+        facturaAlert.textContent = msg;
+        facturaAlert.classList.remove("alert-error", "alert-success");
+        facturaAlert.classList.add(type === "success" ? "alert-success" : "alert-error", "show");
+    }
+
+    function closeFacturaModal() {
+        modalFactura?.classList.remove("show");
+        destroyFacturaEditor();
+        selectedFacturaSolicitudId = null;
+        facturaEsAdicional = false;
+        clearFacturaAlert();
+        if (facturaContent) facturaContent.innerHTML = "";
+        if (btnFacturaGuardar) btnFacturaGuardar.textContent = "Guardar factura";
+        if (facturaTitle) facturaTitle.textContent = "Registrar factura";
+    }
+
+    function closeFacturaDetalleModal() {
+        modalFacturaDetalle?.classList.remove("show");
+        selectedFacturaDetalleId = null;
+        if (facturaDetalleContent) facturaDetalleContent.innerHTML = "";
+    }
+
+    async function openFacturaDetalleModal(solicitudId) {
+        const s = items.find((item) => item.id === solicitudId);
+        if (!s || !puedeGestionarFactura(s)) return;
+
+        selectedFacturaDetalleId = solicitudId;
+        if (facturaDetalleCodigo) facturaDetalleCodigo.textContent = s.codigo || `#${s.id}`;
+        if (facturaDetalleContent) {
+            facturaDetalleContent.innerHTML =
+                '<p class="muted text-center">Cargando historial de facturas...</p>';
+        }
+        modalFacturaDetalle?.classList.add("show");
+
+        try {
+            const full = await api.get(`/solicitudes-gestion/${solicitudId}`);
+            if (facturaDetalleContent) {
+                facturaDetalleContent.innerHTML = renderFacturasHistorialHtml(full);
+                attachGestionDownloadHandlers(facturaDetalleContent, showError);
+                hydrateInlineObservacionImages(facturaDetalleContent);
+            }
+            if (btnFacturaDetalleAgregar) {
+                const cantidad = Number(full.cantidad_facturas || 0);
+                btnFacturaDetalleAgregar.hidden = !puedeGestionarFactura(full);
+                btnFacturaDetalleAgregar.textContent =
+                    cantidad > 0 ? "Agregar factura" : "Registrar factura";
+            }
+        } catch (err) {
+            const msg =
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo cargar el historial de facturas.";
+            if (facturaDetalleContent) {
+                facturaDetalleContent.innerHTML = `<p class="muted text-center">${escapeHtml(msg)}</p>`;
+            }
+            showError(msg);
+        }
+    }
+
+    function openFacturaModal(solicitudId, esAdicional = false) {
+        const s = items.find((item) => item.id === solicitudId);
+        if (!s || !puedeGestionarFactura(s)) return;
+
+        facturaEsAdicional = esAdicional || tieneFacturasRegistradas(s);
+        clearFacturaAlert();
+        selectedFacturaSolicitudId = solicitudId;
+        const codigo = s.codigo || `#${s.id}`;
+        if (facturaTitle) {
+            facturaTitle.textContent = facturaEsAdicional ? "Agregar factura" : "Registrar factura";
+        }
+        if (facturaIntro) {
+            facturaIntro.innerHTML = facturaEsAdicional
+                ? `Nueva factura para la solicitud <strong>${escapeHtml(codigo)}</strong>. Se añadirá al historial existente.`
+                : `Cierre administrativo interno. La solicitud <strong>${escapeHtml(codigo)}</strong> pasará al final de la lista con fondo verde.`;
+        }
+        if (btnFacturaGuardar) {
+            btnFacturaGuardar.textContent = facturaEsAdicional ? "Agregar factura" : "Guardar factura";
+        }
+        if (facturaContent) {
+            facturaContent.innerHTML = renderObservacionAdjuntosFieldHtml({
+                editorContainerId: "panel-factura-editor",
+                fileInputId: "panel-factura-adjuntos",
+                fileListId: "panel-factura-file-list",
+                label: "Comentario de factura",
+                hint: "Adjunta uno o más archivos de la factura (PDF, imagen, Excel). El comentario es opcional.",
+            });
+        }
+        initFacturaEditor();
+        modalFactura?.classList.add("show");
+    }
+
+    async function guardarFactura() {
+        if (!selectedFacturaSolicitudId || !facturaObservacionControl) return;
+
+        const archivos = facturaObservacionControl.getFiles() ?? [];
+        if (!archivos.length) {
+            showFacturaAlert("Debes adjuntar al menos un archivo de la factura.");
+            return;
+        }
+
+        facturaObservacionControl.editor?.syncHidden();
+        const observacionHtml = facturaObservacionControl.editor?.getHtml() ?? "";
+        const observacionTexto = facturaObservacionControl.editor?.getText() ?? "";
+
+        const formData = new FormData();
+        formData.append("observacion", observacionHtml);
+        formData.append("observacion_texto", observacionTexto);
+        archivos.forEach((file) => formData.append("adjuntos", file));
+
+        if (btnFacturaGuardar) {
+            btnFacturaGuardar.disabled = true;
+            btnFacturaGuardar.textContent = "Guardando...";
+        }
+
+        try {
+            const idGuardada = selectedFacturaSolicitudId;
+            await api.postForm(
+                `/solicitudes-gestion/${selectedFacturaSolicitudId}/registrar-factura`,
+                formData
+            );
+            const msg = facturaEsAdicional
+                ? "Factura agregada al historial."
+                : "Factura registrada. La solicitud quedó cerrada administrativamente.";
+            closeFacturaModal();
+            await load();
+            showSuccess(msg);
+            if (idGuardada) {
+                await openFacturaDetalleModal(idGuardada);
+            }
+        } catch (err) {
+            const msg =
+                err instanceof ApiError ? err.message : "No se pudo registrar la factura.";
+            showFacturaAlert(msg);
+            showError(msg);
+        } finally {
+            if (btnFacturaGuardar) {
+                btnFacturaGuardar.disabled = false;
+                btnFacturaGuardar.textContent = "Guardar factura";
+            }
+        }
     }
 
     function buildQuery() {
@@ -148,14 +382,32 @@ export function initPanelSolicitudesGestion() {
 
         tbody.innerHTML = items
             .map((s) => {
-                const gestionar = puedeGestionar(s, currentUser?.id, isAdmin);
-                const btnClass = gestionar ? "btn btn-primary btn-icon-view" : "btn btn-secondary btn-icon-view";
+                const salidasEntregada = esSalidasAlmacenEntregada(s);
+                const cerrada = esSolicitudFacturaCerrada(s);
+                const rowClasses = [];
+                if (cerrada) rowClasses.push("sg-row-factura-cerrada");
+                if (salidasEntregada) rowClasses.push("sg-row-salidas-entregada");
+                const rowClass = rowClasses.join(" ");
+                const esSalidas = esSolicitudSalidasAlmacen(s);
+                const tieneFacturas =
+                    !esSalidas &&
+                    (Number(s.cantidad_facturas || 0) > 0 || esSolicitudFacturaCerrada(s));
+                const estado = normalizarEstado(s.estado);
+                const mostrarFactura = !esSalidas && estado === "entregado" && !tieneFacturas;
+                const mostrarVerFactura = !esSalidas && tieneFacturas;
+                const enFlujoFactura = mostrarFactura || mostrarVerFactura;
+                const gestionar =
+                    !enFlujoFactura && puedeGestionar(s, currentUser?.id, isAdmin);
+                const btnClass = gestionar
+                    ? "btn btn-primary btn-icon-view"
+                    : "btn btn-secondary btn-icon-view";
                 const btnLabel = gestionar ? "Gestionar" : "Ver";
                 const btnIcon = gestionar ? GESTION_ICON : EYE_ICON;
                 const action = gestionar ? "gestionar" : "ver";
+                const accionesClass = enFlujoFactura ? "col-actions col-actions-wide" : "col-actions";
 
                 return `
-            <tr>
+            <tr class="${rowClass}">
                 <td data-label="Consecutivo">
                     <span class="codigo-solicitud">${escapeHtml(s.codigo)}</span>
                 </td>
@@ -163,7 +415,7 @@ export function initPanelSolicitudesGestion() {
                 <td data-label="Tipo">${badgeTipo(s.tipo)}</td>
                 <td data-label="Estado">${badgeEstado(s.estado, s)}</td>
                 <td data-label="Fecha">${formatDate(s.created_at)}</td>
-                <td data-label="Acciones" class="col-actions">
+                <td data-label="Acciones" class="${accionesClass}">
                     <button
                         type="button"
                         class="${btnClass} btn-panel-action"
@@ -174,6 +426,32 @@ export function initPanelSolicitudesGestion() {
                         ${btnIcon}
                         <span>${btnLabel}</span>
                     </button>
+                    ${
+                        mostrarFactura
+                            ? `<button
+                        type="button"
+                        class="btn btn-secondary btn-sm btn-icon-view btn-panel-factura-accion"
+                        data-id="${s.id}"
+                        title="Registrar factura"
+                    >
+                        ${FACTURA_ICON}
+                        <span>Factura</span>
+                    </button>`
+                            : ""
+                    }
+                    ${
+                        mostrarVerFactura
+                            ? `<button
+                        type="button"
+                        class="btn btn-secondary btn-sm btn-icon-view btn-panel-factura-accion"
+                        data-id="${s.id}"
+                        title="Ver historial de facturas"
+                    >
+                        ${EYE_ICON}
+                        <span>Ver Factura</span>
+                    </button>`
+                            : ""
+                    }
                 </td>
             </tr>`;
             })
@@ -193,6 +471,10 @@ export function initPanelSolicitudesGestion() {
                 }
             });
         });
+
+        tbody.querySelectorAll(".btn-panel-factura-accion").forEach((btn) => {
+            btn.addEventListener("click", () => openFacturaDetalleModal(Number(btn.dataset.id)));
+        });
     }
 
     async function load() {
@@ -200,8 +482,9 @@ export function initPanelSolicitudesGestion() {
             '<tr><td colspan="6" class="muted text-center">Cargando...</td></tr>';
         try {
             const data = await api.get(buildQuery());
-            items = Array.isArray(data) ? data : [];
+            items = sortPanelItems(Array.isArray(data) ? data : []);
             renderTable();
+            alertError?.classList.remove("show");
         } catch (err) {
             const msg =
                 err instanceof ApiError
@@ -223,6 +506,7 @@ export function initPanelSolicitudesGestion() {
         setModalBtnHidden(btnGuardarTramite, true);
         setModalBtnHidden(btnEntregado, true);
         setModalBtnHidden(btnEntregadoParcial, true);
+        setModalBtnHidden(btnCerrarPendientes, true);
         setModalBtnHidden(btnConfirmarEntregaParcial, true);
         setModalBtnHidden(btnRegistrarRecepcion, true);
         setModalBtnHidden(btnConfirmarRecepcion, true);
@@ -495,6 +779,7 @@ export function initPanelSolicitudesGestion() {
         if (!esEntrega) {
             setModalBtnHidden(btnEntregado, true);
             setModalBtnHidden(btnEntregadoParcial, true);
+            setModalBtnHidden(btnCerrarPendientes, true);
             setModalBtnHidden(btnConfirmarEntregaParcial, true);
             setModalBtnHidden(btnRegistrarRecepcion, true);
             setModalBtnHidden(btnConfirmarRecepcion, true);
@@ -521,9 +806,14 @@ export function initPanelSolicitudesGestion() {
 
             const puedeCerrar = ocOk && solicitudPuedeEntregaTotal(selectedSolicitud);
             setModalBtnHidden(btnEntregado, !puedeCerrar);
+
+            const puedeCerrarPendientes =
+                ocOk && solicitudPuedeCerrarConPendientes(selectedSolicitud);
+            setModalBtnHidden(btnCerrarPendientes, !puedeCerrarPendientes);
         } else {
             setModalBtnHidden(btnEntregadoParcial, true);
             setModalBtnHidden(btnEntregado, true);
+            setModalBtnHidden(btnCerrarPendientes, true);
         }
 
         const panelEntrega = document.getElementById("panel-entrega-parcial-wrap");
@@ -539,6 +829,7 @@ export function initPanelSolicitudesGestion() {
             setModalBtnHidden(btnGuardarTramite, true);
             setModalBtnHidden(btnEntregado, true);
             setModalBtnHidden(btnEntregadoParcial, true);
+            setModalBtnHidden(btnCerrarPendientes, true);
             setModalBtnHidden(btnConfirmarEntregaParcial, true);
             setModalBtnHidden(btnRegistrarRecepcion, true);
             setModalBtnHidden(btnConfirmarRecepcion, true);
@@ -749,12 +1040,16 @@ export function initPanelSolicitudesGestion() {
         const esEntrega = esGestionEntrega(estado);
 
         detailTitle.textContent = esEntrega
-            ? estado === "tramitando_oc"
-                ? `Trámite OC · ${solicitud.codigo}`
-                : estado === "items_en_camino"
-                  ? `Llegada de ítems · ${solicitud.codigo}`
-                  : `Entrega · ${solicitud.codigo}`
-            : `Gestionar · ${solicitud.codigo}`;
+            ? esSolicitudSalidasAlmacen(solicitud)
+                ? `Entrega de almacén · ${solicitud.codigo}`
+                : estado === "tramitando_oc"
+                  ? `Trámite OC · ${solicitud.codigo}`
+                  : estado === "items_en_camino"
+                    ? `Llegada de ítems · ${solicitud.codigo}`
+                    : `Entrega · ${solicitud.codigo}`
+            : esSolicitudSalidasAlmacen(solicitud)
+              ? `Gestionar salida · ${solicitud.codigo}`
+              : `Gestionar · ${solicitud.codigo}`;
         detailContent.innerHTML = esEntrega
             ? renderPanelTramiteOcHtml(solicitud)
             : renderPanelGestionHtml(
@@ -805,6 +1100,11 @@ export function initPanelSolicitudesGestion() {
                 showSuccess(`Gestión de trámite OC — ${solicitud.codigo}`);
             } else if (estado === "items_en_camino") {
                 showSuccess(`Recepción de ítems — ${solicitud.codigo}`);
+            } else if (
+                esSolicitudSalidasAlmacen(solicitud) &&
+                (estado === "recepcion_insumos" || estado === "entregado_parcial")
+            ) {
+                showSuccess(`Gestión de entrega de almacén — ${solicitud.codigo}`);
             } else if (estado === "recepcion_insumos" || estado === "entregado_parcial") {
                 showSuccess(`Gestión de entrega — ${solicitud.codigo}`);
             } else if (estado === "tramitada_oc") {
@@ -966,6 +1266,76 @@ export function initPanelSolicitudesGestion() {
         }
     }
 
+    async function cerrarConPendientes() {
+        if (!selectedSolicitud || !modoGestion) return;
+
+        if (!solicitudTieneOcRegistrada(selectedSolicitud)) {
+            showError('Primero guarda el trámite OC con el botón "Guardar trámite OC".');
+            return;
+        }
+
+        if (!solicitudPuedeCerrarConPendientes(selectedSolicitud)) {
+            showError(
+                "Sólo puedes cerrar con pendientes tras al menos una entrega parcial y con ítems aún sin entregar."
+            );
+            return;
+        }
+
+        if (
+            !confirm(
+                `¿Confirmas cerrar ${selectedSolicitud.codigo} como Entregado ` +
+                    "dejando cantidades pendientes por entregar? " +
+                    "Las cantidades no entregadas quedarán registradas en el historial."
+            )
+        ) {
+            return;
+        }
+
+        observacionControl?.editor.syncHidden();
+        const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
+        const nuevaObsTexto = observacionControl?.editor.getText() ?? "";
+
+        const formData = new FormData();
+        formData.append("observacion", nuevaObsHtml);
+        formData.append("observacion_texto", nuevaObsTexto);
+        (observacionControl?.getFiles() ?? []).forEach((file) =>
+            formData.append("adjuntos", file)
+        );
+
+        btnCerrarPendientes.disabled = true;
+        btnCerrarPendientes.textContent = "Procesando...";
+
+        try {
+            const result = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/cerrar-con-pendientes`,
+                formData
+            );
+            const codigo = result?.solicitud?.codigo || selectedSolicitud.codigo;
+            if (result?.email_enviado) {
+                showSuccess(
+                    `Solicitud ${codigo} cerrada con ítems pendientes. Se notificó al solicitante.`
+                );
+            } else {
+                showSuccess(`Solicitud ${codigo} cerrada con ítems pendientes.`);
+            }
+            closeModal();
+            await load();
+        } catch (err) {
+            let msg =
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo cerrar la solicitud con pendientes.";
+            if (err instanceof ApiError && err.status === 404) {
+                msg =
+                    "El servidor no reconoce esta acción (404). Reinicia el backend con iniciar.bat y vuelve a intentar.";
+            }
+            showError(msg);
+        } finally {
+            btnCerrarPendientes.disabled = false;
+            btnCerrarPendientes.textContent = "Cerrar con pendientes";
+        }
+    }
+
     async function enviarParaAprobacion() {
         if (!selectedSolicitud || !modoGestion) return;
 
@@ -1046,11 +1416,27 @@ export function initPanelSolicitudesGestion() {
     btnGuardarTramite?.addEventListener("click", guardarTramiteOc);
     btnEntregado?.addEventListener("click", marcarEntregaTotal);
     btnEntregadoParcial?.addEventListener("click", abrirFormularioEntregaParcial);
+    btnCerrarPendientes?.addEventListener("click", cerrarConPendientes);
     btnConfirmarEntregaParcial?.addEventListener("click", confirmarEntregaParcial);
     btnRegistrarRecepcion?.addEventListener("click", abrirFormularioRecepcion);
     btnConfirmarRecepcion?.addEventListener("click", confirmarRecepcionParcial);
+    btnFacturaCancel?.addEventListener("click", closeFacturaModal);
+    btnFacturaGuardar?.addEventListener("click", guardarFactura);
+    btnFacturaDetalleCerrar?.addEventListener("click", closeFacturaDetalleModal);
+    btnFacturaDetalleAgregar?.addEventListener("click", () => {
+        if (!selectedFacturaDetalleId) return;
+        const id = selectedFacturaDetalleId;
+        closeFacturaDetalleModal();
+        openFacturaModal(id, true);
+    });
     modal?.addEventListener("click", (e) => {
         if (e.target === modal) closeModal();
+    });
+    modalFactura?.addEventListener("click", (e) => {
+        if (e.target === modalFactura) closeFacturaModal();
+    });
+    modalFacturaDetalle?.addEventListener("click", (e) => {
+        if (e.target === modalFacturaDetalle) closeFacturaDetalleModal();
     });
 
     let debounce;

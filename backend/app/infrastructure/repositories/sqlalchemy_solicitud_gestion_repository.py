@@ -116,6 +116,8 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones_anticipo=getattr(model, "observaciones_anticipo", "") or "",
             gestor_anticipo_id=getattr(model, "gestor_anticipo_id", None),
             gestor_anticipo_username=gestor_anticipo_username,
+            factura_registrada_at=getattr(model, "factura_registrada_at", None),
+            factura_registrada_por_id=getattr(model, "factura_registrada_por_id", None),
             gestor_id=getattr(model, "gestor_id", None),
             gestor_username=gestor_username,
             estado=normalizar_estado(model.estado),
@@ -132,6 +134,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
                     unidad=p.unidad,
                     descripcion=p.descripcion,
                     centro_costo=p.centro_costo,
+                    area_consumo=getattr(p, "area_consumo", "") or "",
                     cantidad=getattr(p, "cantidad", None) or Decimal("1"),
                     cantidad_recibida=getattr(p, "cantidad_recibida", None) or Decimal("0"),
                     cantidad_entregada=getattr(p, "cantidad_entregada", None) or Decimal("0"),
@@ -178,6 +181,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
                     codigo_siimed=producto.codigo_siimed,
                     unidad=producto.unidad,
                     descripcion=producto.descripcion,
+                    area_consumo=getattr(producto, "area_consumo", "") or "",
                     centro_costo=producto.centro_costo,
                     cantidad=producto.cantidad,
                     cantidad_entregada=producto.cantidad_entregada,
@@ -325,6 +329,8 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model.monto_anticipo = solicitud.monto_anticipo
         model.observaciones_anticipo = solicitud.observaciones_anticipo or ""
         model.gestor_anticipo_id = solicitud.gestor_anticipo_id
+        model.factura_registrada_at = solicitud.factura_registrada_at
+        model.factura_registrada_por_id = solicitud.factura_registrada_por_id
         model.gestor_id = solicitud.gestor_id
         model.lider_segunda_aprobacion_id = solicitud.lider_segunda_aprobacion_id
         model.lider_segunda_aprobacion_label = solicitud.lider_segunda_aprobacion_label

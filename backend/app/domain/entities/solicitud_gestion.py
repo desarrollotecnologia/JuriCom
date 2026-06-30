@@ -1,4 +1,4 @@
-"""Solicitud del módulo Gestión de Solicitudes (compra, traslado, insumos)."""
+"""Solicitud del módulo Gestión de Solicitudes (compra, salidas de almacén, insumos)."""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -50,6 +50,7 @@ class SolicitudGestionProducto:
     unidad: str
     descripcion: str
     centro_costo: str
+    area_consumo: str = ""
     cantidad: Decimal = field(default_factory=lambda: Decimal("1"))
     cantidad_recibida: Decimal = field(default_factory=lambda: Decimal("0"))
     cantidad_entregada: Decimal = field(default_factory=lambda: Decimal("0"))
@@ -166,6 +167,8 @@ class SolicitudGestion:
     observaciones_anticipo: str = ""
     gestor_anticipo_id: Optional[int] = None
     gestor_anticipo_username: str = ""
+    factura_registrada_at: Optional[datetime] = None
+    factura_registrada_por_id: Optional[int] = None
     id: Optional[int] = None
     codigo: Optional[str] = None
     estado: EstadoSolicitudGestion = EstadoSolicitudGestion.SOLICITUD
@@ -195,6 +198,8 @@ class SolicitudGestion:
 
     @property
     def tiene_tramite_oc_registrado(self) -> bool:
+        if self.es_salidas_almacen:
+            return True
         if (self.numero_tramite_oc or "").strip():
             return True
         return any((p.numero_tramite_oc or "").strip() for p in self.productos)
@@ -226,6 +231,35 @@ class SolicitudGestion:
         return all(p.cantidad_recibida >= p.cantidad for p in productos)
 
     @property
+    def observaciones_factura(self) -> list["SolicitudGestionObservacion"]:
+        items = []
+        for observacion in self.observaciones_trazabilidad or []:
+            archivos = observacion.archivos or []
+            if any((a.categoria or "") == "factura" for a in archivos):
+                items.append(observacion)
+                continue
+            texto = f"{observacion.contenido_texto or ''} {observacion.contenido or ''}".lower()
+            if "factura registrada" in texto and archivos:
+                items.append(observacion)
+        return sorted(items, key=lambda o: o.created_at or datetime.min)
+
+    @property
+    def cantidad_facturas(self) -> int:
+        return len(self.observaciones_factura)
+
+    @property
+    def factura_registrada(self) -> bool:
+        from app.domain.value_objects.estado_solicitud_gestion import (
+            EstadoSolicitudGestion,
+            normalizar_estado,
+        )
+
+        return (
+            self.factura_registrada_at is not None
+            or normalizar_estado(self.estado) == EstadoSolicitudGestion.FACTURADA
+        )
+
+    @property
     def tiene_entrega_pendiente(self) -> bool:
         return any(p.cantidad_entregada < p.cantidad for p in self.productos_para_entrega)
 
@@ -236,3 +270,9 @@ class SolicitudGestion:
         if not self.gestor_id and not self.gestor_anticipo_id:
             return True
         return actor_id in (self.gestor_id, self.gestor_anticipo_id)
+
+    @property
+    def es_salidas_almacen(self) -> bool:
+        from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
+
+        return es_flujo_salidas_almacen(self.tipo)

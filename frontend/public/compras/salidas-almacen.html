@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Salidas de Almacén · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css?v=10" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Salidas de Almacén</h1>
+                        <p class="muted">
+                            Salidas de productos que se encuentran dentro del almacén.
+                        </p>
+                    </div>
+                    <div class="page-header-actions">
+                        <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
+                            Volver
+                        </a>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <form id="form-salidas-almacen" class="card" novalidate>
+                    <div class="form-section">
+                        <h3>1. Datos generales</h3>
+
+                        <div class="field">
+                            <label for="titulo">
+                                Título de la Solicitud
+                                <span class="required">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="titulo"
+                                name="titulo"
+                                required
+                                placeholder="Ej. Salida de insumos de producción — marzo 2026"
+                            />
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label for="centro-costo-area">
+                                    Centro de Costo (Área Solicitante)
+                                    <span class="required">*</span>
+                                </label>
+                                <select
+                                    id="centro-costo-area"
+                                    name="centro_costo_area"
+                                    required
+                                ></select>
+                            </div>
+                            <div class="field">
+                                <label for="lider-area-input">
+                                    Líder Aprobador
+                                    <span class="required">*</span>
+                                </label>
+                                <div id="lider-area-select"></div>
+                                <span class="hint">
+                                    Escribe para filtrar. Lista Líderes Colbeef 2026.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                flex-wrap: wrap;
+                                gap: 12px;
+                            "
+                        >
+                            <h3 style="margin-bottom: 0; border: none; padding: 0">
+                                2. Detalle de la Salida
+                            </h3>
+                            <button
+                                type="button"
+                                class="btn btn-secondary btn-sm"
+                                id="btn-agregar-item-salida"
+                            >
+                                + Agregar ítem
+                            </button>
+                        </div>
+
+                        <div class="table-editable-wrap">
+                            <table class="table-editable table-productos-salidas">
+                                <colgroup>
+                                    <col class="col-siimed" />
+                                    <col class="col-descripcion" />
+                                    <col class="col-cantidad" />
+                                    <col class="col-area-consumo" />
+                                    <col class="col-centro-costo" />
+                                    <col class="col-accion" />
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th>Código Siimed</th>
+                                        <th>Descripción</th>
+                                        <th>Cantidad</th>
+                                        <th>Área Consumo</th>
+                                        <th>Centro de Costo</th>
+                                        <th>Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="salidas-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>3. Observaciones y adjuntos</h3>
+
+                        <div class="field">
+                            <label for="observaciones-editor">Observaciones</label>
+                            <div id="observaciones-editor"></div>
+                            <input
+                                type="file"
+                                id="file-input"
+                                multiple
+                                hidden
+                                accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx"
+                            />
+                            <ul class="file-list" id="file-list" hidden></ul>
+                            <span class="hint">
+                                Usa el clip en la barra del editor para adjuntar archivos
+                                (también puedes arrastrarlos sobre el área de texto).
+                                Usa el botón de imagen para insertar una foto dentro del comentario.
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="btn-submit">
+                            Enviar Solicitud
+                        </button>
+                    </div>
+                </form>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { initSalidasAlmacenForm } from "/static/js/compras/salidas-almacen-form.js?v=1";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+            initSalidasAlmacenForm();
+        </script>
+    </body>
+</html>

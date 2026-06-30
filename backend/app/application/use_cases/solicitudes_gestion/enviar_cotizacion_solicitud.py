@@ -77,6 +77,11 @@ class EnviarCotizacionSolicitud:
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
 
+        from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
+
+        if es_flujo_salidas_almacen(solicitud.tipo):
+            raise ValueError("Las salidas de almacén no requieren cotización.")
+
         if normalizar_estado(solicitud.estado) != EstadoSolicitudGestion.COTIZACION:
             raise ValueError("La solicitud debe estar en estado Cotización.")
 

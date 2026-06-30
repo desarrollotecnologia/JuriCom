@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Panel de solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=5" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=9" />
     </head>
     <body>
         <div class="app-shell">
@@ -44,7 +44,7 @@
                         <select id="panel-filter-tipo">
                             <option value="">Todos los tipos</option>
                             <option value="compra">Solicitud de Compra</option>
-                            <option value="traslado_bodegas">Traslado en Bodega</option>
+                            <option value="salidas_almacen">Salidas de Almacén</option>
                             <option value="insumos_servicios">Insumos/Servicios</option>
                         </select>
                         <span class="info" id="panel-result-count"></span>
@@ -130,6 +130,14 @@
                     </button>
                     <button
                         type="button"
+                        class="btn btn-secondary"
+                        id="btn-panel-cerrar-pendientes"
+                        hidden
+                    >
+                        Cerrar con pendientes
+                    </button>
+                    <button
+                        type="button"
                         class="btn btn-primary"
                         id="btn-panel-confirmar-entrega-parcial"
                         hidden
@@ -145,10 +153,45 @@
             </div>
         </div>
 
+        <div class="modal-overlay" id="modal-panel-factura">
+            <div class="modal modal-wide">
+                <h2 id="panel-factura-title">Registrar factura</h2>
+                <p class="muted sg-factura-modal-intro" id="panel-factura-intro"></p>
+                <div class="alert alert-error" id="panel-factura-alert"></div>
+                <div id="panel-factura-content"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-panel-factura-cancel">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btn-panel-factura-guardar">
+                        Guardar factura
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="modal-panel-factura-detalle">
+            <div class="modal modal-wide modal-detail-solicitud">
+                <h2>Historial de facturas</h2>
+                <p class="muted sg-factura-modal-intro">
+                    Solicitud <strong id="panel-factura-detalle-codigo"></strong>
+                </p>
+                <div id="panel-factura-detalle-content" class="sg-facturas-detalle-body"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-panel-factura-detalle-cerrar">
+                        Cerrar
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btn-panel-factura-detalle-agregar">
+                        Agregar factura
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=20";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=31";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

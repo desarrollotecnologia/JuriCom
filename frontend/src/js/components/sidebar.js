@@ -17,7 +17,7 @@ const GESTION_COMPRAS_PATHS = new Set([
     "/app/compras/nueva-solicitud.html",
     "/app/compras/solicitud-radicar.html",
     "/app/compras/solicitud-compra.html",
-    "/app/compras/traslado-bodegas.html",
+    "/app/compras/salidas-almacen.html",
     "/app/compras/solicitud-insumos-servicios.html",
     "/app/compras/gestion-mis-solicitudes.html",
     "/app/compras/gestion-aprobar-solicitudes.html",

@@ -6,13 +6,13 @@ import { escapeHtml, formatCantidad, formatDate, formatFileSize, formatValorTram
 
 export const TIPO_LABEL = {
     compra: "Solicitud de Compra",
-    traslado_bodegas: "Traslado en Bodega",
+    salidas_almacen: "Salidas de Almacén",
     insumos_servicios: "Insumos/Servicios",
 };
 
 export const TIPO_BADGE = {
     compra: "badge-tipo-compra",
-    traslado_bodegas: "badge-tipo-traslado",
+    salidas_almacen: "badge-tipo-salidas-almacen",
     insumos_servicios: "badge-tipo-insumos",
 };
 
@@ -42,6 +42,7 @@ export const ESTADO_LABEL = {
     cancelado: "Cancelado",
     entregado: "Entregado",
     entregado_parcial: "Entrega parcial realizada",
+    facturada: "Facturada",
     registrada: "Solicitud",
     aprobada: "Primera Aprobación",
     rechazada: "Cancelado",
@@ -61,6 +62,7 @@ export const ESTADO_BADGE = {
     cancelado: "badge-sg-rechazado",
     entregado: "badge-sg-aprobado",
     entregado_parcial: "badge-sg-aprobado",
+    facturada: "badge-sg-facturada",
     registrada: "badge-sg-pendiente",
     aprobada: "badge-sg-aprobacion",
     rechazada: "badge-sg-rechazado",
@@ -144,6 +146,7 @@ export function calcCantidadDisponibleEntrega(producto) {
 }
 
 export function solicitudTieneRecepcionPendiente(solicitud) {
+    if (esSolicitudSalidasAlmacen(solicitud)) return false;
     if (typeof solicitud?.tiene_recepcion_pendiente === "boolean") {
         return solicitud.tiene_recepcion_pendiente;
     }
@@ -169,6 +172,9 @@ export function solicitudRecepcionCompleta(solicitud) {
 
 /** True si puede cerrarse con entrega total (todo recibido y aún hay stock por entregar). */
 export function solicitudPuedeEntregaTotal(solicitud) {
+    if (esSolicitudSalidasAlmacen(solicitud)) {
+        return solicitudTieneDisponibleEntrega(solicitud);
+    }
     if (!solicitudRecepcionCompleta(solicitud)) return false;
     return solicitudTieneDisponibleEntrega(solicitud);
 }
@@ -194,6 +200,19 @@ export function solicitudTieneEntregaPendiente(solicitud) {
     return filtrarProductosParaGestion(solicitud?.productos || []).some(
         (p) => calcCantidadPendiente(p) > 0
     );
+}
+
+export function solicitudTieneEntregaRegistrada(solicitud) {
+    return filtrarProductosParaGestion(solicitud?.productos || []).some(
+        (p) => Number(p.cantidad_entregada || 0) > 0
+    );
+}
+
+/** True si el gestor puede cerrar la solicitud dejando cantidades sin entregar. */
+export function solicitudPuedeCerrarConPendientes(solicitud) {
+    if (!esEstadoEntregaSolicitante(normalizarEstado(solicitud?.estado))) return false;
+    if (!solicitudTieneEntregaPendiente(solicitud)) return false;
+    return solicitudTieneEntregaRegistrada(solicitud);
 }
 
 function badgeEstadoRecepcion(estado) {
@@ -434,6 +453,50 @@ export function renderObservacionesTrazabilidadHtml(
             </div>
         </div>`;
 }
+
+export function extraerObservacionesFactura(solicitud) {
+    return (solicitud?.observaciones_trazabilidad || [])
+        .filter((o) => {
+            const archivos = o.archivos || [];
+            if (archivos.some((a) => a.categoria === "factura")) return true;
+            const texto = `${o.contenido_texto || ""} ${o.contenido || ""}`.toLowerCase();
+            return texto.includes("factura registrada") && archivos.length > 0;
+        })
+        .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+}
+
+export function renderFacturasHistorialHtml(solicitud) {
+    const items = extraerObservacionesFactura(solicitud);
+    const sid = solicitud?.id;
+    if (!items.length) {
+        return `<p class="muted sg-facturas-empty">Sin facturas registradas.</p>`;
+    }
+    return `<ul class="sg-facturas-timeline sg-obs-timeline">
+        ${items
+            .map((item, idx) => {
+                const numero = idx + 1;
+                const etiqueta = escapeHtml(
+                    item.autor_etiqueta ||
+                        `${item.autor_nombre || "Usuario"} (${item.autor_rol || "Gestor"})`
+                );
+                const fecha = formatObservacionFecha(item.created_at);
+                const adjuntos = renderObservacionArchivosHtml(sid, item.archivos);
+                const tituloFactura = numero > 1 ? `Factura #${numero}` : "Factura #1";
+                return `
+                <li class="sg-obs-timeline-item sg-factura-timeline-item">
+                    <p class="sg-obs-timeline-meta">
+                        <span class="sg-factura-numero badge badge-sg-facturada">${escapeHtml(tituloFactura)}</span>
+                        <span class="sg-obs-timeline-fecha">[${escapeHtml(fecha)}]</span>
+                        <strong>${etiqueta}</strong>
+                    </p>
+                    <div class="sg-obs-timeline-content sg-observaciones-readonly">${item.contenido || ""}</div>
+                    ${adjuntos}
+                </li>`;
+            })
+            .join("")}
+    </ul>`;
+}
+
 function renderObservacionesGestionHtml(raw) {
     if (!raw) return "";
     if (raw.includes("sg-obs-gestion-entry")) return raw;
@@ -541,6 +604,7 @@ export function badgeTipo(tipo) {
 
 export function solicitudTieneOcRegistrada(solicitud) {
     if (!solicitud) return false;
+    if (esSolicitudSalidasAlmacen(solicitud)) return true;
     if (solicitud.tiene_tramite_oc_registrado) return true;
     if ((solicitud.numero_tramite_oc || "").trim()) return true;
     return (solicitud.productos || []).some((p) => (p.numero_tramite_oc || "").trim());
@@ -561,10 +625,17 @@ export function badgeEstado(estado, solicitud = null) {
         label = "Ítems en camino";
     }
     if (key === "recepcion_insumos") {
-        label = "Recepción de Insumos";
+        label = esSolicitudSalidasAlmacen(solicitud)
+            ? "Gestión de entrega"
+            : "Recepción de Insumos";
     }
     if (key === "entregado_parcial") {
-        label = "Entrega parcial realizada";
+        label = esSolicitudSalidasAlmacen(solicitud)
+            ? "Entrega parcial — pendientes"
+            : "Entrega parcial realizada";
+    }
+    if (key === "facturada") {
+        label = "Facturada";
     }
     return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
@@ -574,7 +645,7 @@ function buildTimelineItems(solicitud) {
         (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)
     );
     const current = normalizarEstado(solicitud.estado);
-    const terminal = ["cancelado", "entregado"].includes(current);
+    const terminal = ["cancelado", "entregado", "facturada"].includes(current);
 
     if (!historial.length) {
         return [
@@ -749,6 +820,7 @@ export function renderAprobacionParcialAlertHtml(s) {
 
 export function renderOrdenOcRegistradaAlertHtml(s, options = {}) {
     const { contexto = "gestor" } = options;
+    if (esSolicitudSalidasAlmacen(s)) return "";
     const estado = normalizarEstado(s?.estado);
     if (
         ![
@@ -823,6 +895,7 @@ export function renderOrdenOcRegistradaAlertHtml(s, options = {}) {
 
 export function renderTramitandoOcAlertHtml(s, options = {}) {
     const { contexto = "solicitante" } = options;
+    if (esSolicitudSalidasAlmacen(s)) return "";
     const estado = normalizarEstado(s?.estado);
     if (estado !== "tramitando_oc") return "";
 
@@ -933,9 +1006,50 @@ export function renderAnticipoTramiteFormHtml(lideresOptionsHtml = "") {
         </div>`;
 }
 
+export function esSolicitudSalidasAlmacen(solicitud) {
+    return (solicitud?.tipo || "") === "salidas_almacen";
+}
+
+export function renderSalidasEntregaAlertHtml(s, options = {}) {
+    const { contexto = "gestor" } = options;
+    if (!esSolicitudSalidasAlmacen(s)) return "";
+    const estado = normalizarEstado(s?.estado);
+    if (!["recepcion_insumos", "entregado_parcial"].includes(estado)) return "";
+
+    if (estado === "recepcion_insumos") {
+        if (contexto === "solicitante") {
+            return `
+        <div class="alert alert-success sg-salidas-entrega-alert">
+            <strong>Productos en almacén.</strong> Compras gestionará la entrega de los ítems
+            aprobados de tu solicitud.
+        </div>`;
+        }
+        return `
+        <div class="alert alert-success sg-salidas-entrega-alert">
+            Los productos ya están en almacén. Usa <strong>Entrega total</strong> o
+            <strong>Entrega parcial</strong> cuando los entregues al solicitante.
+        </div>`;
+    }
+
+    if (contexto === "solicitante") {
+        return `
+        <div class="alert alert-info sg-salidas-entrega-alert">
+            Se registró una <strong>entrega parcial</strong>.
+            ${solicitudTieneDisponibleEntrega(s) ? "Aún hay ítems pendientes de entrega." : ""}
+            La solicitud permanece abierta hasta completar todos los insumos.
+        </div>`;
+    }
+    return `
+        <div class="alert alert-info sg-salidas-entrega-alert">
+            <strong>Entrega parcial registrada.</strong>
+            ${solicitudTieneDisponibleEntrega(s) ? "Quedan ítems pendientes por entregar." : "Revisa si falta cerrar con entrega total."}
+        </div>`;
+}
+
 export function renderProductosTableHtml(productos, options = {}) {
     const {
         titulo = "Productos",
+        modoSalidas = false,
         selectable = false,
         showEstado = false,
         soloAprobados = false,
@@ -1008,8 +1122,9 @@ export function renderProductosTableHtml(productos, options = {}) {
                         <tr>
                             ${checkCol}
                             <th>Código Siimed</th>
-                            <th>Unidad</th>
+                            ${modoSalidas ? "" : "<th>Unidad</th>"}
                             <th>Descripción</th>
+                            ${modoSalidas ? "<th>Área consumo</th>" : ""}
                             <th>Centro costo</th>
                             <th class="col-cantidad">Cantidad</th>
                             ${estadoCol}
@@ -1188,11 +1303,12 @@ export function renderProductosTableHtml(productos, options = {}) {
                             <tr class="${rowClass}" data-producto-id="${p.id}">
                                 ${checkCell}
                                 <td class="${cellClass}" data-label="Código Siimed">${escapeHtml(p.codigo_siimed || "—")}</td>
-                                <td class="${cellClass}" data-label="Unidad">${escapeHtml(p.unidad)}</td>
+                                ${modoSalidas ? "" : `<td class="${cellClass}" data-label="Unidad">${escapeHtml(p.unidad)}</td>`}
                                 <td class="${cellClass}" data-label="Descripción">
                                     <span class="${noAprobado && resaltarNoAprobados ? "sg-producto-no-aprobado-text" : ""}">${escapeHtml(p.descripcion)}</span>
                                     ${msgNoAprobado}
                                 </td>
+                                ${modoSalidas ? `<td class="${cellClass}" data-label="Área consumo">${escapeHtml(p.area_consumo || "—")}</td>` : ""}
                                 <td class="${cellClass}" data-label="Centro costo">${escapeHtml(p.centro_costo)}</td>
                                 ${cantidadCell}
                                 ${estadoCell}
@@ -1228,6 +1344,7 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
         <div class="sg-detail-layout">
             ${renderWorkflowTimelineHtml(s)}
             ${showAprobacionParcialAlert ? renderAprobacionParcialAlertHtml(s) : ""}
+            ${renderSalidasEntregaAlertHtml(s, { contexto: "solicitante" })}
             ${renderTramitandoOcAlertHtml(s, { contexto: "solicitante" })}
             ${renderOrdenOcRegistradaAlertHtml(s, { contexto: "solicitante" })}
 
@@ -1291,7 +1408,9 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
 
             ${renderProductosTableHtml(s.productos, {
                 ...productosOptions,
-                titulo: productosOptions.titulo ?? "Productos",
+                modoSalidas: esSolicitudSalidasAlmacen(s),
+                titulo: productosOptions.titulo
+                    ?? (esSolicitudSalidasAlmacen(s) ? "Detalle de la salida" : "Productos"),
                 showEstado:
                     productosOptions.showEstado ??
                     (tieneProductosNoAprobados(s.productos) ||
@@ -1441,7 +1560,107 @@ export function renderPanelGestionHtml(s, lideresOptionsHtml) {
         </div>`;
 }
 
+export function renderPanelSalidasEntregaHtml(s) {
+    const estado = normalizarEstado(s.estado);
+    const esEntregaParcial = estado === "entregado_parcial";
+    const esRecepcionInsumos = estado === "recepcion_insumos";
+    const mostrarEntregaInfo =
+        esEntregaParcial ||
+        esRecepcionInsumos ||
+        (s.productos || []).some((p) => Number(p.cantidad_entregada || 0) > 0);
+
+    const panelEntregaParcial = solicitudTieneDisponibleEntrega(s)
+        ? `
+            <div class="sg-detail-panel sg-gestion-form-panel sg-entrega-parcial-panel" id="panel-entrega-parcial-wrap" hidden>
+                <h3 class="sg-detail-panel-title">Registrar entrega parcial al solicitante</h3>
+                <p class="muted sg-detail-panel-hint">
+                    Selecciona los ítems a entregar e indica la cantidad de esta entrega.
+                    La solicitud permanece abierta mientras queden insumos pendientes.
+                </p>
+                ${renderProductosTableHtml(s.productos, {
+                    titulo: "Ítems disponibles para entrega",
+                    modoSalidas: true,
+                    excluirNoAprobados: true,
+                    showEntregaInfo: true,
+                    entregaParcialEditable: true,
+                    panelId: "sg-entrega-parcial-table",
+                })}
+            </div>`
+        : "";
+
+    return `
+        <div class="sg-detail-layout">
+            ${renderWorkflowTimelineHtml(s)}
+
+            <div class="sg-detail-panel">
+                <h3 class="sg-detail-panel-title">Información general</h3>
+                <dl class="sg-detail-grid">
+                    <div class="sg-detail-field">
+                        <dt>Título</dt>
+                        <dd>${escapeHtml(s.titulo)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Estado actual</dt>
+                        <dd>${badgeEstado(s.estado, s)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Centro de costo</dt>
+                        <dd>${escapeHtml(s.centro_costo_area)}</dd>
+                    </div>
+                    <div class="sg-detail-field">
+                        <dt>Líder aprobador inicial</dt>
+                        <dd>${escapeHtml(s.lider_area_label || "—")}</dd>
+                    </div>
+                    ${
+                        s.gestor_username
+                            ? `<div class="sg-detail-field">
+                        <dt>Gestor asignado</dt>
+                        <dd>${escapeHtml(s.gestor_username)}</dd>
+                    </div>`
+                            : ""
+                    }
+                </dl>
+            </div>
+
+            ${renderAprobacionParcialAlertHtml(s)}
+            ${renderSalidasEntregaAlertHtml(s, { contexto: "gestor" })}
+
+            <div class="sg-detail-panel sg-gestion-form-panel">
+                <h3 class="sg-detail-panel-title">Gestión de entrega de almacén</h3>
+                <p class="muted sg-detail-panel-hint">
+                    Los productos solicitados ya se encuentran en almacén. Registra la entrega
+                    al solicitante; puede ser total o parcial mientras queden ítems pendientes.
+                </p>
+            </div>
+
+            ${renderProductosTableHtml(s.productos, {
+                modoSalidas: true,
+                titulo: "Detalle de la salida",
+                excluirNoAprobados: true,
+                showEntregaInfo: mostrarEntregaInfo,
+                showEstado: false,
+            })}
+
+            ${panelEntregaParcial}
+
+            ${renderObservacionesTrazabilidadHtml(s)}
+
+            ${renderArchivosHtml(s)}
+
+            ${renderAgregarComentarioHtml({
+                showIntro: false,
+                showHint: false,
+                showSaveButton: false,
+                title: "Observación del gestor",
+                label: "Comentario",
+            })}
+        </div>`;
+}
+
 export function renderPanelTramiteOcHtml(s) {
+    if (esSolicitudSalidasAlmacen(s)) {
+        return renderPanelSalidasEntregaHtml(s);
+    }
     const presupuestado =
         s.presupuestado === null || s.presupuestado === undefined
             ? "—"

@@ -15,6 +15,7 @@ class SolicitudGestionProductoResponse(BaseModel):
     unidad: str
     descripcion: str
     centro_costo: str
+    area_consumo: str = ""
     cantidad: float = 1.0
     cantidad_recibida: float = 0.0
     cantidad_entregada: float = 0.0
@@ -88,6 +89,9 @@ class SolicitudGestionListItem(BaseModel):
     monto_anticipo: Optional[float] = None
     gestor_anticipo_id: Optional[int] = None
     gestor_anticipo_username: str = ""
+    factura_registrada: bool = False
+    factura_registrada_at: Optional[datetime] = None
+    cantidad_facturas: int = 0
     created_at: Optional[datetime] = None
 
 
@@ -128,6 +132,8 @@ class SolicitudGestionResponse(BaseModel):
     observaciones_anticipo: str = ""
     gestor_anticipo_id: Optional[int] = None
     gestor_anticipo_username: str = ""
+    factura_registrada: bool = False
+    factura_registrada_at: Optional[datetime] = None
     estado: EstadoSolicitudGestion
     creado_por_id: int
     creado_por_username: str = ""

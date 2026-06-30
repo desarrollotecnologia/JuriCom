@@ -454,6 +454,109 @@ def run_all() -> None:
     migrar_campos_anticipo()
     migrar_productos_cantidad_recibida()
     migrar_estados_flujo_recepcion()
+    migrar_factura_solicitud()
+    migrar_estado_facturada_existentes()
+    migrar_tipo_salidas_almacen()
+    migrar_area_consumo_producto()
+
+
+def migrar_area_consumo_producto() -> None:
+    """Área de consumo por ítem (salidas de almacén)."""
+    if not _tabla_existe("solicitudes_gestion_productos"):
+        return
+    if _columna_existe("solicitudes_gestion_productos", "area_consumo"):
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE solicitudes_gestion_productos
+                ADD COLUMN area_consumo VARCHAR(100) NOT NULL DEFAULT ''
+                AFTER descripcion
+                """
+            )
+        )
+    logger.info("Columna area_consumo agregada a solicitudes_gestion_productos.")
+
+
+def migrar_tipo_salidas_almacen() -> None:
+    """Renombra el tipo legacy traslado_bodegas a salidas_almacen."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                UPDATE solicitudes_gestion
+                SET tipo = 'salidas_almacen'
+                WHERE tipo = 'traslado_bodegas'
+                """
+            )
+        )
+        if result.rowcount:
+            logger.info(
+                "Migradas %s solicitud(es) de traslado_bodegas a salidas_almacen.",
+                result.rowcount,
+            )
+
+
+def migrar_estado_facturada_existentes() -> None:
+    """Solicitudes con factura registrada pasan al estado interno Facturada."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    if not _columna_existe("solicitudes_gestion", "factura_registrada_at"):
+        return
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                UPDATE solicitudes_gestion
+                SET estado = 'facturada'
+                WHERE factura_registrada_at IS NOT NULL
+                  AND estado = 'entregado'
+                """
+            )
+        )
+        if result.rowcount:
+            logger.info(
+                "Migradas %s solicitud(es) con factura al estado facturada.",
+                result.rowcount,
+            )
+
+
+def migrar_factura_solicitud() -> None:
+    """Cierre administrativo interno: factura registrada por Compras."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    columnas = {
+        "factura_registrada_at": (
+            "ALTER TABLE solicitudes_gestion "
+            "ADD COLUMN factura_registrada_at DATETIME NULL "
+            "AFTER gestor_anticipo_id"
+        ),
+        "factura_registrada_por_id": (
+            "ALTER TABLE solicitudes_gestion "
+            "ADD COLUMN factura_registrada_por_id INT NULL "
+            "AFTER factura_registrada_at"
+        ),
+    }
+    with engine.begin() as conn:
+        for columna, ddl in columnas.items():
+            if not _columna_existe("solicitudes_gestion", columna):
+                logger.info("Agregando columna '%s' a solicitudes_gestion...", columna)
+                conn.execute(text(ddl))
+        if _columna_existe("solicitudes_gestion", "factura_registrada_por_id"):
+            try:
+                conn.execute(
+                    text(
+                        "ALTER TABLE solicitudes_gestion "
+                        "ADD CONSTRAINT fk_sg_factura_registrada_por "
+                        "FOREIGN KEY (factura_registrada_por_id) "
+                        "REFERENCES users (id) ON DELETE SET NULL"
+                    )
+                )
+            except Exception as e:
+                logger.debug("FK factura_registrada_por_id ya existe o no aplicable: %s", e)
 
 
 def migrar_campos_anticipo() -> None:

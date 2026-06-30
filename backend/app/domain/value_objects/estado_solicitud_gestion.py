@@ -17,6 +17,7 @@ class EstadoSolicitudGestion(str, Enum):
     CANCELADO = "cancelado"
     ENTREGADO = "entregado"
     ENTREGADO_PARCIAL = "entregado_parcial"
+    FACTURADA = "facturada"
 
     # Valores legacy
     REGISTRADA = "registrada"
@@ -52,6 +53,7 @@ LABELS: dict[EstadoSolicitudGestion, str] = {
     EstadoSolicitudGestion.CANCELADO: "Cancelado",
     EstadoSolicitudGestion.ENTREGADO: "Entregado",
     EstadoSolicitudGestion.ENTREGADO_PARCIAL: "Entrega parcial realizada",
+    EstadoSolicitudGestion.FACTURADA: "Facturada",
     EstadoSolicitudGestion.REGISTRADA: "Solicitud",
     EstadoSolicitudGestion.APROBADA: "Primera Aprobación",
     EstadoSolicitudGestion.RECHAZADA: "Cancelado",
@@ -83,11 +85,13 @@ FLUJO_HISTORIAL: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.CANCELADO,
     EstadoSolicitudGestion.ENTREGADO,
     EstadoSolicitudGestion.ENTREGADO_PARCIAL,
+    EstadoSolicitudGestion.FACTURADA,
 ]
 
 ESTADOS_TERMINALES: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.CANCELADO,
     EstadoSolicitudGestion.ENTREGADO,
+    EstadoSolicitudGestion.FACTURADA,
 ]
 
 ESTADOS_ENTREGA_ABIERTA: list[EstadoSolicitudGestion] = [
@@ -127,6 +131,7 @@ ETAPAS_PANEL_GESTION: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.RECEPCION_INSUMOS,
     EstadoSolicitudGestion.ENTREGADO,
     EstadoSolicitudGestion.ENTREGADO_PARCIAL,
+    EstadoSolicitudGestion.FACTURADA,
     # Valores legacy ya normalizados en consultas
     EstadoSolicitudGestion.APROBADA,
     EstadoSolicitudGestion.APROBACION_GERENCIA,
@@ -170,6 +175,8 @@ def normalizar_estado(valor: str | EstadoSolicitudGestion) -> EstadoSolicitudGes
                 return EstadoSolicitudGestion.ITEMS_EN_CAMINO
             if raw == "recepcion_insumos":
                 return EstadoSolicitudGestion.RECEPCION_INSUMOS
+            if raw == "facturada":
+                return EstadoSolicitudGestion.FACTURADA
             return EstadoSolicitudGestion.SOLICITUD
     return _LEGACY_MAP.get(estado.value, estado)
 
@@ -228,3 +235,11 @@ def es_visible_en_panel(estado: EstadoSolicitudGestion | str) -> bool:
     if normalizado == EstadoSolicitudGestion.CANCELADO:
         return False
     return normalizado in ETAPAS_PANEL_GESTION
+
+
+def estado_publico(estado: EstadoSolicitudGestion | str) -> EstadoSolicitudGestion:
+    """Estado visible para solicitantes y aprobadores (oculta cierre interno)."""
+    normalizado = normalizar_estado(estado)
+    if normalizado == EstadoSolicitudGestion.FACTURADA:
+        return EstadoSolicitudGestion.ENTREGADO
+    return normalizado

@@ -95,4 +95,7 @@ def root():
 
 @app.get("/health", tags=["health"])
 def health() -> dict:
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "salidas_almacen_sin_oc": True,
+    }
