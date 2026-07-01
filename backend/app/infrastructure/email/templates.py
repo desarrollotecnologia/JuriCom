@@ -158,6 +158,11 @@ def _link_revision(contrato_id: int, paso: str, token: str) -> str:
     return f"{base}/api/v1/contratos/{contrato_id}/revision/{paso}?token={token}"
 
 
+def _link_seguimiento(codigo: str, token: str) -> str:
+    base = settings.public_url.rstrip("/")
+    return f"{base}/app/seguimiento-contrato.html?codigo={codigo}&token={token}"
+
+
 def _link_aprobar_otrosi(contrato_id: int, otrosi_id: int, paso: str, token: str) -> str:
     base = settings.public_url.rstrip("/")
     return f"{base}/api/v1/contratos/{contrato_id}/otrosi/{otrosi_id}/aprobar/{paso}?token={token}"
@@ -287,6 +292,35 @@ def render_aprobado_juridica_texto(contrato: Contrato) -> str:
         "JURICOM_BEEF — Contrato aprobado y pendiente por revisar\n\n"
         f"{_contrato_resumen_texto(contrato)}\n\n"
         f"Abrir contrato: {_link_contrato(contrato.id)}\n"
+    )
+
+
+def render_seguimiento_lider_juridica_html(contrato: Contrato, token: str) -> str:
+    seguimiento = _link_seguimiento(contrato.codigo or "", token)
+    cuerpo = f"""
+        <h2>Contrato enviado a Jurídica</h2>
+        <p>
+            Gerencia aprobó el contrato y ya fue enviado a Jurídica para su trámite.
+            Puedes consultar el avance usando el código del contrato.
+        </p>
+        <p style="margin: 20px 0;">
+            Código: <span class="codigo">{escape(contrato.codigo or '')}</span>
+        </p>
+        <div class="row"><div class="label">Proveedor</div><div class="value">{escape(contrato.proveedor_contratista)}</div></div>
+        <div class="row"><div class="label">Estado actual</div><div class="value">En revisión jurídica</div></div>
+        <p><a class="btn" href="{escape(seguimiento)}">Consultar seguimiento</a></p>
+    """
+    return _shell("Contrato enviado a Jurídica", cuerpo)
+
+
+def render_seguimiento_lider_juridica_texto(contrato: Contrato, token: str) -> str:
+    seguimiento = _link_seguimiento(contrato.codigo or "", token)
+    return (
+        "JURICOM_BEEF — Contrato enviado a Jurídica\n\n"
+        "Gerencia aprobó el contrato y ya fue enviado a Jurídica para su trámite.\n\n"
+        f"Código: {contrato.codigo}\n"
+        f"Proveedor: {contrato.proveedor_contratista}\n"
+        f"Seguimiento: {seguimiento}\n"
     )
 
 

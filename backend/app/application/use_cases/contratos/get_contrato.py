@@ -18,7 +18,10 @@ class GetContrato:
 
         if actor.is_compras() and contrato.creado_por_id != actor.id:
             raise UnauthorizedError("No puedes ver contratos que no creaste.")
-        if actor.is_juridica() and contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
+        if (
+            (actor.is_admin() or actor.is_juridica())
+            and contrato.estado_aprobacion != EstadoAprobacion.APROBADO
+        ):
             raise UnauthorizedError(
                 "Este contrato todavía no tiene aprobación de líder y gerencia."
             )

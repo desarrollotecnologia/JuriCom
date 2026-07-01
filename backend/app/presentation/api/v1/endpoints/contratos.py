@@ -67,6 +67,7 @@ from app.presentation.api.v1.schemas import (
     EditarContratoRequest,
     OtrosiPendienteResponse,
     OtrosiResponse,
+    SeguimientoContratoResponse,
 )
 
 
@@ -82,6 +83,10 @@ def _approval_token(contrato_id: int, paso: str) -> str:
 
 def _validar_token(contrato_id: int, paso: str, token: str) -> bool:
     return hmac.compare_digest(_approval_token(contrato_id, paso), token or "")
+
+
+def _validar_token_seguimiento(contrato_id: int, token: str) -> bool:
+    return _validar_token(contrato_id, "lider", token)
 
 
 def _otrosi_approval_token(contrato_id: int, otrosi_id: int, paso: str) -> str:
@@ -360,6 +365,45 @@ def list_otrosies_pendientes(
     ]
 
 
+@router.get("/seguimiento/publico", response_model=SeguimientoContratoResponse)
+def seguimiento_publico_contrato(
+    codigo: str = Query(..., description="Código del contrato, ej. JC-0015."),
+    token: str = Query(..., description="Token recibido por correo."),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+) -> SeguimientoContratoResponse:
+    contrato = contratos.get_by_codigo(codigo.strip().upper())
+    if contrato is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No existe un contrato con ese código.",
+        )
+    if not _validar_token_seguimiento(contrato.id, token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El enlace de seguimiento no es válido para este contrato.",
+        )
+    if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "El seguimiento estará disponible cuando Gerencia apruebe "
+                "y el contrato pase a Jurídica."
+            ),
+        )
+    return SeguimientoContratoResponse(
+        codigo=contrato.codigo or "",
+        proveedor_contratista=contrato.proveedor_contratista,
+        estado_aprobacion=contrato.estado_aprobacion,
+        estado=contrato.estado,
+        creado_en=contrato.created_at,
+        aprobado_lider_at=contrato.aprobado_lider_at,
+        aprobado_gerencia_at=contrato.aprobado_gerencia_at,
+        tiene_poliza=contrato.tiene_poliza(),
+        tiene_borrador=contrato.tiene_borrador(),
+        requiere_poliza=contrato.requiere_poliza,
+    )
+
+
 @router.get("/{contrato_id}", response_model=ContratoResponse)
 def get_contrato(
     contrato_id: int,
@@ -385,6 +429,17 @@ def eliminar_contrato(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Sólo Jurídica o Admin pueden eliminar contratos.",
+        )
+    contrato = contratos.get_by_id(contrato_id)
+    if contrato is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No existe el contrato {contrato_id}.",
+        )
+    if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Este contrato todavía no tiene aprobación de líder y gerencia.",
         )
     eliminado = contratos.delete(contrato_id)
     if not eliminado:
@@ -557,6 +612,7 @@ def aprobar_por_correo(
         else:
             contrato = caso.aprobar_gerencia(contrato_id)
             _notificar_juridica_aprobado(contrato, notifier)
+            _notificar_lider_contrato_en_juridica(contrato, notifier)
             mensaje = (
                 "Aprobación de Gerencia registrada. "
                 "El contrato ya aparece para Jurídica en el módulo Contratos."
@@ -651,6 +707,25 @@ def _notificar_juridica_aprobado(contrato, notifier: EmailNotifier) -> None:
             destinatarios=destinatarios,
             cuerpo_html=render_aprobado_juridica_html(contrato),
             cuerpo_texto=render_aprobado_juridica_texto(contrato),
+        )
+    )
+
+
+def _notificar_lider_contrato_en_juridica(contrato, notifier: EmailNotifier) -> None:
+    if not notifier.disponible or not contrato.correo_lider_proceso:
+        return
+    from app.infrastructure.email.templates import (
+        render_seguimiento_lider_juridica_html,
+        render_seguimiento_lider_juridica_texto,
+    )
+
+    token = _approval_token(contrato.id, "lider")
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] Contrato en Jurídica — {contrato.codigo}",
+            destinatarios=[contrato.correo_lider_proceso],
+            cuerpo_html=render_seguimiento_lider_juridica_html(contrato, token),
+            cuerpo_texto=render_seguimiento_lider_juridica_texto(contrato, token),
         )
     )
 
@@ -947,6 +1022,11 @@ def finalizar_otrosi_juridica(
     otrosi = contratos.get_otrosi(otrosi_id)
     if contrato is None or otrosi is None or otrosi.contrato_id != contrato_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Otrosí no existe.")
+    if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Este contrato todavía no tiene aprobación de líder y gerencia.",
+        )
     if otrosi.estado_aprobacion != EstadoAprobacion.APROBADO:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

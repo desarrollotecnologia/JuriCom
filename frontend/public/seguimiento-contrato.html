@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Seguimiento de contrato · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            body {
+                background: var(--color-surface-2);
+            }
+            .tracking-page {
+                max-width: 880px;
+                margin: 32px auto;
+                padding: 0 16px;
+            }
+            .tracking-header {
+                text-align: center;
+                margin-bottom: 20px;
+            }
+            .tracking-header h1 {
+                color: var(--color-primary-dark);
+                margin-bottom: 6px;
+            }
+            .lookup {
+                display: grid;
+                grid-template-columns: 1fr auto;
+                gap: 10px;
+                align-items: end;
+            }
+            .timeline {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 12px;
+                margin-top: 18px;
+            }
+            .step {
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-md);
+                padding: 14px;
+                background: white;
+            }
+            .step.done {
+                border-color: #86efac;
+                background: #f0fdf4;
+            }
+            .step.pending {
+                border-color: #fde68a;
+                background: #fffbeb;
+            }
+            .step.waiting {
+                background: var(--color-surface-2);
+            }
+            .step-title {
+                font-weight: 700;
+                color: var(--color-primary-dark);
+                margin-bottom: 6px;
+            }
+            .step small {
+                color: var(--color-muted);
+            }
+            @media (max-width: 760px) {
+                .lookup,
+                .timeline {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main class="tracking-page">
+            <div class="tracking-header">
+                <h1>Seguimiento de contrato</h1>
+                <p class="muted">
+                    Disponible cuando Gerencia aprueba y el contrato pasa a Jurídica.
+                </p>
+            </div>
+
+            <div class="alert alert-error" id="alert-error"></div>
+
+            <section class="card">
+                <div class="lookup">
+                    <div class="field">
+                        <label>Código del contrato</label>
+                        <input
+                            id="codigo"
+                            type="text"
+                            placeholder="Ej: JC-0015"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <button class="btn btn-primary" id="btn-consultar">
+                        Consultar
+                    </button>
+                </div>
+            </section>
+
+            <section class="card" id="resultado" style="display:none;"></section>
+        </main>
+
+        <script type="module">
+            import { escapeHtml, formatDate } from "/static/js/utils/format.js";
+
+            const params = new URLSearchParams(window.location.search);
+            const token = params.get("token") || "";
+            const codigoInput = document.getElementById("codigo");
+            const resultado = document.getElementById("resultado");
+            const alertError = document.getElementById("alert-error");
+
+            codigoInput.value = (params.get("codigo") || "").toUpperCase();
+
+            function showError(message) {
+                alertError.textContent = message;
+                alertError.classList.add("show");
+                resultado.style.display = "none";
+            }
+
+            function clearError() {
+                alertError.classList.remove("show");
+                alertError.textContent = "";
+            }
+
+            const APROBACION_LABEL = {
+                pendiente_lider: "Pendiente líder de proceso",
+                pendiente_gerencia: "Pendiente gerencia",
+                aprobado: "Aprobado por líder y gerencia",
+                rechazado: "Rechazado",
+            };
+
+            const ESTADO_LABEL = {
+                en_proceso: "En revisión jurídica",
+                activo: "Activo",
+                finalizado: "Finalizado",
+            };
+
+            function stepClass(done, pending) {
+                if (done) return "done";
+                if (pending) return "pending";
+                return "waiting";
+            }
+
+            function render(data) {
+                const liderDone = Boolean(data.aprobado_lider_at)
+                    || ["pendiente_gerencia", "aprobado"].includes(data.estado_aprobacion);
+                const gerenciaDone = Boolean(data.aprobado_gerencia_at)
+                    || data.estado_aprobacion === "aprobado";
+                const juridicaStarted = data.estado_aprobacion === "aprobado";
+
+                resultado.innerHTML = `
+                    <h2>
+                        Contrato <span class="codigo-contrato">${escapeHtml(data.codigo)}</span>
+                    </h2>
+                    <p><strong>Proveedor:</strong> ${escapeHtml(data.proveedor_contratista)}</p>
+                    <p>
+                        <strong>Aprobación:</strong>
+                        ${escapeHtml(APROBACION_LABEL[data.estado_aprobacion] || data.estado_aprobacion)}
+                    </p>
+                    <p>
+                        <strong>Estado:</strong>
+                        ${escapeHtml(ESTADO_LABEL[data.estado] || data.estado)}
+                    </p>
+
+                    <div class="timeline">
+                        <div class="step done">
+                            <div class="step-title">1. Radicado</div>
+                            <small>${data.creado_en ? formatDate(data.creado_en) : "Registrado"}</small>
+                        </div>
+                        <div class="step ${stepClass(liderDone, data.estado_aprobacion === "pendiente_lider")}">
+                            <div class="step-title">2. Líder</div>
+                            <small>${liderDone ? "Aprobado" : "Pendiente de aprobación"}</small>
+                        </div>
+                        <div class="step ${stepClass(gerenciaDone, data.estado_aprobacion === "pendiente_gerencia")}">
+                            <div class="step-title">3. Gerencia</div>
+                            <small>${gerenciaDone ? "Aprobado" : "Pendiente de aprobación"}</small>
+                        </div>
+                        <div class="step ${stepClass(data.estado !== "en_proceso", juridicaStarted)}">
+                            <div class="step-title">4. Jurídica</div>
+                            <small>${juridicaStarted ? "En trámite jurídico" : "Espera aprobación de Gerencia"}</small>
+                        </div>
+                    </div>
+
+                    <p class="muted" style="margin-top:16px;">
+                        Documentos jurídicos:
+                        póliza ${data.requiere_poliza ? (data.tiene_poliza ? "adjuntada" : "pendiente") : "no requerida"},
+                        borrador ${data.tiene_borrador ? "adjuntado" : "pendiente"}.
+                    </p>
+                `;
+                resultado.style.display = "block";
+            }
+
+            async function consultar() {
+                const codigo = codigoInput.value.trim().toUpperCase();
+                if (!codigo) {
+                    showError("Escribe el código del contrato.");
+                    return;
+                }
+                if (!token) {
+                    showError("Este enlace no tiene token de seguimiento. Abre el enlace recibido por correo.");
+                    return;
+                }
+                clearError();
+                try {
+                    const url = `/api/v1/contratos/seguimiento/publico?codigo=${encodeURIComponent(codigo)}&token=${encodeURIComponent(token)}`;
+                    const response = await fetch(url);
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.detail || "No se pudo consultar el contrato.");
+                    }
+                    render(data);
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            document.getElementById("btn-consultar").addEventListener("click", consultar);
+            codigoInput.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") consultar();
+            });
+
+            if (codigoInput.value && token) consultar();
+        </script>
+    </body>
+</html>

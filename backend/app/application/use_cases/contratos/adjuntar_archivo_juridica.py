@@ -11,6 +11,7 @@ from app.domain.exceptions import (
     InvalidFileError,
     UnauthorizedError,
 )
+from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
 
 
 @dataclass
@@ -45,6 +46,10 @@ class AdjuntarArchivoJuridica:
         contrato = self._contratos.get_by_id(contrato_id)
         if contrato is None:
             raise ContratoNotFoundError(f"No existe el contrato {contrato_id}.")
+        if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
+            raise UnauthorizedError(
+                "Este contrato todavía no tiene aprobación de líder y gerencia."
+            )
 
         stored = self._storage.save(
             contenido=entrada.contenido,

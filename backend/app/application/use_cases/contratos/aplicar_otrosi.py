@@ -82,6 +82,10 @@ class AplicarOtrosi:
                 "Compras no puede adjuntar el otrosí firmado. "
                 "Ese PDF sólo lo carga Jurídica."
             )
+        if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
+            raise UnauthorizedError(
+                "Este contrato todavía no tiene aprobación de líder y gerencia."
+            )
 
         if contrato.estado != EstadoContrato.ACTIVO:
             raise InvalidContratoStateError(

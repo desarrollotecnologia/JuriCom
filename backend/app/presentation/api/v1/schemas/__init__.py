@@ -13,6 +13,7 @@ from .contrato_schemas import (
     NotificacionResponse,
     OtrosiResponse,
     OtrosiPendienteResponse,
+    SeguimientoContratoResponse,
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "NotificacionResponse",
     "OtrosiResponse",
     "OtrosiPendienteResponse",
+    "SeguimientoContratoResponse",
 ]

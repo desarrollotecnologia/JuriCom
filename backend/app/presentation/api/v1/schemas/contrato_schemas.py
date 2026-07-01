@@ -96,6 +96,19 @@ class ContratoListItem(BaseModel):
     created_at: Optional[datetime] = None
 
 
+class SeguimientoContratoResponse(BaseModel):
+    codigo: str
+    proveedor_contratista: str
+    estado_aprobacion: EstadoAprobacion
+    estado: EstadoContrato
+    creado_en: Optional[datetime] = None
+    aprobado_lider_at: Optional[datetime] = None
+    aprobado_gerencia_at: Optional[datetime] = None
+    tiene_poliza: bool = False
+    tiene_borrador: bool = False
+    requiere_poliza: bool = False
+
+
 class ContratoResponse(ContratoBase):
     id: int
     tiene_poliza: bool = False

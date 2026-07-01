@@ -1,7 +1,7 @@
 """Caso de uso: buscar contratos con filtros.
 
-- Admin y Jurídica ven todos.
-- Compras sólo ve los suyos (se filtra forzando creador_id = actor.id).
+- Admin y Jurídica ven sólo contratos aprobados por líder y gerencia.
+- Compras sólo ve los suyos, incluso si siguen en aprobación.
 """
 
 from typing import Optional
@@ -29,5 +29,5 @@ class BuscarContratos:
             query=query,
             estado=estado,
             creador_id=creador_id,
-            solo_aprobados=actor.is_juridica(),
+            solo_aprobados=actor.is_admin() or actor.is_juridica(),
         )

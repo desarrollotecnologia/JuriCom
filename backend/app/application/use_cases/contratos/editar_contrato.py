@@ -8,6 +8,7 @@ from app.application.interfaces.contrato_repository import ContratoRepository
 from app.domain.entities.contrato import Contrato
 from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
+from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
 from app.domain.value_objects.moneda import Moneda
 from app.domain.value_objects.unidad_plazo import UnidadPlazo
 
@@ -42,6 +43,10 @@ class EditarContrato:
         contrato = self._contratos.get_by_id(contrato_id)
         if contrato is None:
             raise ContratoNotFoundError(f"No existe el contrato {contrato_id}.")
+        if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
+            raise UnauthorizedError(
+                "Este contrato todavía no tiene aprobación de líder y gerencia."
+            )
 
         self._validar_textos(
             proveedor_contratista,
