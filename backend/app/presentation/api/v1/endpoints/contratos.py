@@ -620,6 +620,9 @@ def aprobar_por_correo(
     except ContratoNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
+        contrato = contratos.get_by_id(contrato_id)
+        if contrato is not None:
+            return _html_aprobacion_ya_procesada(contrato, paso, str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     return HTMLResponse(
@@ -667,6 +670,33 @@ def rechazar_por_correo(
             <h2>{escape(mensaje)}</h2>
             <p>Contrato <strong>{escape(contrato.codigo or '')}</strong> - {escape(contrato.proveedor_contratista)}</p>
             <p>La solicitud quedó marcada como <strong>rechazada</strong> y no pasará a Jurídica.</p>
+            <p>Ya puedes cerrar esta ventana.</p>
+        </body>
+        </html>"""
+    )
+
+
+def _html_aprobacion_ya_procesada(contrato, paso: str, detalle: str) -> HTMLResponse:
+    if contrato.estado_aprobacion == EstadoAprobacion.APROBADO:
+        mensaje = "Este contrato ya fue aprobado por Gerencia y enviado a Jurídica."
+    elif (
+        paso == "lider"
+        and contrato.estado_aprobacion == EstadoAprobacion.PENDIENTE_GERENCIA
+    ):
+        mensaje = "El líder ya aprobó este contrato. Ahora está pendiente de Gerencia."
+    elif contrato.estado_aprobacion == EstadoAprobacion.RECHAZADO:
+        mensaje = "Esta solicitud ya fue rechazada."
+    else:
+        mensaje = detalle
+
+    return HTMLResponse(
+        f"""<!DOCTYPE html>
+        <html lang="es">
+        <head><meta charset="UTF-8"><title>Aprobación ya procesada</title></head>
+        <body style="font-family: Arial, sans-serif; padding: 32px;">
+            <h1 style="color:#1f4e8a;">JURICOM_BEEF</h1>
+            <h2>{escape(mensaje)}</h2>
+            <p>Contrato <strong>{escape(contrato.codigo or '')}</strong> - {escape(contrato.proveedor_contratista)}</p>
             <p>Ya puedes cerrar esta ventana.</p>
         </body>
         </html>"""
