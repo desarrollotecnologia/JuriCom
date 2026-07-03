@@ -23,11 +23,32 @@ def test_user_permissions():
     admin = User(username="a", password_hash="x", role=Role.ADMIN)
     compras = User(username="b", password_hash="x", role=Role.COMPRAS)
     juridica = User(username="c", password_hash="x", role=Role.JURIDICA)
+    solicitante = User(username="d", password_hash="x", role=Role.SOLICITANTE)
+    anticipos = User(username="e", password_hash="x", role=Role.ANTICIPOS)
+    lider = User(
+        username="f",
+        password_hash="x",
+        role=Role.LIDER_APROBADOR,
+        lider_catalog_id="79249780",
+    )
 
     assert admin.can_manage_users() is True
     assert compras.can_manage_users() is False
     assert juridica.can_manage_users() is False
     assert compras.is_compras() and not compras.is_juridica()
+    assert compras.puede_aprobar_solicitudes_gestion() is False
+    assert compras.puede_aprobar_anticipo_solicitud() is False
+    assert compras.puede_operar_anticipos() is False
+    assert solicitante.puede_crear_solicitudes_gestion() is True
+    assert solicitante.puede_gestionar_panel_compras() is False
+    assert solicitante.ve_solo_propias_solicitudes_gestion() is True
+    assert anticipos.puede_operar_anticipos() is True
+    assert anticipos.puede_crear_solicitudes_gestion() is True
+    assert anticipos.ve_solo_propias_solicitudes_gestion() is True
+    assert anticipos.puede_aprobar_anticipo_solicitud() is False
+    assert lider.puede_aprobar_solicitudes_gestion() is True
+    assert lider.puede_aprobar_anticipo_solicitud() is True
+    assert lider.puede_gestionar_panel_compras() is False
 
 
 def test_contrato_archivos_obligatorios():
@@ -53,7 +74,14 @@ def test_contrato_archivos_obligatorios():
 
 
 def test_roles_values():
-    assert set(Role.values()) == {"admin", "juridica", "compras"}
+    assert set(Role.values()) == {
+        "admin",
+        "juridica",
+        "compras",
+        "solicitante",
+        "anticipos",
+        "lider_aprobador",
+    }
     assert set(Moneda.values()) == {"COP", "USD", "EUR"}
     assert set(UnidadPlazo.values()) == {"dias", "meses", "anios"}
 

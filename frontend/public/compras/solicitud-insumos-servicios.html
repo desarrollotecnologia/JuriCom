@@ -34,7 +34,7 @@
             import { renderSidebar } from "/static/js/components/sidebar.js";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin"]);
+            session.requireRole(["compras", "admin", "solicitante"]);
             renderSidebar();
         </script>
     </body>

@@ -6,6 +6,9 @@ from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
 from app.application.use_cases.solicitudes_gestion.registrar_solicitud_compra import (
     ArchivoEntradaSolicitud,
 )
@@ -23,8 +26,13 @@ from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
 
 
 class ResolverAprobacionSolicitud:
-    def __init__(self, solicitudes: SolicitudGestionRepository) -> None:
+    def __init__(
+        self,
+        solicitudes: SolicitudGestionRepository,
+        notificador: NotificadorSolicitudGestion | None = None,
+    ) -> None:
         self._solicitudes = solicitudes
+        self._notificador = notificador
 
     def aprobar(
         self,
@@ -89,7 +97,13 @@ class ResolverAprobacionSolicitud:
             comentario=comentario_historial or f"Avance a: {proxima.label}",
         )
         refreshed = self._solicitudes.get_by_id(solicitud_id)
-        return refreshed or actualizada
+        resultado = refreshed or actualizada
+        if self._notificador:
+            if etapa_actual == EstadoSolicitudGestion.SOLICITUD:
+                self._notificador.notificar_primera_aprobacion(resultado, actor)
+            elif etapa_actual == EstadoSolicitudGestion.EN_APROBACION:
+                self._notificador.notificar_segunda_aprobacion(resultado, actor)
+        return resultado
 
     def _aplicar_cantidades_productos(
         self,
@@ -188,12 +202,14 @@ class ResolverAprobacionSolicitud:
             usuario_id=actor.id,
             comentario=motivo or "Solicitud cancelada",
         )
+        if self._notificador:
+            self._notificador.notificar_rechazo(actualizada, actor)
         return actualizada
 
     def _get_pendiente(self, actor: User, solicitud_id: int) -> SolicitudGestion:
-        if not (actor.is_admin() or actor.is_compras()):
+        if not actor.puede_aprobar_solicitudes_gestion():
             raise UnauthorizedError(
-                "Sólo Compras o Admin pueden aprobar o cancelar solicitudes."
+                "No tienes permiso para aprobar o cancelar solicitudes."
             )
 
         solicitud = self._solicitudes.get_by_id(solicitud_id)
@@ -211,7 +227,17 @@ class ResolverAprobacionSolicitud:
         if not es_pendiente_aprobacion(solicitud.estado):
             raise ValueError("Esta solicitud ya fue procesada o no está en etapa de aprobación.")
 
-        if actor.is_compras() and not actor.is_admin() and solicitud.creado_por_id == actor.id:
+        if (
+            actor.is_lider_aprobador()
+            and not actor.is_admin()
+            and solicitud.creado_por_id == actor.id
+        ):
             raise UnauthorizedError("No puedes aprobar o cancelar tu propia solicitud.")
+
+        if actor.is_lider_aprobador() and not actor.is_admin():
+            if not actor.solicitud_asignada_a_lider(solicitud):
+                raise UnauthorizedError(
+                    "Esta solicitud no está asignada a usted como líder aprobador."
+                )
 
         return solicitud

@@ -446,6 +446,7 @@ def run_all() -> None:
     migrar_productos_cantidad()
     migrar_tramite_oc()
     migrar_users_email()
+    migrar_users_lider_catalog_id()
     migrar_solicitudes_creado_por_email()
     migrar_productos_cantidad_entregada()
     migrar_valor_tramite_oc()
@@ -805,6 +806,22 @@ def migrar_users_email() -> None:
                 text(
                     "ALTER TABLE users "
                     "ADD COLUMN email VARCHAR(255) NOT NULL DEFAULT '' AFTER role"
+                )
+            )
+
+
+def migrar_users_lider_catalog_id() -> None:
+    """Identificador del catálogo de líderes para rol Líder Aprobador."""
+    if not _tabla_existe("users"):
+        return
+    if not _columna_existe("users", "lider_catalog_id"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'lider_catalog_id' a users...")
+            conn.execute(
+                text(
+                    "ALTER TABLE users "
+                    "ADD COLUMN lider_catalog_id VARCHAR(50) NOT NULL DEFAULT '' "
+                    "AFTER email"
                 )
             )
 

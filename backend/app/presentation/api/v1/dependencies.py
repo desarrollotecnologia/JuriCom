@@ -17,6 +17,9 @@ from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.password_hasher import PasswordHasher
 from app.application.interfaces.token_service import TokenService
 from app.application.interfaces.user_repository import UserRepository
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
 from app.domain.entities.user import User
 from app.infrastructure.database.session import get_db
 from app.infrastructure.email import SmtpEmailNotifier
@@ -60,6 +63,13 @@ def get_file_storage() -> FileStorage:
 
 def get_email_notifier() -> EmailNotifier:
     return SmtpEmailNotifier()
+
+
+def get_notificador_solicitud_gestion(
+    users: UserRepository = Depends(get_user_repository),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+) -> NotificadorSolicitudGestion:
+    return NotificadorSolicitudGestion(users, notifier)
 
 
 def get_current_user(

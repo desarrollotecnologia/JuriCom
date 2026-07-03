@@ -774,3 +774,48 @@ def render_recepcion_insumos_solicitud_texto(
         f"Ítems recibidos:\n{lineas_txt}\n\n"
         f"Consulta el detalle en: {url}\n"
     )
+
+
+def render_solicitud_gestion_evento_html(
+    solicitud,
+    *,
+    titulo: str,
+    mensaje: str,
+    url: str,
+    boton: str = "Ver solicitud",
+) -> str:
+    cuerpo = f"""
+        <h2>{escape(titulo)}</h2>
+        <p>{mensaje}</p>
+        <div class="row">
+            <span class="label">Consecutivo</span>
+            <span class="value"><span class="codigo">{escape(solicitud.codigo or "")}</span></span>
+        </div>
+        <div class="row">
+            <span class="label">Título</span>
+            <span class="value">{escape(solicitud.titulo or "")}</span>
+        </div>
+        <p style="margin-top: 20px;">
+            <a class="btn" href="{escape(url)}">{escape(boton)}</a>
+        </p>
+    """
+    return _shell(f"JURICOM_BEEF — {titulo}", cuerpo)
+
+
+def render_solicitud_gestion_evento_texto(
+    solicitud,
+    *,
+    titulo: str,
+    mensaje: str,
+    url: str,
+) -> str:
+    import re
+
+    mensaje_plano = re.sub(r"<[^>]+>", "", mensaje)
+    return (
+        f"JURICOM_BEEF — {titulo}\n\n"
+        f"{mensaje_plano}\n\n"
+        f"Consecutivo: {solicitud.codigo}\n"
+        f"Título: {solicitud.titulo}\n\n"
+        f"Consulta el detalle en: {url}\n"
+    )

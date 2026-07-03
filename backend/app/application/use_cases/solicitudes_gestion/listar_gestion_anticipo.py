@@ -22,10 +22,10 @@ class ListarGestionAnticipo:
         *,
         query: Optional[str] = None,
     ) -> list[SolicitudGestion]:
-        if not (actor.is_admin() or actor.is_compras()):
-            raise UnauthorizedError("Sólo Compras o Admin pueden gestionar anticipos.")
+        if not actor.puede_operar_anticipos():
+            raise UnauthorizedError("Sólo Anticipos o Admin pueden gestionar anticipos.")
 
-        if actor.is_admin():
+        if actor.is_admin() or actor.is_anticipos():
             return self._solicitudes.list_all(
                 tipo=TipoSolicitudGestion.COMPRA,
                 estados=ETAPAS_GESTION_ANTICIPO,

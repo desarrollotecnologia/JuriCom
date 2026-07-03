@@ -55,6 +55,7 @@ def _to_public(u: User) -> UserPublic:
         username=u.username,
         role=u.role,
         email=u.email or "",
+        lider_catalog_id=u.lider_catalog_id or "",
         is_active=u.is_active,
         created_at=u.created_at,
         updated_at=u.updated_at,
@@ -84,6 +85,7 @@ def create_user(
             password=payload.password,
             role=payload.role,
             email=payload.email,
+            lider_catalog_id=payload.lider_catalog_id,
         )
     except UserAlreadyExistsError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
@@ -107,6 +109,7 @@ def update_user(
             new_role=payload.role,
             new_is_active=payload.is_active,
             new_email=payload.email,
+            new_lider_catalog_id=payload.lider_catalog_id,
         )
     except UserNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

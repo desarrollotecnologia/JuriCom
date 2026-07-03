@@ -3,6 +3,7 @@
 from typing import Optional
 
 from app.application.interfaces.user_repository import UserRepository
+from app.application.use_cases.users.create_user import _validar_lider_catalog_id
 from app.domain.entities.user import User
 from app.domain.exceptions import (
     UnauthorizedError,
@@ -24,6 +25,7 @@ class UpdateUser:
         new_role: Optional[Role] = None,
         new_is_active: Optional[bool] = None,
         new_email: Optional[str] = None,
+        new_lider_catalog_id: Optional[str] = None,
     ) -> User:
         if not actor.can_manage_users():
             raise UnauthorizedError("Sólo el administrador puede editar usuarios.")
@@ -53,5 +55,14 @@ class UpdateUser:
 
         if new_email is not None:
             target.email = new_email.strip()
+
+        if new_lider_catalog_id is not None:
+            target.lider_catalog_id = _validar_lider_catalog_id(
+                target.role, new_lider_catalog_id
+            )
+        elif new_role is not None:
+            target.lider_catalog_id = _validar_lider_catalog_id(
+                target.role, target.lider_catalog_id
+            )
 
         return self._users.update(target)

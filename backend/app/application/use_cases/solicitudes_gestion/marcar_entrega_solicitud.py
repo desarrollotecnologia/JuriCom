@@ -3,12 +3,13 @@
 import logging
 from decimal import Decimal
 
-from app.application.interfaces.email_notifier import EmailMessage, EmailNotifier
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
-from app.application.interfaces.user_repository import UserRepository
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
 from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
     AgregarObservacionSolicitud,
 )
@@ -27,30 +28,15 @@ from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_alm
 logger = logging.getLogger(__name__)
 
 
-def _resolver_email_solicitante(
-    solicitud: SolicitudGestion,
-    users: UserRepository,
-) -> str:
-    if (solicitud.creado_por_email or "").strip():
-        return solicitud.creado_por_email.strip()
-
-    user = users.get_by_id(solicitud.creado_por_id)
-    if user and (user.email or "").strip():
-        return user.email.strip()
-    return ""
-
-
 class MarcarEntregaSolicitud:
     def __init__(
         self,
         solicitudes: SolicitudGestionRepository,
-        users: UserRepository,
-        notifier: EmailNotifier,
+        notificador: NotificadorSolicitudGestion,
         storage: FileStorage,
     ) -> None:
         self._solicitudes = solicitudes
-        self._users = users
-        self._notifier = notifier
+        self._notificador = notificador
         self._storage = storage
 
     def execute(
@@ -161,55 +147,9 @@ class MarcarEntregaSolicitud:
             comentario=f"Entrega total registrada por {actor.username}",
         )
 
-        email_enviado = self._notificar_solicitante(
-            actualizada, EstadoSolicitudGestion.ENTREGADO, actor
+        email_enviado = self._notificador.notificar_entrega(
+            actualizada, actor, EstadoSolicitudGestion.ENTREGADO
         )
 
         refreshed = self._solicitudes.get_by_id(solicitud_id)
         return (refreshed or actualizada, email_enviado)
-
-    def _notificar_solicitante(
-        self,
-        solicitud: SolicitudGestion,
-        estado: EstadoSolicitudGestion,
-        actor: User,
-    ) -> bool:
-        destinatario = _resolver_email_solicitante(solicitud, self._users)
-        if not destinatario:
-            logger.warning(
-                "Sin correo del solicitante para solicitud %s; omito notificación.",
-                solicitud.codigo,
-            )
-            return False
-        if not self._notifier.disponible:
-            logger.warning("SMTP no disponible; omito notificación de entrega.")
-            return False
-
-        from app.infrastructure.email.templates import (
-            render_entrega_solicitud_html,
-            render_entrega_solicitud_texto,
-        )
-
-        try:
-            self._notifier.send(
-                EmailMessage(
-                    asunto=(
-                        f"[JURICOM_BEEF] Solicitud {solicitud.codigo} — "
-                        f"{estado.label}"
-                    ),
-                    destinatarios=[destinatario],
-                    cuerpo_html=render_entrega_solicitud_html(
-                        solicitud, estado, actor.username
-                    ),
-                    cuerpo_texto=render_entrega_solicitud_texto(
-                        solicitud, estado, actor.username
-                    ),
-                )
-            )
-            return True
-        except Exception:
-            logger.exception(
-                "Error enviando correo de entrega para solicitud %s",
-                solicitud.codigo,
-            )
-            return False

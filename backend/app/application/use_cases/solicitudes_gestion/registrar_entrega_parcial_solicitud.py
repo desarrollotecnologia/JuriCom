@@ -3,17 +3,15 @@
 import logging
 from decimal import Decimal
 
-from app.application.interfaces.email_notifier import EmailMessage, EmailNotifier
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
-from app.application.interfaces.user_repository import UserRepository
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
 from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
     AgregarObservacionSolicitud,
-)
-from app.application.use_cases.solicitudes_gestion.marcar_entrega_solicitud import (
-    _resolver_email_solicitante,
 )
 from app.application.use_cases.solicitudes_gestion.registrar_solicitud_compra import (
     ArchivoEntradaSolicitud,
@@ -36,13 +34,11 @@ class RegistrarEntregaParcialSolicitud:
     def __init__(
         self,
         solicitudes: SolicitudGestionRepository,
-        users: UserRepository,
-        notifier: EmailNotifier,
+        notificador: NotificadorSolicitudGestion,
         storage: FileStorage,
     ) -> None:
         self._solicitudes = solicitudes
-        self._users = users
-        self._notifier = notifier
+        self._notificador = notificador
         self._storage = storage
 
     def execute(
@@ -160,51 +156,7 @@ class RegistrarEntregaParcialSolicitud:
         if actualizada is None:
             raise RuntimeError("No se pudo recuperar la solicitud actualizada.")
 
-        email_enviado = self._notificar_solicitante(actualizada, actor, lineas)
-        return (actualizada, email_enviado, lineas)
-
-    def _notificar_solicitante(
-        self,
-        solicitud: SolicitudGestion,
-        actor: User,
-        lineas: list[str],
-    ) -> bool:
-        destinatario = _resolver_email_solicitante(solicitud, self._users)
-        if not destinatario:
-            logger.warning(
-                "Sin correo del solicitante para solicitud %s; omito notificación.",
-                solicitud.codigo,
-            )
-            return False
-        if not self._notifier.disponible:
-            logger.warning("SMTP no disponible; omito notificación de entrega parcial.")
-            return False
-
-        from app.infrastructure.email.templates import (
-            render_entrega_parcial_solicitud_html,
-            render_entrega_parcial_solicitud_texto,
+        email_enviado = self._notificador.notificar_entrega_parcial(
+            actualizada, actor, lineas
         )
-
-        try:
-            self._notifier.send(
-                EmailMessage(
-                    asunto=(
-                        f"[JURICOM_BEEF] Solicitud {solicitud.codigo} — "
-                        "Entrega parcial registrada"
-                    ),
-                    destinatarios=[destinatario],
-                    cuerpo_html=render_entrega_parcial_solicitud_html(
-                        solicitud, actor.username, lineas
-                    ),
-                    cuerpo_texto=render_entrega_parcial_solicitud_texto(
-                        solicitud, actor.username, lineas
-                    ),
-                )
-            )
-            return True
-        except Exception:
-            logger.exception(
-                "Error enviando correo de entrega parcial para solicitud %s",
-                solicitud.codigo,
-            )
-            return False
+        return (actualizada, email_enviado, lineas)

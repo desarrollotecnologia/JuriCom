@@ -94,7 +94,7 @@
             import { renderSidebar } from "/static/js/components/sidebar.js";
             import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=15";
 
-            const user = await requireSessionRole(["compras", "admin"]);
+            const user = await requireSessionRole(["compras", "admin", "solicitante", "anticipos"]);
             if (user) {
                 renderSidebar();
                 initMisSolicitudesGestion({ esAdmin: user.role === "admin" });

@@ -95,6 +95,12 @@
                     ? "Administrador del sistema"
                     : user.role === "juridica"
                     ? "Equipo de Jurídica"
+                    : user.role === "solicitante"
+                    ? "Usuario Solicitante"
+                    : user.role === "anticipos"
+                    ? "Equipo de Anticipos"
+                    : user.role === "lider_aprobador"
+                    ? "Líder Aprobador"
                     : "Equipo de Compras";
 
             const quickActions = document.getElementById("quick-actions");
@@ -105,11 +111,52 @@
                     label: "Gestionar usuarios",
                     cls: "btn-primary",
                 });
+                actions.push({
+                    href: "/app/compras/gestion-aprobar-solicitudes.html",
+                    label: "Aprobar solicitudes",
+                    cls: "btn-secondary",
+                });
             }
             if (user.role === "compras" || user.role === "admin") {
                 actions.push({
                     href: "/app/compras/gestion-solicitudes.html",
                     label: "Gestión de Solicitudes a Compras",
+                    cls: "btn-primary",
+                });
+            }
+            if (user.role === "solicitante") {
+                actions.push({
+                    href: "/app/compras/nueva-solicitud.html",
+                    label: "Nueva solicitud",
+                    cls: "btn-primary",
+                });
+                actions.push({
+                    href: "/app/compras/gestion-mis-solicitudes.html",
+                    label: "Mis solicitudes",
+                    cls: "btn-secondary",
+                });
+            }
+            if (user.role === "anticipos") {
+                actions.push({
+                    href: "/app/compras/gestion-anticipo.html",
+                    label: "Gestión de anticipos",
+                    cls: "btn-primary",
+                });
+                actions.push({
+                    href: "/app/compras/solicitud-compra.html",
+                    label: "Solicitud de compra",
+                    cls: "btn-secondary",
+                });
+                actions.push({
+                    href: "/app/compras/gestion-mis-solicitudes.html",
+                    label: "Mis solicitudes",
+                    cls: "btn-secondary",
+                });
+            }
+            if (user.role === "lider_aprobador") {
+                actions.push({
+                    href: "/app/compras/gestion-aprobar-solicitudes.html",
+                    label: "Aprobar solicitudes",
                     cls: "btn-primary",
                 });
             }
@@ -125,6 +172,9 @@
                 label: "Ver contratos",
                 cls: "btn-secondary",
             });
+            if (user.role === "solicitante" || user.role === "anticipos" || user.role === "lider_aprobador") {
+                actions.pop();
+            }
             quickActions.innerHTML = actions
                 .map(
                     (a) =>

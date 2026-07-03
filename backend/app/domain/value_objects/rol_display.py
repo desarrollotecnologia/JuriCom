@@ -7,6 +7,9 @@ ROLE_LABEL: dict[Role, str] = {
     Role.ADMIN: "Administrador",
     Role.COMPRAS: "Compras",
     Role.JURIDICA: "Jurídica",
+    Role.SOLICITANTE: "Usuario Solicitante",
+    Role.ANTICIPOS: "Anticipos",
+    Role.LIDER_APROBADOR: "Líder Aprobador",
 }
 
 

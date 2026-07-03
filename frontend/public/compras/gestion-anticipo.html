@@ -15,7 +15,7 @@
                         <h1>Gestionar anticipo</h1>
                         <p class="muted">
                             Solicitudes con anticipo aprobado por el líder, listas para gestión
-                            por Compras o Admin asignado.
+                            por el equipo de Anticipos.
                         </p>
                     </div>
                     <div class="page-header-actions">
@@ -114,8 +114,14 @@
             import { initGestionAnticipo } from "/static/js/compras/gestion-anticipo.js?v=5";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin"]);
+            session.requireRole(["admin", "anticipos"]);
             renderSidebar();
+            const volver = document.querySelector(".page-header-actions .btn-secondary");
+            if (volver && session.getUser()?.role === "anticipos") {
+                volver.href = "/app/dashboard.html";
+            } else if (volver && session.getUser()?.role === "admin") {
+                volver.href = "/app/compras/gestion-solicitudes.html";
+            }
             initGestionAnticipo();
         </script>
     </body>

@@ -24,7 +24,10 @@ class GetSolicitudGestion:
         solicitud = self._solicitudes.get_by_id(solicitud_id)
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
-        if actor.is_compras() and not actor.is_admin() and solicitud.creado_por_id != actor.id:
+        if (
+            actor.ve_solo_propias_solicitudes_gestion()
+            and solicitud.creado_por_id != actor.id
+        ):
             estado = normalizar_estado(solicitud.estado)
             if es_visible_en_panel(estado) or es_pendiente_aprobacion(estado):
                 return solicitud
@@ -34,6 +37,10 @@ class GetSolicitudGestion:
                 return solicitud
             if es_estado_terminal(estado):
                 raise UnauthorizedError("No tienes permiso para ver esta solicitud.")
+            raise UnauthorizedError("No tienes permiso para ver esta solicitud.")
+        if actor.is_lider_aprobador() and not actor.is_admin():
+            if actor.solicitud_asignada_a_lider(solicitud):
+                return solicitud
             raise UnauthorizedError("No tienes permiso para ver esta solicitud.")
         return solicitud
 

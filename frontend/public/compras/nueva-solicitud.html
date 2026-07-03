@@ -76,8 +76,12 @@
             import { renderSidebar } from "/static/js/components/sidebar.js";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin"]);
+            session.requireRole(["compras", "admin", "solicitante"]);
             renderSidebar();
+            const volver = document.querySelector(".page-header .btn-secondary");
+            if (volver && session.getUser()?.role === "solicitante") {
+                volver.href = "/app/compras/gestion-mis-solicitudes.html";
+            }
         </script>
     </body>
 </html>

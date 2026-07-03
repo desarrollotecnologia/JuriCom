@@ -10,6 +10,10 @@ from app.application.interfaces.solicitud_gestion_repository import (
 
 )
 
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
+
 from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
 
     AgregarObservacionSolicitud,
@@ -54,11 +58,15 @@ class GestionarAnticipoSolicitud:
 
         storage: FileStorage | None = None,
 
+        notificador: NotificadorSolicitudGestion | None = None,
+
     ) -> None:
 
         self._solicitudes = solicitudes
 
         self._storage = storage
+
+        self._notificador = notificador
 
 
 
@@ -80,9 +88,9 @@ class GestionarAnticipoSolicitud:
 
     ) -> SolicitudGestion:
 
-        if not (actor.is_admin() or actor.is_compras()):
+        if not actor.puede_operar_anticipos():
 
-            raise UnauthorizedError("Sólo Compras o Admin pueden gestionar anticipos.")
+            raise UnauthorizedError("Sólo Anticipos o Admin pueden gestionar anticipos.")
 
 
 
@@ -107,6 +115,8 @@ class GestionarAnticipoSolicitud:
             and solicitud.gestor_anticipo_id != actor.id
 
             and not actor.is_admin()
+
+            and not actor.is_anticipos()
 
         ):
 
@@ -159,5 +169,8 @@ class GestionarAnticipoSolicitud:
             comentario_tramitada=comentario_hist,
         )
 
-        return refreshed or solicitud
+        resultado = refreshed or solicitud
+        if self._notificador:
+            self._notificador.notificar_anticipo_gestionado(resultado, actor)
+        return resultado
 

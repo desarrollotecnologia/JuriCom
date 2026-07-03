@@ -79,6 +79,9 @@
                                 <option value="admin">Administrador</option>
                                 <option value="juridica">Jurídica</option>
                                 <option value="compras">Compras</option>
+                                <option value="solicitante">Usuario Solicitante</option>
+                                <option value="anticipos">Anticipos</option>
+                                <option value="lider_aprobador">Líder Aprobador</option>
                             </select>
                         </div>
                         <div class="field" id="field-active" style="display: none;">
@@ -88,6 +91,15 @@
                                 <option value="false">Inactivo</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="field" id="field-lider-catalog" style="display: none;">
+                        <label>Líder del catálogo <span class="required">*</span></label>
+                        <select id="f-lider-catalog">
+                            <option value="">Selecciona el líder asignado...</option>
+                        </select>
+                        <span class="hint">
+                            Debe coincidir con el líder seleccionado en las solicitudes de compra.
+                        </span>
                     </div>
                     <div class="modal-actions">
                         <button type="button" class="btn btn-secondary" id="btn-cancel">
@@ -139,6 +151,7 @@
             import { renderSidebar } from "/static/js/components/sidebar.js";
             import { api, ApiError } from "/static/js/api/client.js";
             import { escapeHtml, formatDate } from "/static/js/utils/format.js";
+            import { LIDERES_COLBEEF } from "/static/js/catalogos/lideres-colbeef.js";
 
             session.requireAuth();
             session.requireRole(["admin"]);
@@ -157,7 +170,29 @@
                 admin: '<span class="badge badge-admin">Admin</span>',
                 juridica: '<span class="badge badge-juridica">Jurídica</span>',
                 compras: '<span class="badge badge-compras">Compras</span>',
+                solicitante: '<span class="badge badge-solicitante">Solicitante</span>',
+                anticipos: '<span class="badge badge-anticipos">Anticipos</span>',
+                lider_aprobador: '<span class="badge badge-lider-aprobador">Líder Aprobador</span>',
             };
+
+            const liderSelect = document.getElementById("f-lider-catalog");
+            const fieldLiderCatalog = document.getElementById("field-lider-catalog");
+            const roleSelect = document.getElementById("f-role");
+
+            liderSelect.innerHTML =
+                '<option value="">Selecciona el líder asignado...</option>' +
+                LIDERES_COLBEEF.map(
+                    (l) => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.label)}</option>`
+                ).join("");
+
+            function syncLiderCatalogField() {
+                const show = roleSelect.value === "lider_aprobador";
+                fieldLiderCatalog.style.display = show ? "flex" : "none";
+                liderSelect.required = show;
+                if (!show) liderSelect.value = "";
+            }
+
+            roleSelect.addEventListener("change", syncLiderCatalogField);
 
             function showError(msg) {
                 alertSuccess.classList.remove("show");
@@ -265,6 +300,7 @@
                 document.getElementById("field-password").style.display = "flex";
                 document.getElementById("f-password").required = true;
                 document.getElementById("field-active").style.display = "none";
+                syncLiderCatalogField();
                 modalUser.classList.add("show");
             });
 
@@ -278,10 +314,12 @@
                 document.getElementById("f-username").value = u.username;
                 document.getElementById("f-email").value = u.email || "";
                 document.getElementById("f-role").value = u.role;
+                document.getElementById("f-lider-catalog").value = u.lider_catalog_id || "";
                 document.getElementById("f-active").value = String(u.is_active);
                 document.getElementById("field-password").style.display = "none";
                 document.getElementById("f-password").required = false;
                 document.getElementById("field-active").style.display = "flex";
+                syncLiderCatalogField();
                 modalUser.classList.add("show");
             }
 
@@ -291,16 +329,29 @@
                 const username = document.getElementById("f-username").value.trim();
                 const email = document.getElementById("f-email").value.trim();
                 const role = document.getElementById("f-role").value;
+                const lider_catalog_id = document.getElementById("f-lider-catalog").value;
 
                 try {
                     if (id) {
                         const is_active =
                             document.getElementById("f-active").value === "true";
-                        await api.put(`/users/${id}`, { username, role, is_active, email });
+                        await api.put(`/users/${id}`, {
+                            username,
+                            role,
+                            is_active,
+                            email,
+                            lider_catalog_id,
+                        });
                         showSuccess("Usuario actualizado.");
                     } else {
                         const password = document.getElementById("f-password").value;
-                        await api.post("/users", { username, password, role, email });
+                        await api.post("/users", {
+                            username,
+                            password,
+                            role,
+                            email,
+                            lider_catalog_id,
+                        });
                         showSuccess("Usuario creado.");
                     }
                     modalUser.classList.remove("show");

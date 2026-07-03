@@ -97,6 +97,8 @@
                         <a
                             href="/app/compras/gestion-aprobar-solicitudes.html"
                             class="module-access-card"
+                            id="card-aprobar-solicitudes"
+                            hidden
                         >
                             <span class="module-access-label">Aprobar</span>
                             <span class="module-access-title">Aprobar solicitudes</span>
@@ -107,11 +109,13 @@
                         <a
                             href="/app/compras/gestion-anticipo.html"
                             class="module-access-card"
+                            id="card-gestion-anticipo"
+                            hidden
                         >
                             <span class="module-access-label">Anticipo</span>
                             <span class="module-access-title">Gestionar anticipo</span>
                             <span class="module-access-desc">
-                                Solicitudes con anticipo aprobado por el líder, listas para gestión de Compras.
+                                Solicitudes con anticipo aprobado, listas para gestión del equipo de Anticipos.
                             </span>
                         </a>
                         <a
@@ -136,6 +140,14 @@
             session.requireAuth();
             session.requireRole(["compras", "admin"]);
             renderSidebar();
+
+            const user = session.getUser();
+            if (user && user.role === "admin") {
+                const cardAprobar = document.getElementById("card-aprobar-solicitudes");
+                if (cardAprobar) cardAprobar.hidden = false;
+                const cardAnticipo = document.getElementById("card-gestion-anticipo");
+                if (cardAnticipo) cardAnticipo.hidden = false;
+            }
         </script>
     </body>
 </html>

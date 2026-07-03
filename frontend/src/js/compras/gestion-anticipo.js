@@ -82,15 +82,16 @@ export function initGestionAnticipo() {
     }
 
     function puedeGestionar(s) {
-        return isAdmin || !s.gestor_anticipo_id || s.gestor_anticipo_id === currentUser?.id;
+        const role = currentUser?.role ?? "";
+        if (role === "admin" || role === "anticipos") return true;
+        return !s.gestor_anticipo_id || s.gestor_anticipo_id === currentUser?.id;
     }
 
     function renderTable() {
         if (!items.length) {
             tbody.innerHTML = `<tr><td colspan="7" class="muted text-center">
                 No hay anticipos pendientes de gestión.
-                <br />Aparecen aquí después de que el líder aprueba el anticipo en
-                <a href="/app/compras/gestion-aprobar-solicitudes.html">Aprobar solicitudes</a>.
+                <br />Aparecen aquí después de que el líder aprobador o el administrador apruebe el anticipo.
             </td></tr>`;
             if (resultCount) resultCount.textContent = "0 anticipos";
             return;

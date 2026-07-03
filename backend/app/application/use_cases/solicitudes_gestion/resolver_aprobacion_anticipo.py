@@ -3,6 +3,9 @@
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
 from app.domain.entities.solicitud_gestion import SolicitudGestion
 from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
@@ -16,8 +19,13 @@ from app.domain.value_objects.estado_solicitud_gestion import (
 
 
 class ResolverAprobacionAnticipo:
-    def __init__(self, solicitudes: SolicitudGestionRepository) -> None:
+    def __init__(
+        self,
+        solicitudes: SolicitudGestionRepository,
+        notificador: NotificadorSolicitudGestion | None = None,
+    ) -> None:
         self._solicitudes = solicitudes
+        self._notificador = notificador
 
     def aprobar(
         self,
@@ -56,7 +64,10 @@ class ResolverAprobacionAnticipo:
             usuario_id=actor.id,
             comentario=detalle,
         )
-        return self._solicitudes.get_by_id(solicitud_id) or actualizada
+        resultado = self._solicitudes.get_by_id(solicitud_id) or actualizada
+        if self._notificador:
+            self._notificador.notificar_anticipo_aprobado(resultado, actor)
+        return resultado
 
     def rechazar(
         self,
@@ -92,8 +103,8 @@ class ResolverAprobacionAnticipo:
         return refreshed or actualizada
 
     def _get_pendiente(self, actor: User, solicitud_id: int) -> SolicitudGestion:
-        if not (actor.is_admin() or actor.is_compras()):
-            raise UnauthorizedError("Sólo Compras o Admin pueden aprobar anticipos.")
+        if not actor.puede_aprobar_anticipo_solicitud():
+            raise UnauthorizedError("No tienes permiso para aprobar anticipos.")
 
         solicitud = self._solicitudes.get_by_id(solicitud_id)
         if solicitud is None:
@@ -105,7 +116,17 @@ class ResolverAprobacionAnticipo:
         if not solicitud.requiere_anticipo:
             raise ValueError("Esta solicitud no tiene anticipo registrado.")
 
-        if actor.is_compras() and not actor.is_admin() and solicitud.creado_por_id == actor.id:
+        if (
+            actor.is_lider_aprobador()
+            and not actor.is_admin()
+            and solicitud.creado_por_id == actor.id
+        ):
             raise UnauthorizedError("No puedes aprobar el anticipo de tu propia solicitud.")
+
+        if actor.is_lider_aprobador() and not actor.is_admin():
+            if not actor.solicitud_asignada_a_lider(solicitud):
+                raise UnauthorizedError(
+                    "Este anticipo no está asignado a usted como líder aprobador."
+                )
 
         return solicitud

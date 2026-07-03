@@ -6,6 +6,9 @@ from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
 from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
     AgregarObservacionSolicitud,
 )
@@ -55,9 +58,11 @@ class RegistrarTramiteOcSolicitud:
         self,
         solicitudes: SolicitudGestionRepository,
         storage: FileStorage,
+        notificador: NotificadorSolicitudGestion | None = None,
     ) -> None:
         self._solicitudes = solicitudes
         self._storage = storage
+        self._notificador = notificador
 
     def execute(
         self,
@@ -212,9 +217,13 @@ class RegistrarTramiteOcSolicitud:
             )
             if actualizada is None:
                 raise RuntimeError("No se pudo recuperar la solicitud actualizada.")
+            if self._notificador:
+                self._notificador.notificar_tramite_oc(actualizada, actor)
             return actualizada
 
         actualizada = self._solicitudes.get_by_id(solicitud_id)
         if actualizada is None:
             raise RuntimeError("No se pudo recuperar la solicitud actualizada.")
+        if self._notificador:
+            self._notificador.notificar_tramite_oc(actualizada, actor)
         return actualizada

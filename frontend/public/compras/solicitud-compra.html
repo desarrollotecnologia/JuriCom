@@ -186,7 +186,7 @@
             import { initSolicitudCompraForm } from "/static/js/compras/solicitud-compra-form.js?v=2";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin"]);
+            session.requireRole(["compras", "admin", "solicitante", "anticipos"]);
             renderSidebar();
             initSolicitudCompraForm();
         </script>

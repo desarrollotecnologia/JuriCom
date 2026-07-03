@@ -1,4 +1,5 @@
 import { api, ApiError } from "../api/client.js";
+import { session } from "../auth/session.js";
 
 import { escapeHtml, formatDate } from "../utils/format.js";
 
@@ -384,12 +385,20 @@ export function initAprobarSolicitudesGestion() {
 
         try {
 
-            const [pendientes, anticipos] = await Promise.all([
-                api.get("/solicitudes-gestion/pendientes-aprobacion"),
-                api.get("/solicitudes-gestion/pendientes-aprobacion-anticipo"),
-            ]);
+            const role = session.getUser()?.role ?? "";
+            let pendientes = [];
+            let anticipos = [];
 
-            items = [...(Array.isArray(pendientes) ? pendientes : []), ...(Array.isArray(anticipos) ? anticipos : [])];
+            if (["admin", "lider_aprobador"].includes(role)) {
+                [pendientes, anticipos] = await Promise.all([
+                    api.get("/solicitudes-gestion/pendientes-aprobacion"),
+                    api.get("/solicitudes-gestion/pendientes-aprobacion-anticipo"),
+                ]);
+                pendientes = Array.isArray(pendientes) ? pendientes : [];
+                anticipos = Array.isArray(anticipos) ? anticipos : [];
+            }
+
+            items = [...pendientes, ...anticipos];
 
             renderTable();
 

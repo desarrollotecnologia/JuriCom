@@ -7,6 +7,7 @@ from app.application.interfaces.solicitud_gestion_repository import (
 )
 from app.domain.entities.solicitud_gestion import SolicitudGestion
 from app.domain.entities.user import User
+from app.domain.exceptions import UnauthorizedError
 from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
 
 
@@ -21,8 +22,11 @@ class ListarSolicitudesGestion:
         tipo: Optional[TipoSolicitudGestion] = None,
         query: Optional[str] = None,
     ) -> list[SolicitudGestion]:
+        if not actor.puede_crear_solicitudes_gestion():
+            raise UnauthorizedError("No tienes permiso para consultar solicitudes.")
+
         creador_id: Optional[int] = None
-        if actor.is_compras():
+        if actor.ve_solo_propias_solicitudes_gestion():
             creador_id = actor.id
         return self._solicitudes.list_all(
             creador_id=creador_id,

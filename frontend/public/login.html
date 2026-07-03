@@ -86,6 +86,9 @@
             function homeForRole(role) {
                 if (role === "compras") return "/app/compras/gestion-solicitudes.html";
                 if (role === "juridica") return "/app/juridica/gestion-juridica.html";
+                if (role === "solicitante") return "/app/compras/gestion-mis-solicitudes.html";
+                if (role === "anticipos") return "/app/compras/gestion-anticipo.html";
+                if (role === "lider_aprobador") return "/app/compras/gestion-aprobar-solicitudes.html";
                 return "/app/dashboard.html";
             }
 
@@ -105,6 +108,7 @@
                 submitBtn.textContent = "Ingresando...";
 
                 try {
+                    session.clear();
                     const data = await api.post("/auth/login", {
                         username: form.username.value.trim(),
                         password: form.password.value,

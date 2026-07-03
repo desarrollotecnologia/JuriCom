@@ -9,12 +9,13 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
-from app.application.interfaces.email_notifier import EmailNotifier
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
-from app.application.interfaces.user_repository import UserRepository
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
 from app.application.use_cases.solicitudes_gestion import (
     AgregarObservacionSolicitud,
     ArchivoEntradaSolicitud,
@@ -61,9 +62,8 @@ from app.infrastructure.config import settings
 from app.presentation.api.v1.dependencies import (
     get_current_user,
     get_file_storage,
-    get_email_notifier,
+    get_notificador_solicitud_gestion,
     get_solicitud_gestion_repository,
-    get_user_repository,
 )
 from app.presentation.api.v1.schemas.solicitud_gestion_schemas import (
     RechazarAnticipoBody,
@@ -477,6 +477,7 @@ async def registrar_solicitud_compra(
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
     storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     entradas: list[ArchivoEntradaSolicitud] = []
     for upload in archivos:
@@ -497,7 +498,7 @@ async def registrar_solicitud_compra(
         )
 
     try:
-        solicitud = RegistrarSolicitudCompra(repo, storage).execute(
+        solicitud = RegistrarSolicitudCompra(repo, storage, notificador).execute(
             actor=current,
             titulo=titulo,
             presupuestado=presupuestado,
@@ -534,6 +535,7 @@ async def registrar_solicitud_salidas_almacen(
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
     storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     entradas: list[ArchivoEntradaSolicitud] = []
     for upload in archivos:
@@ -554,7 +556,7 @@ async def registrar_solicitud_salidas_almacen(
         )
 
     try:
-        solicitud = RegistrarSolicitudSalidasAlmacen(repo, storage).execute(
+        solicitud = RegistrarSolicitudSalidasAlmacen(repo, storage, notificador).execute(
             actor=current,
             titulo=titulo,
             centro_costo_area=centro_costo_area,
@@ -585,6 +587,7 @@ async def aprobar_solicitud(
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
     storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     entradas: list[ArchivoEntradaSolicitud] = []
     for upload in adjuntos:
@@ -638,7 +641,7 @@ async def aprobar_solicitud(
             ) from e
 
     try:
-        solicitud = ResolverAprobacionSolicitud(repo).aprobar(
+        solicitud = ResolverAprobacionSolicitud(repo, notificador).aprobar(
             current,
             solicitud_id,
             observacion=observacion,
@@ -664,9 +667,10 @@ def rechazar_solicitud(
     body: RechazarSolicitudGestionBody,
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     try:
-        solicitud = ResolverAprobacionSolicitud(repo).rechazar(
+        solicitud = ResolverAprobacionSolicitud(repo, notificador).rechazar(
             current, solicitud_id, motivo=body.motivo
         )
     except ContratoNotFoundError as e:
@@ -687,6 +691,7 @@ async def solicitar_recotizacion_solicitud(
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
     storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     entradas: list[ArchivoEntradaSolicitud] = []
     for upload in adjuntos:
@@ -707,7 +712,7 @@ async def solicitar_recotizacion_solicitud(
         )
 
     try:
-        solicitud = SolicitarRecotizacionSolicitud(repo).execute(
+        solicitud = SolicitarRecotizacionSolicitud(repo, notificador).execute(
             current,
             solicitud_id,
             observacion=observacion,
@@ -756,6 +761,7 @@ async def enviar_cotizacion_solicitud(
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
     storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     entradas: list[ArchivoEntradaSolicitud] = []
     for upload in cotizaciones:
@@ -794,7 +800,7 @@ async def enviar_cotizacion_solicitud(
         )
 
     try:
-        solicitud = EnviarCotizacionSolicitud(repo, storage).execute(
+        solicitud = EnviarCotizacionSolicitud(repo, storage, notificador).execute(
             current,
             solicitud_id,
             nueva_observacion=nueva_observacion,
@@ -833,6 +839,7 @@ async def registrar_tramite_oc_solicitud(
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
     storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     try:
         raw_map = json.loads(productos_tramite_oc or "{}")
@@ -880,7 +887,7 @@ async def registrar_tramite_oc_solicitud(
         )
 
     try:
-        solicitud = RegistrarTramiteOcSolicitud(repo, storage).execute(
+        solicitud = RegistrarTramiteOcSolicitud(repo, storage, notificador).execute(
             current,
             solicitud_id,
             numero_tramite_oc=numero_tramite_oc,
@@ -913,9 +920,10 @@ async def aprobar_anticipo_solicitud(
     observacion_texto: str = Form(""),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     try:
-        solicitud = ResolverAprobacionAnticipo(repo).aprobar(
+        solicitud = ResolverAprobacionAnticipo(repo, notificador).aprobar(
             current,
             solicitud_id,
             observacion=observacion,
@@ -961,6 +969,7 @@ async def gestionar_anticipo_solicitud(
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
     storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
     for upload in adjuntos:
@@ -981,7 +990,7 @@ async def gestionar_anticipo_solicitud(
         )
 
     try:
-        solicitud = GestionarAnticipoSolicitud(repo, storage).execute(
+        solicitud = GestionarAnticipoSolicitud(repo, storage, notificador).execute(
             current,
             solicitud_id,
             nueva_observacion=nueva_observacion,
@@ -1006,9 +1015,8 @@ async def marcar_entrega_solicitud(
     adjuntos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
-    users: UserRepository = Depends(get_user_repository),
     storage: FileStorage = Depends(get_file_storage),
-    notifier: EmailNotifier = Depends(get_email_notifier),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> MarcarEntregaSolicitudResponse:
     adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
     for upload in adjuntos:
@@ -1030,7 +1038,7 @@ async def marcar_entrega_solicitud(
 
     try:
         solicitud, email_enviado = MarcarEntregaSolicitud(
-            repo, users, notifier, storage
+            repo, notificador, storage
         ).execute(
             current,
             solicitud_id,
@@ -1062,9 +1070,8 @@ async def cerrar_solicitud_con_pendientes(
     adjuntos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
-    users: UserRepository = Depends(get_user_repository),
     storage: FileStorage = Depends(get_file_storage),
-    notifier: EmailNotifier = Depends(get_email_notifier),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> MarcarEntregaSolicitudResponse:
     adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
     for upload in adjuntos:
@@ -1086,7 +1093,7 @@ async def cerrar_solicitud_con_pendientes(
 
     try:
         solicitud, email_enviado = CerrarSolicitudConPendientes(
-            repo, users, notifier, storage
+            repo, notificador, storage
         ).execute(
             current,
             solicitud_id,
@@ -1116,9 +1123,8 @@ async def registrar_recepcion_insumos_solicitud(
     adjuntos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
-    users: UserRepository = Depends(get_user_repository),
     storage: FileStorage = Depends(get_file_storage),
-    notifier: EmailNotifier = Depends(get_email_notifier),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> RecepcionInsumosSolicitudResponse:
     try:
         raw_map = json.loads(productos_recepcion or "{}")
@@ -1159,7 +1165,7 @@ async def registrar_recepcion_insumos_solicitud(
 
     try:
         solicitud, email_enviado, lineas = RegistrarRecepcionInsumosSolicitud(
-            repo, users, notifier, storage
+            repo, notificador, storage
         ).execute(
             current,
             solicitud_id,
@@ -1191,9 +1197,8 @@ async def registrar_entrega_parcial_solicitud(
     adjuntos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
-    users: UserRepository = Depends(get_user_repository),
     storage: FileStorage = Depends(get_file_storage),
-    notifier: EmailNotifier = Depends(get_email_notifier),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> EntregaParcialSolicitudResponse:
     try:
         raw_map = json.loads(productos_entrega or "{}")
@@ -1234,7 +1239,7 @@ async def registrar_entrega_parcial_solicitud(
 
     try:
         solicitud, email_enviado, lineas = RegistrarEntregaParcialSolicitud(
-            repo, users, notifier, storage
+            repo, notificador, storage
         ).execute(
             current,
             solicitud_id,

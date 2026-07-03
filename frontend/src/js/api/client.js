@@ -16,14 +16,6 @@ async function request(path, { method = "GET", body, isFormData = false } = {}) 
         body: isFormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
     });
 
-    if (response.status === 401) {
-        session.clear();
-        if (!window.location.pathname.endsWith("/login.html")) {
-            window.location.href = "/app/login.html";
-        }
-        throw new ApiError("Sesión expirada. Inicia sesión nuevamente.", 401);
-    }
-
     if (response.status === 204) return null;
 
     let payload = null;
@@ -31,6 +23,22 @@ async function request(path, { method = "GET", body, isFormData = false } = {}) 
         payload = await response.json();
     } catch {
         /* respuesta sin JSON */
+    }
+
+    if (response.status === 401) {
+        const isLoginRequest = path === "/auth/login";
+        const message = isLoginRequest
+            ? formatApiError(payload, 401)
+            : "Sesión expirada. Inicia sesión nuevamente.";
+
+        if (!isLoginRequest) {
+            session.clear();
+            if (!window.location.pathname.endsWith("/login.html")) {
+                window.location.href = "/app/login.html";
+            }
+        }
+
+        throw new ApiError(message, 401, payload);
     }
 
     if (!response.ok) {

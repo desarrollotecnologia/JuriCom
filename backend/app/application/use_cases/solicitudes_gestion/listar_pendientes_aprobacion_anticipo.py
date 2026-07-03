@@ -17,13 +17,16 @@ class ListarPendientesAprobacionAnticipo:
         self._solicitudes = solicitudes
 
     def execute(self, actor: User) -> list[SolicitudGestion]:
-        if not (actor.is_admin() or actor.is_compras()):
+        if not actor.puede_aprobar_anticipo_solicitud():
             raise UnauthorizedError(
-                "Sólo Compras o Admin pueden consultar anticipos pendientes de aprobación."
+                "No tienes permiso para consultar anticipos pendientes de aprobación."
             )
-        excluir_id = actor.id if actor.is_compras() and not actor.is_admin() else None
-        return self._solicitudes.list_all(
+        excluir_id = None
+        items = self._solicitudes.list_all(
             tipo=TipoSolicitudGestion.COMPRA,
             estados=ETAPAS_PENDIENTES_APROBACION_ANTICIPO,
             excluir_creador_id=excluir_id,
         )
+        if actor.is_lider_aprobador() and not actor.is_admin():
+            items = [s for s in items if actor.solicitud_asignada_a_lider(s)]
+        return items

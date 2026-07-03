@@ -373,8 +373,7 @@ export function initPanelSolicitudesGestion() {
         if (!Array.isArray(items) || !items.length) {
             tbody.innerHTML = `<tr><td colspan="6" class="muted text-center">
                 No hay solicitudes aprobadas para gestionar.
-                <br />Las solicitudes aparecen aquí después de ser aprobadas en
-                <a href="/app/compras/gestion-aprobar-solicitudes.html">Aprobar solicitudes</a>.
+                <br />Las solicitudes aparecen aquí después de ser aprobadas por el administrador o el líder aprobador.
             </td></tr>`;
             if (resultCount) resultCount.textContent = "0 solicitudes";
             return;

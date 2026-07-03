@@ -4,6 +4,9 @@ from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
 from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
     AgregarObservacionSolicitud,
 )
@@ -21,8 +24,13 @@ from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
 
 
 class SolicitarRecotizacionSolicitud:
-    def __init__(self, solicitudes: SolicitudGestionRepository) -> None:
+    def __init__(
+        self,
+        solicitudes: SolicitudGestionRepository,
+        notificador: NotificadorSolicitudGestion | None = None,
+    ) -> None:
         self._solicitudes = solicitudes
+        self._notificador = notificador
 
     def execute(
         self,
@@ -59,6 +67,9 @@ class SolicitarRecotizacionSolicitud:
             archivos=archivos or [],
         )
 
+        if self._notificador:
+            self._notificador.notificar_recotizacion(solicitud, actor)
+
         solicitud.estado = EstadoSolicitudGestion.COTIZACION
         solicitud.lider_segunda_aprobacion_id = ""
         solicitud.lider_segunda_aprobacion_label = ""
@@ -74,9 +85,9 @@ class SolicitarRecotizacionSolicitud:
         return refreshed or actualizada
 
     def _get_en_segunda_aprobacion(self, actor: User, solicitud_id: int) -> SolicitudGestion:
-        if not (actor.is_admin() or actor.is_compras()):
+        if not actor.puede_aprobar_solicitudes_gestion():
             raise UnauthorizedError(
-                "Sólo Compras o Admin pueden solicitar recotización."
+                "No tienes permiso para solicitar recotización."
             )
 
         solicitud = self._solicitudes.get_by_id(solicitud_id)
@@ -91,7 +102,17 @@ class SolicitarRecotizacionSolicitud:
                 "Sólo se puede solicitar recotización en la segunda aprobación."
             )
 
-        if actor.is_compras() and not actor.is_admin() and solicitud.creado_por_id == actor.id:
+        if (
+            actor.is_lider_aprobador()
+            and not actor.is_admin()
+            and solicitud.creado_por_id == actor.id
+        ):
             raise UnauthorizedError("No puedes gestionar la aprobación de tu propia solicitud.")
+
+        if actor.is_lider_aprobador() and not actor.is_admin():
+            if not actor.solicitud_asignada_a_lider(solicitud):
+                raise UnauthorizedError(
+                    "Esta solicitud no está asignada a usted como líder aprobador."
+                )
 
         return solicitud

@@ -14,7 +14,8 @@
                     <div>
                         <h1>Aprobar solicitudes</h1>
                         <p class="muted">
-                            Revisa y aprueba solicitudes de compra y anticipos de OC registrados por Compras.
+                            Revisa y aprueba solicitudes de compra, salidas de almacén y anticipos
+                            asignados a tu cargo (administrador o líder aprobador).
                         </p>
                     </div>
                     <div class="page-header-actions">
@@ -156,8 +157,13 @@
             import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=6";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin"]);
+            session.requireRole(["admin", "lider_aprobador"]);
             renderSidebar();
+            const volver = document.querySelector(".page-header-actions .btn-secondary");
+            const role = session.getUser()?.role;
+            if (volver && role === "lider_aprobador") {
+                volver.href = "/app/dashboard.html";
+            }
             initAprobarSolicitudesGestion();
         </script>
     </body>

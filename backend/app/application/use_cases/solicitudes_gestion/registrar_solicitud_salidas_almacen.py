@@ -7,6 +7,9 @@ from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
+from app.application.services.solicitud_gestion_notificaciones import (
+    NotificadorSolicitudGestion,
+)
 from app.application.use_cases.solicitudes_gestion.registrar_solicitud_compra import (
     ArchivoEntradaSolicitud,
 )
@@ -26,9 +29,11 @@ class RegistrarSolicitudSalidasAlmacen:
         self,
         solicitudes: SolicitudGestionRepository,
         storage: FileStorage,
+        notificador: NotificadorSolicitudGestion | None = None,
     ) -> None:
         self._solicitudes = solicitudes
         self._storage = storage
+        self._notificador = notificador
 
     def execute(
         self,
@@ -42,9 +47,9 @@ class RegistrarSolicitudSalidasAlmacen:
         productos_json: str,
         archivos: list[ArchivoEntradaSolicitud],
     ) -> SolicitudGestion:
-        if not (actor.is_compras() or actor.is_admin()):
+        if not actor.puede_crear_solicitudes_gestion():
             raise UnauthorizedError(
-                "Sólo Compras o Admin pueden registrar salidas de almacén."
+                "No tienes permiso para registrar salidas de almacén."
             )
 
         titulo = (titulo or "").strip()
@@ -153,4 +158,7 @@ class RegistrarSolicitudSalidasAlmacen:
                     self._solicitudes.link_archivos_observacion(obs.id, archivo_ids)
 
         refreshed = self._solicitudes.get_by_id(created.id)
-        return refreshed or created
+        resultado = refreshed or created
+        if self._notificador:
+            self._notificador.notificar_solicitud_creada(resultado, actor)
+        return resultado

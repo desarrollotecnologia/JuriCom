@@ -18,6 +18,7 @@ class UserPublic(BaseModel):
     username: str
     role: Role
     email: str = ""
+    lider_catalog_id: str = ""
     is_active: bool
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
