@@ -16,6 +16,7 @@ USE Juridica;
 -- UPDATE contratos SET codigo = CONCAT('JC-', LPAD(id, 4, '0')) WHERE codigo IS NULL;
 -- ALTER TABLE contratos MODIFY COLUMN codigo VARCHAR(20) NOT NULL;
 -- ALTER TABLE contratos ADD UNIQUE INDEX uq_contratos_codigo (codigo);
+-- ALTER TABLE contratos ADD COLUMN tipo_codigo VARCHAR(10) NOT NULL DEFAULT 'C' AFTER codigo;
 
 -- contratos: flujo aprobación y vigencia
 -- ALTER TABLE contratos ADD COLUMN correo_lider_proceso VARCHAR(255) NOT NULL DEFAULT '' AFTER requiere_poliza;

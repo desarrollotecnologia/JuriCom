@@ -73,6 +73,23 @@ def migrar_estado_contratos() -> None:
         )
 
 
+def migrar_tipo_codigo_contratos() -> None:
+    """Tipo de código documental: C (contrato) u OS (operación de servicio)."""
+    if not _tabla_existe("contratos"):
+        return
+    if _columna_existe("contratos", "tipo_codigo"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columna 'tipo_codigo' a contratos...")
+        conn.execute(
+            text(
+                "ALTER TABLE contratos "
+                "ADD COLUMN tipo_codigo VARCHAR(10) NOT NULL DEFAULT 'C' "
+                "AFTER codigo"
+            )
+        )
+
+
 def migrar_subido_por_archivos() -> None:
     """Agrega la columna `subido_por_id` a `archivos_contrato` si no existe."""
     if _columna_existe("archivos_contrato", "subido_por_id"):
@@ -434,6 +451,7 @@ def migrar_archivos_observacion() -> None:
 
 def run_all() -> None:
     migrar_codigo_contratos()
+    migrar_tipo_codigo_contratos()
     migrar_estado_contratos()
     migrar_subido_por_archivos()
     migrar_aprobacion_y_vigencia_contratos()

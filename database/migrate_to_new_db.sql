@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS contratos (
     id                                  INT            NOT NULL AUTO_INCREMENT,
     codigo                              VARCHAR(20)    NOT NULL,
+    tipo_codigo                         VARCHAR(10)    NOT NULL DEFAULT 'C',
     compania                            VARCHAR(150)   NOT NULL DEFAULT 'Colbeef',
     proveedor_contratista               VARCHAR(255)   NOT NULL,
     nit_proveedor                       VARCHAR(50)    NOT NULL,

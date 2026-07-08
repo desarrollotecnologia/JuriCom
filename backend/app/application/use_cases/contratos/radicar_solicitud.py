@@ -20,6 +20,7 @@ from app.domain.entities.contrato import (
     ArchivoAdjunto,
     Contrato,
     TipoArchivo,
+    normalizar_tipo_codigo,
 )
 from app.domain.entities.user import User
 from app.domain.exceptions import (
@@ -60,6 +61,7 @@ class RadicarSolicitud:
         requiere_poliza: bool,
         correo_lider_proceso: str,
         correo_gerencia: str,
+        tipo_codigo: str,
         archivos: list[ArchivoEntrada],
     ) -> Contrato:
         if not (actor.is_compras() or actor.is_admin()):
@@ -98,6 +100,7 @@ class RadicarSolicitud:
             creado_por_id=actor.id,
             correo_lider_proceso=correo_lider_proceso.strip(),
             correo_gerencia=correo_gerencia.strip(),
+            tipo_codigo=normalizar_tipo_codigo(tipo_codigo),
         )
 
         for entrada in archivos:

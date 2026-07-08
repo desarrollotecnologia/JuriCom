@@ -7,6 +7,7 @@ from typing import Optional
 
 from app.application.interfaces.email_notifier import EmailMessage, EmailNotifier
 from app.application.interfaces.user_repository import UserRepository
+from app.application.services.lideres_colbeef import email_lider_catalogo
 from app.domain.entities.solicitud_gestion import SolicitudGestion
 from app.domain.entities.user import User
 from app.domain.value_objects.estado_solicitud_gestion import EstadoSolicitudGestion
@@ -71,6 +72,9 @@ class NotificadorSolicitudGestion:
                 continue
             if (user.email or "").strip():
                 emails.append(user.email.strip())
+        catalog_email = email_lider_catalogo(lid)
+        if catalog_email:
+            emails.append(catalog_email)
         return self._dedupe(emails)
 
     def _emails_lider_catalogo(

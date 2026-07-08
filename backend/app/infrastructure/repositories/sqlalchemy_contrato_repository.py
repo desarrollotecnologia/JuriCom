@@ -11,6 +11,7 @@ from app.domain.entities.contrato import (
     Contrato,
     TipoArchivo,
     construir_codigo,
+    normalizar_tipo_codigo,
 )
 from app.domain.entities.otrosi import Otrosi
 from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
@@ -72,6 +73,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         return Contrato(
             id=model.id,
             codigo=model.codigo,
+            tipo_codigo=getattr(model, "tipo_codigo", "") or "C",
             compania=model.compania,
             proveedor_contratista=model.proveedor_contratista,
             nit_proveedor=model.nit_proveedor,
@@ -102,8 +104,10 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         )
 
     def create(self, contrato: Contrato) -> Contrato:
+        tipo_codigo = normalizar_tipo_codigo(contrato.tipo_codigo)
         model = ContratoModel(
             codigo="PENDIENTE",  # placeholder; lo asignamos tras conocer el id
+            tipo_codigo=tipo_codigo,
             compania=contrato.compania,
             proveedor_contratista=contrato.proveedor_contratista,
             nit_proveedor=contrato.nit_proveedor,
@@ -141,11 +145,31 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         )
         self._db.add(model)
         self._db.flush()
-        # Ahora ya tenemos el id autogenerado por MySQL: construimos el código.
-        model.codigo = construir_codigo(model.id)
+        model.codigo = construir_codigo(
+            self._siguiente_consecutivo_codigo(tipo_codigo),
+            tipo_codigo,
+        )
         self._db.commit()
         self._db.refresh(model)
         return self._to_entity(model)
+
+    def _siguiente_consecutivo_codigo(self, tipo_codigo: str) -> int:
+        prefix = normalizar_tipo_codigo(tipo_codigo)
+        codigos = (
+            self._db.query(ContratoModel.codigo)
+            .filter(ContratoModel.codigo.like(f"{prefix}-%"))
+            .all()
+        )
+        mayor = 0
+        for (codigo,) in codigos:
+            parte = (codigo or "").split("-", 1)
+            if len(parte) != 2 or parte[0] != prefix:
+                continue
+            try:
+                mayor = max(mayor, int(parte[1]))
+            except ValueError:
+                continue
+        return mayor + 1
 
     def update(self, contrato: Contrato) -> Contrato:
         if contrato.id is None:

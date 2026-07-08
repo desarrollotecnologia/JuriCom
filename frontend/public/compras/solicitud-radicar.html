@@ -144,6 +144,19 @@
                             </span>
                         </div>
 
+                        <div class="field">
+                            <label>
+                                Tipo de documento <span class="required">*</span>
+                            </label>
+                            <select name="tipo_codigo" required>
+                                <option value="C">Contrato (C)</option>
+                                <option value="OS">Operación de Servicio (OS)</option>
+                            </select>
+                            <span class="hint">
+                                Define el prefijo del consecutivo: C-0001 u OS-0001.
+                            </span>
+                        </div>
+
                         <div class="row-3">
                             <div class="field">
                                 <label>
@@ -447,6 +460,7 @@
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
             import { api, ApiError } from "/static/js/api/client.js";
+            import { LIDERES_COLBEEF } from "/static/js/catalogos/lideres-colbeef.js";
 
             session.requireAuth();
             session.requireRole(["compras", "admin"]);
@@ -456,19 +470,17 @@
             const inputLider = document.getElementById("correo-lider-proceso");
             const inputGerencia = document.getElementById("correo-gerencia");
 
-            const EMAIL_LIDER_DEFAULT = "coordinacion.juridica@colbeef.com";
-            const EMAIL_GERENCIA_DEFAULT = "tommyelite25@gmail.com";
-            let emailLiderInmediato = "";
+            const EMAIL_GERENCIA_DEFAULT = "gerencia.juridica@colbeef.com";
+            const EMAILS_LIDERES = Object.fromEntries(
+                LIDERES_COLBEEF.map((lider) => [lider.id, lider.email || ""])
+            );
             let emailGerencia = "";
 
             api.get("/config/aprobacion-emails")
                 .then((cfg) => {
-                    emailLiderInmediato =
-                        cfg.lider_inmediato || EMAIL_LIDER_DEFAULT;
                     emailGerencia = cfg.gerencia || EMAIL_GERENCIA_DEFAULT;
                 })
                 .catch(() => {
-                    emailLiderInmediato = EMAIL_LIDER_DEFAULT;
                     emailGerencia = EMAIL_GERENCIA_DEFAULT;
                 });
 
@@ -478,8 +490,7 @@
                     inputGerencia.value = "";
                     return;
                 }
-                const lider =
-                    emailLiderInmediato || EMAIL_LIDER_DEFAULT;
+                const lider = EMAILS_LIDERES[selectLiderJefe.value] || "";
                 const gerencia = emailGerencia || EMAIL_GERENCIA_DEFAULT;
                 inputLider.value = lider;
                 inputGerencia.value = gerencia;

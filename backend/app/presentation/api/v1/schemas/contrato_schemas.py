@@ -26,6 +26,7 @@ class ArchivoResponse(BaseModel):
 
 class ContratoBase(BaseModel):
     codigo: Optional[str] = None
+    tipo_codigo: str = "C"
     compania: str
     proveedor_contratista: str
     nit_proveedor: str
@@ -75,6 +76,7 @@ class OtrosiPendienteResponse(BaseModel):
 class ContratoListItem(BaseModel):
     id: int
     codigo: Optional[str] = None
+    tipo_codigo: str = "C"
     proveedor_contratista: str
     nit_proveedor: str
     valor: Decimal
@@ -98,6 +100,7 @@ class ContratoListItem(BaseModel):
 
 class SeguimientoContratoResponse(BaseModel):
     codigo: str
+    tipo_codigo: str = "C"
     proveedor_contratista: str
     estado_aprobacion: EstadoAprobacion
     estado: EstadoContrato

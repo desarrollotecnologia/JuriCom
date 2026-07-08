@@ -94,11 +94,12 @@ def test_tipo_archivo_obligatorios_count():
 
 
 def test_estado_contrato_y_codigo():
-    from app.domain.entities.contrato import construir_codigo
+    from app.domain.entities.contrato import construir_codigo, normalizar_tipo_codigo
     from app.domain.value_objects.estado_contrato import EstadoContrato
 
-    assert construir_codigo(1) == "JC-0001"
-    assert construir_codigo(42) == "JC-0042"
-    assert construir_codigo(12345) == "JC-12345"
+    assert construir_codigo(1) == "C-0001"
+    assert construir_codigo(42, "OS") == "OS-0042"
+    assert construir_codigo(12345, "C") == "C-12345"
+    assert normalizar_tipo_codigo("os") == "OS"
     assert set(EstadoContrato.values()) == {"en_proceso", "activo", "finalizado"}
     assert EstadoContrato.EN_PROCESO.label == "En proceso"

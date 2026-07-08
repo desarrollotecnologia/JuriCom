@@ -182,12 +182,12 @@ def main() -> None:
     contrato_id = contrato["id"]
     codigo = contrato["codigo"]
     ok(f"Contrato radicado con código {codigo} (id={contrato_id})")
-    assert codigo.startswith("JC-"), "Código no tiene formato JC-NNNN"
+    assert codigo.startswith(("C-", "OS-")), "Código no tiene formato C-NNNN u OS-NNNN"
     assert contrato["estado"] == "en_proceso", "Estado inicial debe ser en_proceso"
     assert contrato["requiere_poliza"] is True
     assert contrato["tiene_poliza"] is False
     ok(f"Estado inicial: {contrato['estado']} (correcto)")
-    ok("Validaciones OK: código JC-, estado en_proceso, póliza pendiente.")
+    ok("Validaciones OK: código C-/OS-, estado en_proceso, póliza pendiente.")
 
     section("5. BÚSQUEDA POR CÓDIGO Y POR ESTADO")
     r = requests.get(

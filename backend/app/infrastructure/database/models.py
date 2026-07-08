@@ -55,6 +55,7 @@ class ContratoModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    tipo_codigo: Mapped[str] = mapped_column(String(10), nullable=False, default="C")
     compania: Mapped[str] = mapped_column(String(150), nullable=False, default="Colbeef")
     proveedor_contratista: Mapped[str] = mapped_column(String(255), nullable=False)
     nit_proveedor: Mapped[str] = mapped_column(String(50), nullable=False, index=True)

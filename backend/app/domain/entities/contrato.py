@@ -3,7 +3,7 @@
 Representa una "Solicitud Radicar" creada por un usuario de Compras.
 La empresa siempre es Colbeef (constante de negocio).
 
-Cada contrato tiene un código único legible (ej. JC-0001) que se usa en
+Cada contrato tiene un código único legible (ej. C-0001 u OS-0001) que se usa en
 correos electrónicos y para búsquedas dentro del sistema.
 """
 
@@ -22,6 +22,9 @@ from app.domain.value_objects.unidad_plazo import UnidadPlazo
 
 COMPANIA_DEFAULT = "Colbeef"
 CODIGO_PREFIX = "JC"
+TIPO_CODIGO_CONTRATO = "C"
+TIPO_CODIGO_OPERACION_SERVICIO = "OS"
+TIPOS_CODIGO_VALIDOS = {TIPO_CODIGO_CONTRATO, TIPO_CODIGO_OPERACION_SERVICIO}
 
 # La columna `valor` es DECIMAL(18,2): admite hasta 16 dígitos enteros.
 VALOR_MAXIMO = Decimal("9999999999999999.99")
@@ -29,12 +32,20 @@ VALOR_MAXIMO = Decimal("9999999999999999.99")
 PLAZO_MAXIMO = 2_147_483_647
 
 
-def construir_codigo(numero_id: int) -> str:
+def normalizar_tipo_codigo(tipo_codigo: str) -> str:
+    tipo = (tipo_codigo or TIPO_CODIGO_CONTRATO).strip().upper()
+    if tipo not in TIPOS_CODIGO_VALIDOS:
+        raise ValueError("El tipo de código debe ser C u OS.")
+    return tipo
+
+
+def construir_codigo(numero_id: int, tipo_codigo: str = TIPO_CODIGO_CONTRATO) -> str:
     """Construye el código legible de un contrato a partir de su id.
 
-    Formato: JC-0001, JC-0042, JC-1234...
+    Formato histórico: JC-0001.
+    Formato nuevo: C-0001 u OS-0001.
     """
-    return f"{CODIGO_PREFIX}-{numero_id:04d}"
+    return f"{normalizar_tipo_codigo(tipo_codigo)}-{numero_id:04d}"
 
 
 class TipoArchivo(str, Enum):
@@ -101,6 +112,7 @@ class Contrato:
     compania: str = COMPANIA_DEFAULT
     id: Optional[int] = None
     codigo: Optional[str] = None
+    tipo_codigo: str = TIPO_CODIGO_CONTRATO
     estado_aprobacion: EstadoAprobacion = EstadoAprobacion.PENDIENTE_LIDER
     estado: EstadoContrato = EstadoContrato.EN_PROCESO
     fecha_inicio: Optional[date] = None

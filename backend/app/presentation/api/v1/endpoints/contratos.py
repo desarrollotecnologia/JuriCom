@@ -155,6 +155,7 @@ def _to_contrato_response(c) -> ContratoResponse:
     return ContratoResponse(
         id=c.id,
         codigo=c.codigo,
+        tipo_codigo=c.tipo_codigo,
         compania=c.compania,
         proveedor_contratista=c.proveedor_contratista,
         nit_proveedor=c.nit_proveedor,
@@ -189,6 +190,7 @@ def _to_list_item(c) -> ContratoListItem:
     return ContratoListItem(
         id=c.id,
         codigo=c.codigo,
+        tipo_codigo=c.tipo_codigo,
         proveedor_contratista=c.proveedor_contratista,
         nit_proveedor=c.nit_proveedor,
         valor=c.valor,
@@ -217,6 +219,10 @@ def _to_otrosi_pendiente_response(contrato, otrosi) -> OtrosiPendienteResponse:
         contrato_id=contrato.id,
         otrosi=_to_otrosi_response(otrosi),
     )
+
+
+def _emails_desde_cadena(valor: str) -> list[str]:
+    return [email.strip() for email in (valor or "").split(",") if email.strip()]
 
 
 def _validate_and_read(
@@ -250,6 +256,7 @@ def _validate_and_read(
 def radicar_solicitud(
     background_tasks: BackgroundTasks,
     proveedor_contratista: str = Form(...),
+    tipo_codigo: str = Form("C"),
     nit_proveedor: str = Form(...),
     descripcion_servicio: str = Form(...),
     obligaciones_colbeef: str = Form(...),
@@ -306,9 +313,9 @@ def radicar_solicitud(
             renovacion_automatica=renovacion_automatica,
             condiciones_recibido_satisfactorio=condiciones_recibido_satisfactorio,
             requiere_poliza=requiere_poliza,
-            # Siempre los correos del .env (líder inmediato → gerencia).
-            correo_lider_proceso=settings.LIDER_INMEDIATO_EMAIL.strip(),
-            correo_gerencia=settings.GERENCIA_EMAIL.strip(),
+            correo_lider_proceso=correo_lider_proceso.strip(),
+            correo_gerencia=correo_gerencia.strip() or settings.GERENCIA_EMAIL.strip(),
+            tipo_codigo=tipo_codigo,
             archivos=archivos,
         )
     except UnauthorizedError as e:
@@ -335,7 +342,7 @@ def radicar_solicitud(
 @router.get("", response_model=list[ContratoListItem])
 def list_contratos_endpoint(
     q: Optional[str] = Query(
-        None, description="Búsqueda por código (ej. JC-0001), proveedor o NIT."
+        None, description="Búsqueda por código (ej. C-0001 u OS-0001), proveedor o NIT."
     ),
     estado: Optional[EstadoContrato] = Query(
         None, description="Filtrar por estado del contrato."
@@ -367,7 +374,7 @@ def list_otrosies_pendientes(
 
 @router.get("/seguimiento/publico", response_model=SeguimientoContratoResponse)
 def seguimiento_publico_contrato(
-    codigo: str = Query(..., description="Código del contrato, ej. JC-0015."),
+    codigo: str = Query(..., description="Código del contrato, ej. C-0001 u OS-0001."),
     token: str = Query(..., description="Token recibido por correo."),
     contratos: ContratoRepository = Depends(get_contrato_repository),
 ) -> SeguimientoContratoResponse:
@@ -392,6 +399,7 @@ def seguimiento_publico_contrato(
         )
     return SeguimientoContratoResponse(
         codigo=contrato.codigo or "",
+        tipo_codigo=contrato.tipo_codigo,
         proveedor_contratista=contrato.proveedor_contratista,
         estado_aprobacion=contrato.estado_aprobacion,
         estado=contrato.estado,
@@ -704,7 +712,8 @@ def _html_aprobacion_ya_procesada(contrato, paso: str, detalle: str) -> HTMLResp
 
 
 def _notificar_gerencia_aprobacion(contrato, notifier: EmailNotifier) -> None:
-    if not notifier.disponible or not contrato.correo_gerencia:
+    destinatarios = _emails_desde_cadena(contrato.correo_gerencia)
+    if not notifier.disponible or not destinatarios:
         return
     from app.infrastructure.email.templates import (
         render_aprobacion_gerencia_html,
@@ -715,7 +724,7 @@ def _notificar_gerencia_aprobacion(contrato, notifier: EmailNotifier) -> None:
     notifier.send(
         EmailMessage(
             asunto=f"[JURICOM_BEEF] Aprobación Gerencia — {contrato.codigo}",
-            destinatarios=[contrato.correo_gerencia],
+            destinatarios=destinatarios,
             cuerpo_html=render_aprobacion_gerencia_html(contrato, token),
             cuerpo_texto=render_aprobacion_gerencia_texto(contrato, token),
         )
@@ -1182,7 +1191,8 @@ def _notificar_solicitud_otrosi(contrato, otrosi, current: User, notifier: Email
 
 
 def _notificar_gerencia_otrosi(contrato, otrosi, notifier: EmailNotifier) -> None:
-    if not notifier.disponible or not contrato.correo_gerencia:
+    destinatarios = _emails_desde_cadena(contrato.correo_gerencia)
+    if not notifier.disponible or not destinatarios:
         return
     from app.infrastructure.email.templates import (
         render_aprobacion_gerencia_otrosi_html,
@@ -1193,7 +1203,7 @@ def _notificar_gerencia_otrosi(contrato, otrosi, notifier: EmailNotifier) -> Non
     notifier.send(
         EmailMessage(
             asunto=f"[JURICOM_BEEF] Aprobación Gerencia otrosí — {contrato.codigo}",
-            destinatarios=[contrato.correo_gerencia],
+            destinatarios=destinatarios,
             cuerpo_html=render_aprobacion_gerencia_otrosi_html(contrato, otrosi, token),
             cuerpo_texto=render_aprobacion_gerencia_otrosi_texto(contrato, otrosi, token),
         )
