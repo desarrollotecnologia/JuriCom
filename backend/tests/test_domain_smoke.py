@@ -103,3 +103,15 @@ def test_estado_contrato_y_codigo():
     assert normalizar_tipo_codigo("os") == "OS"
     assert set(EstadoContrato.values()) == {"en_proceso", "activo", "finalizado"}
     assert EstadoContrato.EN_PROCESO.label == "En proceso"
+
+
+def test_codigo_solicitud_por_tipo():
+    from app.domain.entities.solicitud_gestion import construir_codigo_solicitud
+    from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
+
+    assert construir_codigo_solicitud(1, TipoSolicitudGestion.COMPRA) == "SG-0001"
+    assert construir_codigo_solicitud(42, TipoSolicitudGestion.SALIDAS_ALMACEN) == "SA-0042"
+    assert construir_codigo_solicitud(7, TipoSolicitudGestion.INSUMOS_SERVICIOS) == "SRV-0007"
+    assert construir_codigo_solicitud(3, "salidas_almacen") == "SA-0003"
+    # Consecutivos independientes: el #3 de compra y el #3 de salidas comparten número, no ID global.
+    assert construir_codigo_solicitud(3, TipoSolicitudGestion.COMPRA) == "SG-0003"

@@ -1,6 +1,6 @@
 """Schemas para solicitudes del módulo Gestión de Solicitudes."""
 
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Optional
 
 from pydantic import BaseModel
@@ -50,6 +50,14 @@ class SolicitudGestionHistorialEstadoResponse(BaseModel):
     created_at: Optional[datetime] = None
 
 
+class SolicitudGestionVisitaProgramadaResponse(BaseModel):
+    id: int
+    programador_visita: str
+    proveedor_visita: str
+    fecha_visita: Optional[date] = None
+    hora_visita: Optional[time] = None
+
+
 class SolicitudGestionObservacionResponse(BaseModel):
     id: int
     autor_nombre: str
@@ -64,6 +72,7 @@ class SolicitudGestionObservacionResponse(BaseModel):
 class SolicitudGestionListItem(BaseModel):
     id: int
     codigo: str
+    numero_consecutivo: Optional[int] = None
     tipo: TipoSolicitudGestion
     titulo: str
     presupuestado: Optional[bool] = None
@@ -108,6 +117,7 @@ class RechazarSolicitudGestionBody(BaseModel):
 class SolicitudGestionResponse(BaseModel):
     id: int
     codigo: str
+    numero_consecutivo: Optional[int] = None
     tipo: TipoSolicitudGestion
     titulo: str
     presupuestado: Optional[bool] = None
@@ -116,6 +126,12 @@ class SolicitudGestionResponse(BaseModel):
     lider_area_label: str
     observaciones: str
     observaciones_texto: str
+    requiere_visita: Optional[bool] = None
+    servicio_programado: Optional[bool] = None
+    fecha_servicio_programado: Optional[date] = None
+    descripcion_servicio: str = ""
+    descripcion_servicio_texto: str = ""
+    proveedor_sugerido: str = ""
     observaciones_gestion: str = ""
     justificacion_cotizaciones: str = ""
     numero_tramite_oc: str = ""
@@ -141,6 +157,7 @@ class SolicitudGestionResponse(BaseModel):
     updated_at: Optional[datetime] = None
     productos: list[SolicitudGestionProductoResponse]
     archivos: list[SolicitudGestionArchivoResponse]
+    visitas_programadas: list[SolicitudGestionVisitaProgramadaResponse] = []
     observaciones_trazabilidad: list[SolicitudGestionObservacionResponse] = []
     historial_estados: list[SolicitudGestionHistorialEstadoResponse] = []
     aprobacion_parcial: bool = False

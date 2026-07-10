@@ -5,7 +5,7 @@ entidades del dominio (`app.domain.entities`). Los repositorios se
 encargan de traducir entre estos modelos y las entidades.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional
 
@@ -19,6 +19,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    Time,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -178,6 +179,7 @@ class SolicitudGestionModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     tipo: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    numero_consecutivo: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     titulo: Mapped[str] = mapped_column(String(500), nullable=False)
     presupuestado: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     centro_costo_area: Mapped[str] = mapped_column(String(100), nullable=False, default="")
@@ -185,6 +187,12 @@ class SolicitudGestionModel(Base):
     lider_area_label: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     observaciones: Mapped[str] = mapped_column(Text, nullable=False, default="")
     observaciones_texto: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    requiere_visita: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    servicio_programado: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    fecha_servicio_programado: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    descripcion_servicio: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    descripcion_servicio_texto: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    proveedor_sugerido: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     observaciones_gestion: Mapped[str] = mapped_column(Text, nullable=False, default="")
     justificacion_cotizaciones: Mapped[str] = mapped_column(Text, nullable=False, default="")
     numero_tramite_oc: Mapped[str] = mapped_column(String(100), nullable=False, default="")
@@ -235,6 +243,12 @@ class SolicitudGestionModel(Base):
         "SolicitudGestionArchivoModel",
         back_populates="solicitud",
         cascade="all, delete-orphan",
+    )
+    visitas_programadas: Mapped[list["SolicitudGestionVisitaProgramadaModel"]] = relationship(
+        "SolicitudGestionVisitaProgramadaModel",
+        back_populates="solicitud",
+        cascade="all, delete-orphan",
+        order_by="SolicitudGestionVisitaProgramadaModel.id",
     )
     observaciones_trazabilidad: Mapped[list["SolicitudGestionObservacionModel"]] = relationship(
         "SolicitudGestionObservacionModel",
@@ -375,4 +389,27 @@ class SolicitudGestionObservacionModel(Base):
         "SolicitudGestionArchivoModel",
         back_populates="observacion",
         order_by="SolicitudGestionArchivoModel.created_at",
+    )
+
+
+class SolicitudGestionVisitaProgramadaModel(Base):
+    __tablename__ = "solicitudes_gestion_visitas_programadas"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    solicitud_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("solicitudes_gestion.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    programador_visita: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    proveedor_visita: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    fecha_visita: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    hora_visita: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    solicitud: Mapped["SolicitudGestionModel"] = relationship(
+        "SolicitudGestionModel", back_populates="visitas_programadas"
     )

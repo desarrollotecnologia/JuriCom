@@ -13,10 +13,15 @@ import {
     normalizarEstado,
     renderDetalleSolicitudHtml,
     renderPanelGestionHtml,
+    renderPanelGestionServiciosHtml,
+    renderPanelGestionServiciosPostAprobacionHtml,
+    esGestionServiciosPostAprobacion,
     renderPanelTramiteOcHtml,
+    renderVisitaProgramadaRowHtml,
     renderFacturasHistorialHtml,
     esGestionEntrega,
     esSolicitudSalidasAlmacen,
+    esSolicitudServicios,
     esEstadoRecepcion,
     esEstadoEntregaSolicitante,
     solicitudEntregaCompleta,
@@ -27,7 +32,7 @@ import {
     solicitudPuedeCerrarConPendientes,
     solicitudTieneOcRegistrada,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=22";
+} from "./gestion-solicitudes-common.js?v=25";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -54,7 +59,7 @@ function puedeGestionar(solicitud, userId, isAdmin = false) {
     if (estado === "tramitando_oc") {
         return esGestorAsignado(solicitud, userId, isAdmin);
     }
-    if (estado === "cotizacion" || estado === "items_en_camino" || estado === "recepcion_insumos" || estado === "tramitada_oc" || estado === "entregado_parcial") {
+    if (estado === "cotizacion" || estado === "gestionando_servicio" || estado === "items_en_camino" || estado === "recepcion_insumos" || estado === "tramitada_oc" || estado === "entregado_parcial") {
         return esGestorAsignado(solicitud, userId, isAdmin);
     }
     return false;
@@ -120,6 +125,8 @@ export function initPanelSolicitudesGestion() {
     const detailTitle = document.getElementById("panel-detail-title");
     const btnClose = document.getElementById("btn-panel-detail-close");
     const btnEnviar = document.getElementById("btn-panel-enviar-aprobacion");
+    const btnGuardarGestionServicios = document.getElementById("btn-panel-guardar-gestion-servicios");
+    const btnSolicitarAnticipoServicios = document.getElementById("btn-panel-solicitar-anticipo-servicios");
     const btnGuardarTramite = document.getElementById("btn-panel-guardar-tramite-oc");
     const btnEntregado = document.getElementById("btn-panel-entregado");
     const btnEntregadoParcial = document.getElementById("btn-panel-entregado-parcial");
@@ -502,6 +509,8 @@ export function initPanelSolicitudesGestion() {
         modoGestion = false;
         modalActionsGestion?.setAttribute("hidden", "");
         setModalBtnHidden(btnEnviar, false);
+        setModalBtnHidden(btnGuardarGestionServicios, true);
+        setModalBtnHidden(btnSolicitarAnticipoServicios, true);
         setModalBtnHidden(btnGuardarTramite, true);
         setModalBtnHidden(btnEntregado, true);
         setModalBtnHidden(btnEntregadoParcial, true);
@@ -556,6 +565,132 @@ export function initPanelSolicitudesGestion() {
         });
 
         refreshCotizacionesUI();
+    }
+
+    function programarVisitaSeleccionado() {
+        return (
+            document.querySelector('input[name="programar_visita"]:checked')?.value === "si"
+        );
+    }
+
+    function syncProgramarVisitaUI() {
+        const wrap = document.getElementById("sg-visitas-programadas-wrap");
+        const list = document.getElementById("sg-visitas-programadas-list");
+        const programar = programarVisitaSeleccionado();
+        if (wrap) wrap.hidden = !programar;
+        if (programar && list && !list.querySelector("[data-visita-row]")) {
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = renderVisitaProgramadaRowHtml({});
+            const row = wrapper.firstElementChild;
+            if (row) list.appendChild(row);
+        }
+    }
+
+    function bindVisitasFormEvents() {
+        const list = document.getElementById("sg-visitas-programadas-list");
+        const btnAdd = document.getElementById("btn-agregar-visita-programada");
+        if (!list) return;
+
+        document.querySelectorAll('input[name="programar_visita"]').forEach((radio) => {
+            radio.addEventListener("change", syncProgramarVisitaUI);
+        });
+        syncProgramarVisitaUI();
+
+        btnAdd?.addEventListener("click", () => {
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = renderVisitaProgramadaRowHtml({});
+            const row = wrapper.firstElementChild;
+            if (row) list.appendChild(row);
+        });
+
+        list.addEventListener("click", (e) => {
+            const btn = e.target.closest(".btn-quitar-visita");
+            if (!btn) return;
+            const rows = list.querySelectorAll("[data-visita-row]");
+            if (rows.length <= 1) {
+                showError("Debe quedar al menos una fila de visita.");
+                return;
+            }
+            btn.closest("[data-visita-row]")?.remove();
+        });
+    }
+
+    function adjuntarCotizacionesSeleccionado() {
+        return (
+            document.querySelector('input[name="adjuntar_cotizaciones"]:checked')?.value === "si"
+        );
+    }
+
+    function syncGestionServiciosAccionesUI() {
+        if (!modoGestion || !esSolicitudServicios(selectedSolicitud)) return;
+        if (esGestionServiciosPostAprobacion(selectedSolicitud.estado)) {
+            setModalBtnHidden(btnGuardarGestionServicios, true);
+            setModalBtnHidden(btnEnviar, true);
+            setModalBtnHidden(btnSolicitarAnticipoServicios, false);
+            return;
+        }
+        const adjuntar = adjuntarCotizacionesSeleccionado();
+        setModalBtnHidden(btnGuardarGestionServicios, adjuntar);
+        setModalBtnHidden(btnEnviar, !adjuntar);
+        setModalBtnHidden(btnSolicitarAnticipoServicios, true);
+    }
+
+    function syncAdjuntarCotizacionesUI() {
+        const wrap = document.getElementById("sg-cotizaciones-gestion-wrap");
+        const adjuntar = adjuntarCotizacionesSeleccionado();
+        if (wrap) wrap.hidden = !adjuntar;
+        const liderSelect = document.getElementById("gestion-lider-aprobacion");
+        if (liderSelect) liderSelect.required = adjuntar;
+        syncGestionServiciosAccionesUI();
+    }
+
+    function bindGestionServiciosCotizacionesEvents() {
+        const group = document.getElementById("sg-adjuntar-cotizaciones-group");
+        if (!group) return;
+
+        document.querySelectorAll('input[name="adjuntar_cotizaciones"]').forEach((radio) => {
+            radio.addEventListener("change", syncAdjuntarCotizacionesUI);
+        });
+        syncAdjuntarCotizacionesUI();
+    }
+
+    function validarVisitasProgramadas() {
+        if (!programarVisitaSeleccionado()) return true;
+        const visitas = collectVisitasProgramadas();
+        if (!visitas.length) {
+            showError("Registra al menos una visita con proveedor y fecha.");
+            return false;
+        }
+        for (let i = 0; i < visitas.length; i += 1) {
+            const v = visitas[i];
+            if (!v.proveedor_visita || !v.fecha_visita) {
+                showError(
+                    `Visita ${i + 1}: indica proveedor y fecha, o elimina la fila vacía.`
+                );
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function collectVisitasProgramadas() {
+        if (!programarVisitaSeleccionado()) return [];
+        const list = document.getElementById("sg-visitas-programadas-list");
+        if (!list) return [];
+        const visitas = [];
+        list.querySelectorAll("[data-visita-row]").forEach((row) => {
+            const proveedor = row.querySelector(".sg-visita-proveedor")?.value.trim() || "";
+            const fecha = row.querySelector(".sg-visita-fecha")?.value.trim() || "";
+            const hora = row.querySelector(".sg-visita-hora")?.value.trim() || "";
+            if (!proveedor && !fecha && !hora) return;
+            visitas.push({
+                programador_visita: "",
+                proveedor_visita: proveedor,
+                fecha_visita: fecha || null,
+                hora_visita: hora || null,
+            });
+        });
+        return visitas;
     }
 
     function updateCotizacionSlotUI(input) {
@@ -646,9 +781,11 @@ export function initPanelSolicitudesGestion() {
             selectedSolicitud = s;
             const estado = normalizarEstado(s.estado);
             const esLogistica = esGestionEntrega(estado) && estado !== "tramitada_oc";
+            const esServiciosGestion =
+                esSolicitudServicios(s) && esGestionServiciosPostAprobacion(estado);
             const puedeActuar = puedeGestionar(s, currentUser?.id, isAdmin);
 
-            if (esLogistica && puedeActuar) {
+            if ((esLogistica && puedeActuar) || (esServiciosGestion && puedeActuar)) {
                 await abrirGestion(s);
                 return;
             }
@@ -822,8 +959,19 @@ export function initPanelSolicitudesGestion() {
 
     function updateAccionesGestionModal(esEntrega) {
         setModalBtnHidden(btnEnviar, esEntrega);
+        setModalBtnHidden(btnGuardarGestionServicios, true);
+        setModalBtnHidden(btnSolicitarAnticipoServicios, true);
         if (esEntrega) {
             updateAccionesEntrega();
+        } else if (modoGestion && esSolicitudServicios(selectedSolicitud)) {
+            syncGestionServiciosAccionesUI();
+            setModalBtnHidden(btnGuardarTramite, true);
+            setModalBtnHidden(btnEntregado, true);
+            setModalBtnHidden(btnEntregadoParcial, true);
+            setModalBtnHidden(btnCerrarPendientes, true);
+            setModalBtnHidden(btnConfirmarEntregaParcial, true);
+            setModalBtnHidden(btnRegistrarRecepcion, true);
+            setModalBtnHidden(btnConfirmarRecepcion, true);
         } else {
             setModalBtnHidden(btnGuardarTramite, true);
             setModalBtnHidden(btnEntregado, true);
@@ -1048,13 +1196,26 @@ export function initPanelSolicitudesGestion() {
                     : `Entrega · ${solicitud.codigo}`
             : esSolicitudSalidasAlmacen(solicitud)
               ? `Gestionar salida · ${solicitud.codigo}`
-              : `Gestionar · ${solicitud.codigo}`;
+              : esSolicitudServicios(solicitud)
+                ? `Gestionar servicio · ${solicitud.codigo}`
+                : `Gestionar · ${solicitud.codigo}`;
         detailContent.innerHTML = esEntrega
             ? renderPanelTramiteOcHtml(solicitud)
-            : renderPanelGestionHtml(
-                  solicitud,
-                  buildLideresOptions(solicitud.lider_segunda_aprobacion_id || "")
-              );
+            : esSolicitudServicios(solicitud) &&
+                esGestionServiciosPostAprobacion(estado)
+              ? renderPanelGestionServiciosPostAprobacionHtml(
+                    solicitud,
+                    buildLideresOptions(solicitud.lider_anticipo_id || "")
+                )
+              : esSolicitudServicios(solicitud)
+              ? renderPanelGestionServiciosHtml(
+                    solicitud,
+                    buildLideresOptions(solicitud.lider_segunda_aprobacion_id || "")
+                )
+              : renderPanelGestionHtml(
+                    solicitud,
+                    buildLideresOptions(solicitud.lider_segunda_aprobacion_id || "")
+                );
         modalActionsGestion?.removeAttribute("hidden");
         updateAccionesGestionModal(esEntrega);
         btnClose?.removeAttribute("hidden");
@@ -1064,6 +1225,14 @@ export function initPanelSolicitudesGestion() {
             }
         } else {
             bindGestionFormEvents();
+            if (esSolicitudServicios(solicitud)) {
+                if (!esGestionServiciosPostAprobacion(estado)) {
+                    bindVisitasFormEvents();
+                    bindGestionServiciosCotizacionesEvents();
+                } else {
+                    syncGestionServiciosAccionesUI();
+                }
+            }
         }
         initObservacionesEditor();
         await hydrateInlineObservacionImages(detailContent, solicitud.id);
@@ -1110,6 +1279,8 @@ export function initPanelSolicitudesGestion() {
                 showSuccess(`Gestión logística — ${solicitud.codigo}`);
             } else if (estado === "cotizacion") {
                 showSuccess(`Solicitud ${solicitud.codigo} en estado Cotización.`);
+            } else if (estado === "gestionando_servicio") {
+                showSuccess(`Gestión del servicio — ${solicitud.codigo}`);
             } else {
                 showSuccess(`Solicitud ${solicitud.codigo} lista para gestionar.`);
             }
@@ -1335,8 +1506,149 @@ export function initPanelSolicitudesGestion() {
         }
     }
 
+    function validarAnticipoServicioForm() {
+        const valor = document.getElementById("gestion-valor-servicio")?.value.trim() ?? "";
+        const pct = document.getElementById("gestion-porcentaje-anticipo")?.value.trim() ?? "";
+        const liderId = document.getElementById("gestion-lider-anticipo")?.value ?? "";
+        const valorNum = Number(valor);
+        const pctNum = Number(pct);
+        if (!valor || Number.isNaN(valorNum) || valorNum <= 0) {
+            showError("Indica el valor del servicio.");
+            return false;
+        }
+        if (!pct || Number.isNaN(pctNum) || pctNum <= 0 || pctNum > 100) {
+            showError("Indica un porcentaje de anticipo válido (0.01 – 100).");
+            return false;
+        }
+        if (!liderId) {
+            showError("Selecciona el líder aprobador del anticipo.");
+            return false;
+        }
+        return true;
+    }
+
+    async function solicitarAnticipoServicios() {
+        if (!selectedSolicitud || !modoGestion || !esSolicitudServicios(selectedSolicitud)) return;
+        if (!esGestionServiciosPostAprobacion(selectedSolicitud.estado)) return;
+
+        observacionControl?.editor.syncHidden();
+        const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
+        const nuevaObsTexto = observacionControl?.editor.getText() ?? "";
+        if (!validarAnticipoServicioForm()) return;
+
+        const valor = document.getElementById("gestion-valor-servicio")?.value.trim() ?? "";
+        const pct = document.getElementById("gestion-porcentaje-anticipo")?.value.trim() ?? "";
+        const liderSelect = document.getElementById("gestion-lider-anticipo");
+        const liderId = liderSelect?.value ?? "";
+        const liderLabel = liderSelect?.selectedOptions?.[0]?.dataset?.label ?? "";
+        const obs = document.getElementById("gestion-observaciones-anticipo")?.value.trim() ?? "";
+
+        if (
+            !confirm(
+                "¿Enviar la solicitud de anticipo a aprobación del líder? Aparecerá en Aprobar solicitudes."
+            )
+        ) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("valor_servicio", valor);
+        formData.append("porcentaje_anticipo", pct);
+        formData.append("lider_anticipo_id", liderId);
+        formData.append("lider_anticipo_label", liderLabel);
+        formData.append("observaciones_anticipo", obs);
+        formData.append("nueva_observacion", nuevaObsHtml);
+        formData.append("nueva_observacion_texto", nuevaObsTexto);
+        (observacionControl?.getFiles() ?? []).forEach((file) =>
+            formData.append("adjuntos", file)
+        );
+
+        btnSolicitarAnticipoServicios.disabled = true;
+        btnSolicitarAnticipoServicios.textContent = "Enviando...";
+
+        try {
+            const solicitud = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/solicitar-anticipo-servicios`,
+                formData
+            );
+            showSuccess(
+                `Anticipo de ${solicitud.codigo} enviado a aprobación. El líder lo verá en Aprobar solicitudes.`
+            );
+            closeModal();
+            await load();
+        } catch (err) {
+            showError(
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo solicitar el anticipo del servicio."
+            );
+        } finally {
+            btnSolicitarAnticipoServicios.disabled = false;
+            btnSolicitarAnticipoServicios.textContent = "Solicitar anticipo";
+        }
+    }
+
+    async function guardarGestionServicios() {
+        if (!selectedSolicitud || !modoGestion || !esSolicitudServicios(selectedSolicitud)) return;
+        if (adjuntarCotizacionesSeleccionado()) return;
+
+        observacionControl?.editor.syncHidden();
+        const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
+        const nuevaObsTexto = observacionControl?.editor.getText() ?? "";
+
+        if (!validarVisitasProgramadas()) return;
+
+        if (
+            !confirm(
+                "¿Guardar la programación de visitas? La solicitud seguirá en Cotización hasta que adjuntes cotizaciones y envíes a aprobación."
+            )
+        ) {
+            return;
+        }
+
+        const visitas = programarVisitaSeleccionado() ? collectVisitasProgramadas() : [];
+        const formData = new FormData();
+        formData.append("nueva_observacion", nuevaObsHtml);
+        formData.append("nueva_observacion_texto", nuevaObsTexto);
+        formData.append("visitas_json", JSON.stringify(visitas));
+        (observacionControl?.getFiles() ?? []).forEach((file) =>
+            formData.append("adjuntos", file)
+        );
+
+        btnGuardarGestionServicios.disabled = true;
+        btnGuardarGestionServicios.textContent = "Guardando...";
+
+        try {
+            const solicitud = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/guardar-gestion-servicios`,
+                formData
+            );
+            showSuccess(
+                `Programación guardada en ${solicitud.codigo}. La solicitud sigue en Cotización.`
+            );
+            closeModal();
+            await load();
+        } catch (err) {
+            showError(
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo guardar la programación de visitas."
+            );
+        } finally {
+            btnGuardarGestionServicios.disabled = false;
+            btnGuardarGestionServicios.textContent = "Guardar programación";
+        }
+    }
+
     async function enviarParaAprobacion() {
         if (!selectedSolicitud || !modoGestion) return;
+
+        if (esSolicitudServicios(selectedSolicitud) && !adjuntarCotizacionesSeleccionado()) {
+            showError(
+                'Selecciona «Sí» en adjuntar cotizaciones para enviar a aprobación, o usa «Guardar programación».'
+            );
+            return;
+        }
 
         observacionControl?.editor.syncHidden();
         const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
@@ -1360,6 +1672,14 @@ export function initPanelSolicitudesGestion() {
             return;
         }
 
+        const visitas =
+            esSolicitudServicios(selectedSolicitud) && programarVisitaSeleccionado()
+                ? collectVisitasProgramadas()
+                : [];
+        if (esSolicitudServicios(selectedSolicitud) && !validarVisitasProgramadas()) {
+            return;
+        }
+
         if (
             !confirm(
                 "¿Confirmas el envío de la solicitud a segunda aprobación (En Aprobación)?"
@@ -1374,6 +1694,7 @@ export function initPanelSolicitudesGestion() {
         formData.append("justificacion", justificacion);
         formData.append("lider_segunda_aprobacion_id", liderId);
         formData.append("lider_segunda_aprobacion_label", liderLabel);
+        formData.append("visitas_json", JSON.stringify(visitas));
         nuevos.forEach((file) => formData.append("cotizaciones", file));
         (observacionControl?.getFiles() ?? []).forEach((file) =>
             formData.append("adjuntos", file)
@@ -1412,6 +1733,8 @@ export function initPanelSolicitudesGestion() {
 
     btnClose?.addEventListener("click", closeModal);
     btnEnviar?.addEventListener("click", enviarParaAprobacion);
+    btnGuardarGestionServicios?.addEventListener("click", guardarGestionServicios);
+    btnSolicitarAnticipoServicios?.addEventListener("click", solicitarAnticipoServicios);
     btnGuardarTramite?.addEventListener("click", guardarTramiteOc);
     btnEntregado?.addEventListener("click", marcarEntregaTotal);
     btnEntregadoParcial?.addEventListener("click", abrirFormularioEntregaParcial);

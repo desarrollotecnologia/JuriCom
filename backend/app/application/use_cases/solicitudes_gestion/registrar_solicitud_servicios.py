@@ -1,9 +1,6 @@
-"""Registra una solicitud de compra con productos y archivos adjuntos."""
+"""Registra una solicitud de servicios con adjuntos."""
 
-import json
-from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
-from typing import Optional
+from datetime import date
 
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
@@ -12,29 +9,20 @@ from app.application.interfaces.solicitud_gestion_repository import (
 from app.application.services.solicitud_gestion_notificaciones import (
     NotificadorSolicitudGestion,
 )
+from app.application.use_cases.solicitudes_gestion.registrar_solicitud_compra import (
+    ArchivoEntradaSolicitud,
+)
 from app.domain.entities.solicitud_gestion import (
     SolicitudGestion,
     SolicitudGestionArchivo,
-    SolicitudGestionProducto,
 )
 from app.domain.entities.user import User
 from app.domain.exceptions import UnauthorizedError
-from app.domain.value_objects.estado_solicitud_gestion import (
-    EstadoSolicitudGestion,
-    ETAPAS_PENDIENTES_APROBACION,
-)
+from app.domain.value_objects.estado_solicitud_gestion import EstadoSolicitudGestion
 from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
 
 
-@dataclass
-class ArchivoEntradaSolicitud:
-    nombre_original: str
-    mime_type: str
-    contenido: bytes
-    categoria: str = "solicitud"
-
-
-class RegistrarSolicitudCompra:
+class RegistrarSolicitudServicios:
     def __init__(
         self,
         solicitudes: SolicitudGestionRepository,
@@ -49,73 +37,60 @@ class RegistrarSolicitudCompra:
         self,
         actor: User,
         titulo: str,
-        presupuestado: bool,
+        requiere_visita: bool,
+        servicio_programado: bool,
+        fecha_servicio_programado: date | None,
+        descripcion_servicio: str,
+        descripcion_servicio_texto: str,
+        proveedor_sugerido: str,
         centro_costo_area: str,
         lider_area_id: str,
         lider_area_label: str,
         observaciones: str,
         observaciones_texto: str,
-        productos_json: str,
-        archivos: list[ArchivoEntradaSolicitud],
+        archivos_detalle: list[ArchivoEntradaSolicitud],
+        archivo_ficha_tecnica: ArchivoEntradaSolicitud | None,
+        archivo_hoja_vida: ArchivoEntradaSolicitud | None,
+        archivos_observaciones: list[ArchivoEntradaSolicitud],
     ) -> SolicitudGestion:
         if not actor.puede_crear_solicitudes_gestion():
             raise UnauthorizedError(
-                "No tienes permiso para registrar solicitudes de compra."
+                "No tienes permiso para registrar solicitudes de servicios."
             )
 
         titulo = (titulo or "").strip()
         if not titulo:
-            raise ValueError("El título o asunto de la solicitud es obligatorio.")
+            raise ValueError("El título o asunto del servicio es obligatorio.")
         if not centro_costo_area:
-            raise ValueError("El centro de costo es obligatorio.")
+            raise ValueError("El centro de costo del área solicitante es obligatorio.")
         if not lider_area_id:
-            raise ValueError("Debes seleccionar un líder de área.")
+            raise ValueError("Debes seleccionar un líder aprobador.")
 
-        try:
-            productos_raw = json.loads(productos_json or "[]")
-        except json.JSONDecodeError as e:
-            raise ValueError("El detalle de productos no es válido.") from e
+        descripcion_texto = (descripcion_servicio_texto or "").strip()
+        descripcion_html = (descripcion_servicio or "").strip()
+        if not descripcion_texto and not descripcion_html:
+            raise ValueError("La descripción del servicio es obligatoria.")
 
-        if not isinstance(productos_raw, list) or not productos_raw:
-            raise ValueError("Debes agregar al menos un producto.")
-
-        productos: list[SolicitudGestionProducto] = []
-        for i, item in enumerate(productos_raw, start=1):
-            if not isinstance(item, dict):
-                raise ValueError(f"Producto {i}: formato inválido.")
-            descripcion = str(item.get("descripcion") or "").strip()
-            if not descripcion:
-                raise ValueError(f"Producto {i}: la descripción es obligatoria.")
-            unidad = str(item.get("unidad") or "").strip()
-            centro = str(item.get("centro_costo") or "").strip()
-            if not unidad:
-                raise ValueError(f"Producto {i}: la unidad es obligatoria.")
-            if not centro:
-                raise ValueError(f"Producto {i}: el centro de costo es obligatorio.")
-            cantidad_raw = item.get("cantidad", 1)
-            try:
-                cantidad = Decimal(str(cantidad_raw).replace(",", ".").strip() or "1")
-            except (InvalidOperation, ValueError) as e:
-                raise ValueError(f"Producto {i}: cantidad inválida.") from e
-            if cantidad <= 0:
-                raise ValueError(f"Producto {i}: la cantidad debe ser mayor a cero.")
-            productos.append(
-                SolicitudGestionProducto(
-                    codigo_siimed=str(item.get("codigo_siimed") or "").strip(),
-                    unidad=unidad,
-                    descripcion=descripcion,
-                    centro_costo=centro,
-                    cantidad=cantidad,
-                )
+        if servicio_programado and fecha_servicio_programado is None:
+            raise ValueError(
+                "Debes indicar la fecha cuando el servicio está programado."
             )
 
         solicitud = SolicitudGestion(
-            tipo=TipoSolicitudGestion.COMPRA,
+            tipo=TipoSolicitudGestion.INSUMOS_SERVICIOS,
             titulo=titulo,
-            presupuestado=presupuestado,
+            presupuestado=None,
             centro_costo_area=centro_costo_area.strip(),
             lider_area_id=str(lider_area_id).strip(),
             lider_area_label=(lider_area_label or "").strip(),
+            requiere_visita=requiere_visita,
+            servicio_programado=servicio_programado,
+            fecha_servicio_programado=fecha_servicio_programado
+            if servicio_programado
+            else None,
+            descripcion_servicio=descripcion_html,
+            descripcion_servicio_texto=descripcion_texto,
+            proveedor_sugerido=(proveedor_sugerido or "").strip(),
             observaciones=observaciones or "",
             observaciones_texto=(observaciones_texto or "").strip(),
             creado_por_id=actor.id,
@@ -123,7 +98,15 @@ class RegistrarSolicitudCompra:
             estado=EstadoSolicitudGestion.SOLICITUD,
         )
 
-        for entrada in archivos:
+        entradas: list[ArchivoEntradaSolicitud] = []
+        entradas.extend(archivos_detalle)
+        if archivo_ficha_tecnica:
+            entradas.append(archivo_ficha_tecnica)
+        if archivo_hoja_vida:
+            entradas.append(archivo_hoja_vida)
+        entradas.extend(archivos_observaciones)
+
+        for entrada in entradas:
             stored = self._storage.save(
                 contenido=entrada.contenido,
                 nombre_original=entrada.nombre_original,
@@ -136,16 +119,16 @@ class RegistrarSolicitudCompra:
                     ruta_almacenamiento=stored.ruta,
                     mime_type=stored.mime_type,
                     tamano_bytes=stored.tamano_bytes,
+                    categoria=entrada.categoria or "solicitud",
                     subido_por_id=actor.id,
                 )
             )
 
-        solicitud.productos = productos
         created = self._solicitudes.create(solicitud)
 
         tiene_obs = (observaciones_texto or "").strip() or (observaciones or "").strip()
-        tiene_archivos = bool(archivos)
-        if tiene_obs or tiene_archivos:
+        tiene_archivos_obs = bool(archivos_observaciones)
+        if tiene_obs or tiene_archivos_obs:
             from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
                 AgregarObservacionSolicitud,
             )
@@ -157,13 +140,15 @@ class RegistrarSolicitudCompra:
                 contenido_texto=observaciones_texto or "",
                 contexto_rol="solicitante",
             )
-            if tiene_archivos:
+            if tiene_archivos_obs:
                 refreshed = self._solicitudes.get_by_id(created.id)
                 if refreshed:
                     archivo_ids = [
                         a.id
                         for a in refreshed.archivos
-                        if a.id and not a.observacion_id and a.categoria == "solicitud"
+                        if a.id
+                        and not a.observacion_id
+                        and a.categoria == "solicitud"
                     ]
                     self._solicitudes.link_archivos_observacion(obs.id, archivo_ids)
 

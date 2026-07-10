@@ -22,11 +22,16 @@ class ListarPendientesAprobacionAnticipo:
                 "No tienes permiso para consultar anticipos pendientes de aprobación."
             )
         excluir_id = None
-        items = self._solicitudes.list_all(
-            tipo=TipoSolicitudGestion.COMPRA,
-            estados=ETAPAS_PENDIENTES_APROBACION_ANTICIPO,
-            excluir_creador_id=excluir_id,
-        )
+        tipos = (TipoSolicitudGestion.COMPRA, TipoSolicitudGestion.INSUMOS_SERVICIOS)
+        items: list[SolicitudGestion] = []
+        for tipo in tipos:
+            items.extend(
+                self._solicitudes.list_all(
+                    tipo=tipo,
+                    estados=ETAPAS_PENDIENTES_APROBACION_ANTICIPO,
+                    excluir_creador_id=excluir_id,
+                )
+            )
         if actor.is_lider_aprobador() and not actor.is_admin():
             items = [s for s in items if actor.solicitud_asignada_a_lider(s)]
         return items

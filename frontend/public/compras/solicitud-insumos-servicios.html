@@ -3,8 +3,8 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Solicitud de Insumos/Servicios · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <title>Solicitud de Servicios · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css?v=11" />
     </head>
     <body>
         <div class="app-shell">
@@ -12,30 +12,213 @@
             <main class="main">
                 <div class="page-header">
                     <div>
-                        <h1>Solicitud de Insumos/Servicios</h1>
-                        <p class="muted">Formulario de solicitud de insumos o servicios.</p>
+                        <h1>Solicitud de Servicios</h1>
+                        <p class="muted">
+                            Completa los datos generales, el detalle del servicio y las observaciones.
+                        </p>
                     </div>
-                    <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
-                        Volver
-                    </a>
+                    <div class="page-header-actions">
+                        <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
+                            Volver
+                        </a>
+                    </div>
                 </div>
 
-                <div class="card">
-                    <p class="muted">
-                        Este formulario se encuentra en construcción. Próximamente podrás
-                        radicar solicitudes de insumos y servicios desde aquí.
-                    </p>
-                </div>
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <form id="form-solicitud-servicios" class="card" novalidate>
+                    <div class="form-section">
+                        <h3>1. Datos generales</h3>
+
+                        <div class="field">
+                            <label for="titulo">
+                                Título o Asunto del Servicio
+                                <span class="required">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="titulo"
+                                name="titulo"
+                                required
+                                placeholder="Ej. Mantenimiento preventivo equipo de frío — Planta 2"
+                            />
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Requiere visita <span class="required">*</span></label>
+                                <div class="radio-group">
+                                    <label class="radio-option">
+                                        <input
+                                            type="radio"
+                                            name="requiere_visita"
+                                            value="si"
+                                            required
+                                        />
+                                        Sí
+                                    </label>
+                                    <label class="radio-option">
+                                        <input type="radio" name="requiere_visita" value="no" />
+                                        No
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="field field-programado">
+                                <label>
+                                    Servicio programado <span class="required">*</span>
+                                </label>
+                                <div class="programado-row">
+                                    <div class="radio-group">
+                                        <label class="radio-option">
+                                            <input
+                                                type="radio"
+                                                name="servicio_programado"
+                                                value="si"
+                                                required
+                                            />
+                                            Sí
+                                        </label>
+                                        <label class="radio-option">
+                                            <input
+                                                type="radio"
+                                                name="servicio_programado"
+                                                value="no"
+                                            />
+                                            No
+                                        </label>
+                                    </div>
+                                    <div class="programado-fecha" id="fecha-programada-wrap" hidden>
+                                        <label
+                                            class="programado-fecha-label"
+                                            for="fecha-servicio-programado"
+                                        >
+                                            Fecha
+                                            <span class="required">*</span>
+                                        </label>
+                                        <input
+                                            type="date"
+                                            id="fecha-servicio-programado"
+                                            name="fecha_servicio_programado"
+                                            class="input-date-compact"
+                                            title="Fecha del servicio programado"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label for="centro-costo-area">
+                                    Centro de Costo (Área Solicitante)
+                                    <span class="required">*</span>
+                                </label>
+                                <select
+                                    id="centro-costo-area"
+                                    name="centro_costo_area"
+                                    required
+                                ></select>
+                            </div>
+                            <div class="field">
+                                <label for="lider-area-input">
+                                    Líder de Área (Aprobador)
+                                    <span class="required">*</span>
+                                </label>
+                                <div id="lider-area-select"></div>
+                                <span class="hint">
+                                    Escribe para filtrar. Lista Líderes Colbeef 2026.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>2. Detalle del servicio</h3>
+
+                        <div class="field sg-observacion-field">
+                            <label for="descripcion-servicio-editor">
+                                Descripción del servicio
+                                <span class="required">*</span>
+                            </label>
+                            <div id="descripcion-servicio-editor"></div>
+                            <input
+                                type="file"
+                                id="descripcion-servicio-files"
+                                multiple
+                                hidden
+                            />
+                            <ul class="file-list" id="descripcion-servicio-file-list" hidden></ul>
+                            <span class="hint" id="hint-descripcion-servicio"></span>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label for="archivo-ficha-tecnica">
+                                    Ficha técnica / características del equipo
+                                </label>
+                                <input
+                                    type="file"
+                                    id="archivo-ficha-tecnica"
+                                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xlsx,.xls"
+                                />
+                                <p class="muted file-picker-name" id="archivo-ficha-tecnica-name"></p>
+                            </div>
+                            <div class="field">
+                                <label for="archivo-hoja-vida">Hoja de vida del equipo</label>
+                                <input
+                                    type="file"
+                                    id="archivo-hoja-vida"
+                                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xlsx,.xls"
+                                />
+                                <p class="muted file-picker-name" id="archivo-hoja-vida-name"></p>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label for="proveedor-sugerido">Proveedor sugerido</label>
+                            <textarea
+                                id="proveedor-sugerido"
+                                name="proveedor_sugerido"
+                                rows="3"
+                                placeholder="Nombre, contacto o referencia del proveedor sugerido (opcional)"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>3. Observaciones y adjuntos</h3>
+
+                        <div class="field sg-observacion-field">
+                            <label for="observaciones-editor">Observaciones</label>
+                            <div id="observaciones-editor"></div>
+                            <input type="file" id="file-input" multiple hidden />
+                            <ul class="file-list" id="file-list" hidden></ul>
+                            <span class="hint" id="hint-observaciones"></span>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="btn-submit">
+                            Enviar Solicitud
+                        </button>
+                    </div>
+                </form>
             </main>
         </div>
 
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { initSolicitudServiciosForm } from "/static/js/compras/solicitud-servicios-form.js?v=1";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante"]);
             renderSidebar();
+            initSolicitudServiciosForm();
         </script>
     </body>
 </html>

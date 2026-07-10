@@ -40,6 +40,29 @@ export function formatDate(iso) {
     });
 }
 
+/** Fecha calendario sin hora (evita desfase UTC en valores YYYY-MM-DD). */
+export function formatDateOnly(iso) {
+    if (!iso) return "";
+    const raw = String(iso).trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        const [, year, month, day] = match;
+        const d = new Date(Number(year), Number(month) - 1, Number(day));
+        return d.toLocaleDateString("es-CO", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        });
+    }
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("es-CO", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    });
+}
+
 export function formatFileSize(bytes) {
     const n = Number(bytes);
     if (!n) return "—";

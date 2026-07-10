@@ -16,8 +16,9 @@ import {
     normalizarEstado,
 
     renderDetalleSolicitudHtml,
+    esSolicitudServicios,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=18";
+} from "./gestion-solicitudes-common.js?v=22";
 
 
 
@@ -297,7 +298,7 @@ export function initAprobarSolicitudesGestion() {
 
             tbody.innerHTML = `<tr><td colspan="7" class="muted text-center">
 
-                No hay solicitudes de compra pendientes de aprobación.
+                No hay solicitudes pendientes de aprobación.
 
             </td></tr>`;
 
@@ -487,12 +488,13 @@ export function initAprobarSolicitudesGestion() {
 
 
             const isPrimera = esPrimeraAprobacion(s.estado);
+            const esServicios = esSolicitudServicios(s);
 
             detailContent.innerHTML =
                 renderDetalleSolicitudHtml(s, {
                 showAprobacionParcialAlert: false,
 
-                productosOptions: isPrimera
+                productosOptions: isPrimera && !esServicios
 
                     ? {
 
@@ -509,13 +511,13 @@ export function initAprobarSolicitudesGestion() {
                       }
 
                     : {
-                          showEstado: Boolean(s.aprobacion_parcial),
+                          showEstado: Boolean(s.aprobacion_parcial) && !esServicios,
                           cantidadEditable: false,
                       },
 
             }) ;
 
-            if (isPrimera) {
+            if (isPrimera && !esServicios) {
                 primeraPanel?.removeAttribute("hidden");
                 syncTipoAprobacionUI();
             } else {
@@ -586,6 +588,7 @@ export function initAprobarSolicitudesGestion() {
 
         const isPrimera = esPrimeraAprobacion(selectedEstado || "solicitud");
         const isAnticipo = esAprobacionAnticipo(selectedEstado || "solicitud");
+        const esServicios = esSolicitudServicios(selectedSolicitud);
 
 
 
@@ -595,7 +598,7 @@ export function initAprobarSolicitudesGestion() {
 
 
 
-        if (isPrimera && esDesdeModal) {
+        if (isPrimera && esDesdeModal && !esServicios) {
 
             tipoAprobacion =
 
@@ -621,13 +624,14 @@ export function initAprobarSolicitudesGestion() {
 
 
 
+        const tipoLabel = TIPO_LABEL[selectedSolicitud?.tipo] || "solicitud";
         const confirmMsg =
 
             isPrimera && tipoAprobacion === "parcial"
 
                 ? `¿Confirmas la aprobación parcial de ${productosAprobados.length} ítem(s)? Los no seleccionados quedarán como no aprobados.`
 
-                : `¿Confirmas la ${etiqueta.toLowerCase()} de esta solicitud de compra?`;
+                : `¿Confirmas la ${etiqueta.toLowerCase()} de esta ${tipoLabel.toLowerCase()}?`;
 
 
 

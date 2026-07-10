@@ -41,6 +41,14 @@ class GestionarSolicitudPanel:
                 return self._solicitudes.update(solicitud)
             return solicitud
 
+        if estado == EstadoSolicitudGestion.GESTIONANDO_SERVICIO:
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+                raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
+            if not solicitud.gestor_id:
+                solicitud.gestor_id = actor.id
+                return self._solicitudes.update(solicitud)
+            return solicitud
+
         if estado == EstadoSolicitudGestion.TRAMITANDO_OC:
             if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
@@ -78,8 +86,8 @@ class GestionarSolicitudPanel:
         if estado != EstadoSolicitudGestion.PRIMERA_APROBACION:
             raise ValueError(
                 "Sólo se pueden gestionar solicitudes en Primera Aprobación, Cotización, "
-                "Tramitando OC, Ítems en camino, Recepción de Insumos, Tramitada OC "
-                "o Entrega parcial realizada."
+                "Gestionando servicio, Tramitando OC, Ítems en camino, Recepción de Insumos, "
+                "Tramitada OC o Entrega parcial realizada."
             )
 
         if solicitud.gestor_id and solicitud.gestor_id != actor.id and not actor.is_admin():

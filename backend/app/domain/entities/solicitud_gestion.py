@@ -1,7 +1,7 @@
-"""Solicitud del módulo Gestión de Solicitudes (compra, salidas de almacén, insumos)."""
+"""Solicitud del módulo Gestión de Solicitudes (compra, salidas de almacén, servicios)."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional
 
@@ -12,8 +12,22 @@ from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
 CODIGO_PREFIX = "SG"
 
 
-def construir_codigo_solicitud(numero_id: int) -> str:
-    return f"{CODIGO_PREFIX}-{numero_id:04d}"
+def construir_codigo_solicitud(
+    numero_consecutivo: int, tipo: TipoSolicitudGestion | str = TipoSolicitudGestion.COMPRA
+) -> str:
+    if isinstance(tipo, str):
+        tipo = TipoSolicitudGestion(tipo)
+    return f"{tipo.codigo_prefix}-{numero_consecutivo:04d}"
+
+
+@dataclass
+class SolicitudGestionVisitaProgramada:
+    programador_visita: str
+    proveedor_visita: str
+    id: Optional[int] = None
+    solicitud_id: Optional[int] = None
+    fecha_visita: Optional[date] = None
+    hora_visita: Optional[time] = None
 
 
 @dataclass
@@ -151,6 +165,12 @@ class SolicitudGestion:
     presupuestado: Optional[bool] = None
     observaciones: str = ""
     observaciones_texto: str = ""
+    requiere_visita: Optional[bool] = None
+    servicio_programado: Optional[bool] = None
+    fecha_servicio_programado: Optional[date] = None
+    descripcion_servicio: str = ""
+    descripcion_servicio_texto: str = ""
+    proveedor_sugerido: str = ""
     observaciones_gestion: str = ""
     justificacion_cotizaciones: str = ""
     numero_tramite_oc: str = ""
@@ -171,11 +191,13 @@ class SolicitudGestion:
     factura_registrada_por_id: Optional[int] = None
     id: Optional[int] = None
     codigo: Optional[str] = None
+    numero_consecutivo: Optional[int] = None
     estado: EstadoSolicitudGestion = EstadoSolicitudGestion.SOLICITUD
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     productos: list[SolicitudGestionProducto] = field(default_factory=list)
     archivos: list[SolicitudGestionArchivo] = field(default_factory=list)
+    visitas_programadas: list[SolicitudGestionVisitaProgramada] = field(default_factory=list)
     observaciones_trazabilidad: list[SolicitudGestionObservacion] = field(default_factory=list)
 
     @property

@@ -25,6 +25,7 @@ class ListarPendientesAprobacion:
         for tipo in (
             TipoSolicitudGestion.COMPRA,
             TipoSolicitudGestion.SALIDAS_ALMACEN,
+            TipoSolicitudGestion.INSUMOS_SERVICIOS,
         ):
             items.extend(
                 self._solicitudes.list_all(

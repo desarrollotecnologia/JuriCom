@@ -154,6 +154,25 @@ class GestionarAnticipoSolicitud:
 
         solicitud.gestor_id = actor.id
 
+        from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_servicios
+
+        if es_flujo_servicios(solicitud.tipo):
+            comentario_hist = "Anticipo gestionado — continúa gestión del servicio"
+            if nota_texto:
+                comentario_hist = f"Anticipo gestionado — {nota_texto[:500]}"
+            solicitud.estado = EstadoSolicitudGestion.GESTIONANDO_SERVICIO
+            self._solicitudes.update(solicitud)
+            self._solicitudes.registrar_historial(
+                solicitud_id,
+                EstadoSolicitudGestion.GESTIONANDO_SERVICIO,
+                usuario_id=actor.id,
+                comentario=comentario_hist,
+            )
+            resultado = self._solicitudes.get_by_id(solicitud_id) or solicitud
+            if self._notificador:
+                self._notificador.notificar_anticipo_gestionado(resultado, actor)
+            return resultado
+
         comentario_hist = "Anticipo gestionado — solicitud continúa en Tramitada OC"
 
         if nota_texto:

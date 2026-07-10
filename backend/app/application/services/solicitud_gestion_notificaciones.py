@@ -448,6 +448,44 @@ class NotificadorSolicitudGestion:
                 destinatarios=compras,
             )
 
+    def notificar_anticipo_solicitado(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        codigo = solicitud.codigo or ""
+        lideres = self._emails_lider_catalogo(
+            solicitud.lider_anticipo_id,
+            exclude_user_id=actor.id,
+        )
+        compras = self._emails_rol(Role.COMPRAS, exclude_user_id=actor.id)
+
+        if lideres:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo pendiente de aprobación",
+                titulo="Aprobación de anticipo",
+                mensaje=(
+                    f"Hay un anticipo pendiente de aprobación para la solicitud "
+                    f"<strong>{codigo}</strong>."
+                ),
+                url=self._url_aprobar(),
+                boton="Aprobar solicitudes",
+                destinatarios=lideres,
+            )
+        if compras:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo enviado a aprobación",
+                titulo="Anticipo en aprobación",
+                mensaje=(
+                    f"Se solicitó aprobación de anticipo para <strong>{codigo}</strong>."
+                ),
+                url=self._url_panel(),
+                boton="Panel de solicitudes",
+                destinatarios=compras,
+            )
+
     def notificar_anticipo_aprobado(
         self,
         solicitud: SolicitudGestion,
