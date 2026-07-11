@@ -66,6 +66,9 @@ class SolicitarAnticipoServiciosSolicitud:
         if normalizar_estado(solicitud.estado) != EstadoSolicitudGestion.GESTIONANDO_SERVICIO:
             raise ValueError("La solicitud debe estar en estado Gestionando servicio.")
 
+        if solicitud.anticipo_gestionado:
+            raise ValueError("El anticipo de este servicio ya fue gestionado.")
+
         if solicitud.gestor_id != actor.id and not actor.is_admin():
             raise UnauthorizedError("Sólo el gestor asignado puede solicitar el anticipo.")
 

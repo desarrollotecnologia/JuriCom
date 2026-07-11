@@ -213,6 +213,7 @@ class SolicitudGestionModel(Base):
     gestor_anticipo_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    anticipo_gestionado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     factura_registrada_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     factura_registrada_por_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True

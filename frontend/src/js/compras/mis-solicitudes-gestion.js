@@ -7,10 +7,11 @@ import {
     badgeTipo,
     hydrateInlineObservacionImages,
     puedeComentarPosteriorCotizacion,
+    puedeEnviarEvidenciaCierreServicio,
     renderAgregarComentarioHtml,
     renderDetalleSolicitudHtml,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=21";
+} from "./gestion-solicitudes-common.js?v=26";
 
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
@@ -152,7 +153,9 @@ export function initMisSolicitudesGestion({ esAdmin }) {
     }
 
     function renderDetalleConComentario(s) {
-        const puedeComentar = puedeComentarPosteriorCotizacion(s.estado);
+        const puedeEvidencia = puedeEnviarEvidenciaCierreServicio(s.estado, s);
+        const puedeComentar =
+            puedeEvidencia || puedeComentarPosteriorCotizacion(s.estado);
         const detalle = renderDetalleSolicitudHtml(s, {
             productosOptions: {
                 resaltarNoAprobados: true,
@@ -169,11 +172,19 @@ export function initMisSolicitudesGestion({ esAdmin }) {
                 fileInputId: COMENTARIO_FILE_INPUT_ID,
                 fileListId: COMENTARIO_FILE_LIST_ID,
                 btnId: COMENTARIO_BTN_ID,
-                title: "Comentario sobre la cotización",
-                label: "Nuevo comentario",
+                title: puedeEvidencia
+                    ? "Evidencia y observación de cierre"
+                    : "Comentario sobre la cotización",
+                label: puedeEvidencia ? "Evidencia y comentario de cierre" : "Nuevo comentario",
                 showIntro: true,
                 showHint: true,
                 showSaveButton: true,
+                introHtml: puedeEvidencia
+                    ? `<p class="muted sg-detail-panel-hint">
+                        El gestor solicitó evidencia para cerrar el servicio. Adjunta archivos
+                        (facturas, actas, fotos, etc.) y describe la observación de cierre.
+                    </p>`
+                    : "",
             })
         );
     }
@@ -224,8 +235,12 @@ export function initMisSolicitudesGestion({ esAdmin }) {
                 `/solicitudes-gestion/${selectedSolicitudId}/observaciones`,
                 formData
             );
-            showSuccess("Comentario registrado en el historial de la solicitud.");
             const s = await api.get(`/solicitudes-gestion/${selectedSolicitudId}`);
+            showSuccess(
+                puedeEnviarEvidenciaCierreServicio(s.estado, s)
+                    ? "Evidencia y observación de cierre registradas."
+                    : "Comentario registrado en el historial de la solicitud."
+            );
             detailContent.innerHTML = renderDetalleConComentario(s);
             initObservacionEditor();
             await hydrateInlineObservacionImages(detailContent, s.id);

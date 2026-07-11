@@ -37,6 +37,7 @@ from .registrar_solicitud_servicios import RegistrarSolicitudServicios
 
 from .cerrar_solicitud_con_pendientes import CerrarSolicitudConPendientes
 
+from .cerrar_servicio_solicitud import CerrarServicioSolicitud
 from .marcar_entrega_solicitud import MarcarEntregaSolicitud
 
 from .registrar_entrega_parcial_solicitud import RegistrarEntregaParcialSolicitud
@@ -50,6 +51,10 @@ from .resolver_aprobacion_anticipo import ResolverAprobacionAnticipo
 from .resolver_aprobacion_solicitud import ResolverAprobacionSolicitud
 
 from .solicitar_anticipo_servicios_solicitud import SolicitarAnticipoServiciosSolicitud
+
+from .notificar_evidencia_cierre_servicios_solicitud import (
+    NotificarEvidenciaCierreServiciosSolicitud,
+)
 
 from .solicitar_recotizacion_solicitud import SolicitarRecotizacionSolicitud
 
@@ -97,6 +102,8 @@ __all__ = [
 
 
 
+    "CerrarServicioSolicitud",
+
     "CerrarSolicitudConPendientes",
 
     "MarcarEntregaSolicitud",
@@ -130,6 +137,8 @@ __all__ = [
 
 
     "SolicitarAnticipoServiciosSolicitud",
+
+    "NotificarEvidenciaCierreServiciosSolicitud",
 
     "SolicitarRecotizacionSolicitud",
 

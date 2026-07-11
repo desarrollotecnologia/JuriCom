@@ -491,6 +491,18 @@ table.clickable-rows tbody tr[data-id]:focus {
     display: block;
 }
 
+/* Alertas visibles por encima de modales (detalle, gestión, aprobación) */
+.main > .alert.show {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100;
+    width: min(560px, calc(100vw - 2rem));
+    margin-bottom: 0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+
 .alert-error {
     background: #fee2e2;
     color: #991b1b;

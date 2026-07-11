@@ -138,6 +138,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones_anticipo=getattr(model, "observaciones_anticipo", "") or "",
             gestor_anticipo_id=getattr(model, "gestor_anticipo_id", None),
             gestor_anticipo_username=gestor_anticipo_username,
+            anticipo_gestionado=bool(getattr(model, "anticipo_gestionado", False)),
             factura_registrada_at=getattr(model, "factura_registrada_at", None),
             factura_registrada_por_id=getattr(model, "factura_registrada_por_id", None),
             gestor_id=getattr(model, "gestor_id", None),
@@ -376,6 +377,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model.monto_anticipo = solicitud.monto_anticipo
         model.observaciones_anticipo = solicitud.observaciones_anticipo or ""
         model.gestor_anticipo_id = solicitud.gestor_anticipo_id
+        model.anticipo_gestionado = bool(solicitud.anticipo_gestionado)
         model.factura_registrada_at = solicitud.factura_registrada_at
         model.factura_registrada_por_id = solicitud.factura_registrada_por_id
         model.gestor_id = solicitud.gestor_id

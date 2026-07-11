@@ -49,6 +49,11 @@ class GestionarSolicitudPanel:
                 return self._solicitudes.update(solicitud)
             return solicitud
 
+        if estado == EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE:
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+                raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
+            return solicitud
+
         if estado == EstadoSolicitudGestion.TRAMITANDO_OC:
             if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")

@@ -187,6 +187,7 @@ class SolicitudGestion:
     observaciones_anticipo: str = ""
     gestor_anticipo_id: Optional[int] = None
     gestor_anticipo_username: str = ""
+    anticipo_gestionado: bool = False
     factura_registrada_at: Optional[datetime] = None
     factura_registrada_por_id: Optional[int] = None
     id: Optional[int] = None

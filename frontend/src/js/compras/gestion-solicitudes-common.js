@@ -34,6 +34,7 @@ export const ESTADO_LABEL = {
     cotizacion: "Cotización",
     en_aprobacion: "En Aprobación",
     gestionando_servicio: "Gestionando servicio",
+    pendiente_evidencia_cierre: "Pendiente evidencia cierre",
     tramitada_oc: "Tramitada OC",
     items_en_camino: "Ítems en camino",
     recepcion_insumos: "Recepción de Insumos",
@@ -55,6 +56,7 @@ export const ESTADO_BADGE = {
     cotizacion: "badge-sg-aprobacion",
     en_aprobacion: "badge-sg-aprobacion",
     gestionando_servicio: "badge-sg-aprobacion",
+    pendiente_evidencia_cierre: "badge-sg-aprobacion",
     tramitada_oc: "badge-sg-aprobado",
     items_en_camino: "badge-sg-aprobacion",
     recepcion_insumos: "badge-sg-aprobado",
@@ -80,10 +82,89 @@ const ESTADOS_COMENTARIO_COTIZACION = new Set([
     "tramitando_oc",
     "entregado_parcial",
     "entregado",
+    "pendiente_evidencia_cierre",
 ]);
 
 export function puedeComentarPosteriorCotizacion(estado) {
     return ESTADOS_COMENTARIO_COTIZACION.has(normalizarEstado(estado));
+}
+
+export function puedeEnviarEvidenciaCierreServicio(estado, solicitud) {
+    return (
+        esSolicitudServicios(solicitud) &&
+        normalizarEstado(estado) === "pendiente_evidencia_cierre"
+    );
+}
+
+function fechaNotificacionEvidenciaCierre(solicitud) {
+    const historial = [...(solicitud.historial_estados || [])].sort(
+        (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    );
+    let maxFecha = null;
+    for (const h of historial) {
+        if (normalizarEstado(h.etapa) !== "pendiente_evidencia_cierre") continue;
+        if (!h.created_at) continue;
+        const d = new Date(h.created_at);
+        if (!maxFecha || d > maxFecha) maxFecha = d;
+    }
+    return maxFecha;
+}
+
+export function obtenerEvidenciaSolicitanteCierre(solicitud) {
+    const corte = fechaNotificacionEvidenciaCierre(solicitud);
+    if (!corte) return [];
+    const porObs = archivosPorObservacion(solicitud);
+    return [...(solicitud.observaciones_trazabilidad || [])]
+        .filter((o) => {
+            const rol = (o.autor_rol || "").toLowerCase();
+            if (!rol.includes("solicitante")) return false;
+            if (!o.created_at) return false;
+            return new Date(o.created_at) >= corte;
+        })
+        .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+        .map((item) => ({
+            ...item,
+            archivos:
+                item.archivos?.length > 0 ? item.archivos : porObs.get(item.id) || [],
+        }));
+}
+
+export function tieneEvidenciaSolicitanteCierre(solicitud) {
+    return obtenerEvidenciaSolicitanteCierre(solicitud).length > 0;
+}
+
+function renderEvidenciaSolicitanteCierreHtml(solicitud) {
+    const items = obtenerEvidenciaSolicitanteCierre(solicitud);
+    if (!items.length) return "";
+
+    const lista = items
+        .map((item) => {
+            const etiqueta = escapeHtml(
+                item.autor_etiqueta ||
+                    `${item.autor_nombre || "Usuario"} (${item.autor_rol || ""})`
+            );
+            const fecha = formatObservacionFecha(item.created_at);
+            const adjuntos = renderObservacionArchivosHtml(solicitud.id, item.archivos);
+            return `
+                <li class="sg-obs-timeline-item">
+                    <p class="sg-obs-timeline-meta">
+                        <span class="sg-obs-timeline-fecha">[${escapeHtml(fecha)}]</span>
+                        <strong>${etiqueta}:</strong>
+                    </p>
+                    <div class="sg-obs-timeline-content sg-observaciones-readonly">${item.contenido || ""}</div>
+                    ${adjuntos}
+                </li>`;
+        })
+        .join("");
+
+    return `
+        <div class="sg-detail-panel sg-evidencia-cierre-panel">
+            <h3 class="sg-detail-panel-title">Evidencia del solicitante</h3>
+            <p class="muted sg-detail-panel-hint">
+                Revisa la evidencia adjunta. Si es correcta, confirma el cierre del servicio.
+            </p>
+            <ul class="sg-obs-timeline">${lista}</ul>
+        </div>`;
 }
 
 export function normalizarEstado(estado) {
@@ -516,6 +597,7 @@ export function renderAgregarComentarioHtml({
     title = "Agregar comentario",
     label = "Nuevo comentario",
     showIntro = true,
+    introHtml = "",
     showHint = true,
     showSaveButton = true,
 } = {}) {
@@ -523,11 +605,13 @@ export function renderAgregarComentarioHtml({
         <div class="sg-detail-panel sg-obs-nuevo-comentario-panel">
             <h3 class="sg-detail-panel-title">${escapeHtml(title)}</h3>
             ${
-                showIntro
-                    ? `<p class="muted sg-detail-panel-hint">
+                introHtml
+                    ? introHtml
+                    : showIntro
+                      ? `<p class="muted sg-detail-panel-hint">
                 El comentario se añadirá al historial sin modificar entradas anteriores.
             </p>`
-                    : ""
+                      : ""
             }
             ${renderObservacionAdjuntosFieldHtml({
                 editorContainerId,
@@ -1020,6 +1104,68 @@ export function esGestionServiciosPostAprobacion(estado) {
     return normalizarEstado(estado) === "gestionando_servicio";
 }
 
+export function anticipoServicioGestionado(s) {
+    return Boolean(s?.anticipo_gestionado);
+}
+
+export function esGestionServiciosSolicitarAnticipo(s) {
+    return (
+        esSolicitudServicios(s) &&
+        esGestionServiciosPostAprobacion(s.estado) &&
+        !anticipoServicioGestionado(s)
+    );
+}
+
+export function esGestionServiciosContinuacionPostAnticipo(s) {
+    const estado = normalizarEstado(s?.estado);
+    return (
+        esSolicitudServicios(s) &&
+        ((estado === "gestionando_servicio" && anticipoServicioGestionado(s)) ||
+            estado === "pendiente_evidencia_cierre")
+    );
+}
+
+export function esGestionServiciosPanelActivo(s) {
+    const estado = normalizarEstado(s?.estado);
+    return (
+        esSolicitudServicios(s) &&
+        (esGestionServiciosPostAprobacion(estado) || estado === "pendiente_evidencia_cierre")
+    );
+}
+
+export function renderPanelServiciosPostAnticipoGestionadoHtml(s) {
+    const esperandoEvidencia =
+        normalizarEstado(s.estado) === "pendiente_evidencia_cierre";
+    const evidenciaHtml = esperandoEvidencia ? renderEvidenciaSolicitanteCierreHtml(s) : "";
+    const conEvidencia = tieneEvidenciaSolicitanteCierre(s);
+
+    let hintHtml;
+    if (esperandoEvidencia && conEvidencia) {
+        hintHtml = `<p class="muted sg-detail-panel-hint">
+            El solicitante registró evidencia de cierre. Revísala y confirma el cierre del servicio.
+        </p>`;
+    } else if (esperandoEvidencia) {
+        hintHtml = `<p class="muted sg-detail-panel-hint">
+            El solicitante fue notificado para adjuntar evidencia y observación de cierre.
+            La solicitud quedará en este estado hasta que responda desde
+            <strong>Mis solicitudes</strong>.
+        </p>`;
+    } else {
+        hintHtml = `<p class="muted sg-detail-panel-hint">
+            El anticipo ya fue gestionado. Registra tu observación y notifica al solicitante
+            para que adjunte evidencia y comentario de cierre.
+        </p>`;
+    }
+
+    return `
+        <div class="sg-detail-panel sg-gestion-form-panel sg-servicio-post-anticipo-panel">
+            <h3 class="sg-detail-panel-title">Continuar gestión del servicio</h3>
+            ${hintHtml}
+            ${evidenciaHtml}
+            ${renderAnticipoDetalleHtml(s)}
+        </div>`;
+}
+
 export function renderAnticipoServicioGestionHtml(s, lideresOptionsHtml = "") {
     const valor =
         s.valor_tramite_oc !== null && s.valor_tramite_oc !== undefined
@@ -1096,6 +1242,9 @@ export function renderAnticipoServicioGestionHtml(s, lideresOptionsHtml = "") {
 
 export function renderPanelGestionServiciosPostAprobacionHtml(s, lideresOptionsHtml) {
     const cotizaciones = (s.archivos || []).filter((a) => a.categoria === "cotizacion");
+    const panelGestion = esGestionServiciosContinuacionPostAnticipo(s)
+        ? renderPanelServiciosPostAnticipoGestionadoHtml(s)
+        : renderAnticipoServicioGestionHtml(s, lideresOptionsHtml);
 
     return `
         <div class="sg-detail-layout">
@@ -1129,7 +1278,7 @@ export function renderPanelGestionServiciosPostAprobacionHtml(s, lideresOptionsH
                 label: "Comentario",
             })}
 
-            ${renderAnticipoServicioGestionHtml(s, lideresOptionsHtml)}
+            ${panelGestion}
         </div>`;
 }
 

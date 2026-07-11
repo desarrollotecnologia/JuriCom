@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Aprobar solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=5" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=6" />
     </head>
     <body>
         <div class="app-shell">
@@ -14,8 +14,8 @@
                     <div>
                         <h1>Aprobar solicitudes</h1>
                         <p class="muted">
-                            Revisa y aprueba solicitudes de compra, salidas de almacén y anticipos
-                            asignados a tu cargo (administrador o líder aprobador).
+                            Revisa y aprueba solicitudes de compra, servicios, salidas de almacén
+                            y anticipos asignados a tu cargo (administrador o líder aprobador).
                         </p>
                     </div>
                     <div class="page-header-actions">
@@ -32,7 +32,7 @@
                 <div class="alert alert-success" id="alert-success"></div>
 
                 <div class="card">
-                    <h2 class="card-title">Solicitudes de compra y anticipos pendientes</h2>
+                    <h2 class="card-title">Solicitudes y anticipos pendientes de aprobación</h2>
 
                     <div class="search-bar">
                         <input
@@ -154,7 +154,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=7";
+            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=8";
 
             session.requireAuth();
             session.requireRole(["admin", "lider_aprobador"]);

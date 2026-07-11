@@ -647,6 +647,43 @@ def run_all() -> None:
     migrar_campos_solicitud_servicios()
     migrar_numero_consecutivo_solicitudes()
     migrar_visitas_programadas_servicios()
+    migrar_anticipo_gestionado_servicios()
+
+
+def migrar_anticipo_gestionado_servicios() -> None:
+    """Marca anticipo gestionado y habilita cierre con evidencia en servicios."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    if not _columna_existe("solicitudes_gestion", "anticipo_gestionado"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'anticipo_gestionado' a solicitudes_gestion...")
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE solicitudes_gestion
+                    ADD COLUMN anticipo_gestionado TINYINT(1) NOT NULL DEFAULT 0
+                    AFTER gestor_anticipo_id
+                    """
+                )
+            )
+    if not _tabla_existe("solicitudes_gestion_historial_estados"):
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE solicitudes_gestion sg
+                SET anticipo_gestionado = 1
+                WHERE sg.tipo = 'insumos_servicios'
+                  AND sg.anticipo_gestionado = 0
+                  AND EXISTS (
+                    SELECT 1 FROM solicitudes_gestion_historial_estados h
+                    WHERE h.solicitud_id = sg.id
+                      AND h.etapa = 'gestion_anticipo'
+                  )
+                """
+            )
+        )
 
 
 def migrar_area_consumo_producto() -> None:

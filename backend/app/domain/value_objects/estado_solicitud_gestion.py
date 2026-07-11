@@ -9,6 +9,7 @@ class EstadoSolicitudGestion(str, Enum):
     COTIZACION = "cotizacion"
     EN_APROBACION = "en_aprobacion"
     GESTIONANDO_SERVICIO = "gestionando_servicio"
+    PENDIENTE_EVIDENCIA_CIERRE = "pendiente_evidencia_cierre"
     TRAMITANDO_OC = "tramitando_oc"
     TRAMITADA_OC = "tramitada_oc"
     ITEMS_EN_CAMINO = "items_en_camino"
@@ -46,6 +47,7 @@ LABELS: dict[EstadoSolicitudGestion, str] = {
     EstadoSolicitudGestion.COTIZACION: "Cotización",
     EstadoSolicitudGestion.EN_APROBACION: "En Aprobación",
     EstadoSolicitudGestion.GESTIONANDO_SERVICIO: "Gestionando servicio",
+    EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE: "Pendiente evidencia cierre",
     EstadoSolicitudGestion.TRAMITANDO_OC: "Tramitando OC",
     EstadoSolicitudGestion.TRAMITADA_OC: "Tramitada OC",
     EstadoSolicitudGestion.ITEMS_EN_CAMINO: "Ítems en camino",
@@ -80,6 +82,7 @@ FLUJO_HISTORIAL: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.COTIZACION,
     EstadoSolicitudGestion.EN_APROBACION,
     EstadoSolicitudGestion.GESTIONANDO_SERVICIO,
+    EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE,
     EstadoSolicitudGestion.TRAMITANDO_OC,
     EstadoSolicitudGestion.TRAMITADA_OC,
     EstadoSolicitudGestion.ITEMS_EN_CAMINO,
@@ -130,6 +133,7 @@ ETAPAS_PANEL_GESTION: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.COTIZACION,
     EstadoSolicitudGestion.EN_APROBACION,
     EstadoSolicitudGestion.GESTIONANDO_SERVICIO,
+    EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE,
     EstadoSolicitudGestion.TRAMITANDO_OC,
     EstadoSolicitudGestion.TRAMITADA_OC,
     EstadoSolicitudGestion.ITEMS_EN_CAMINO,
@@ -172,6 +176,8 @@ def normalizar_estado(valor: str | EstadoSolicitudGestion) -> EstadoSolicitudGes
             # Valores válidos en BD que aún no estén en el enum cargado en memoria.
             if raw == "gestionando_servicio":
                 return EstadoSolicitudGestion.GESTIONANDO_SERVICIO
+            if raw == "pendiente_evidencia_cierre":
+                return EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE
             if raw == "tramitando_oc":
                 return EstadoSolicitudGestion.TRAMITANDO_OC
             if raw == "aprobacion_anticipo":

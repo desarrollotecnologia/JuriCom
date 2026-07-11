@@ -16,6 +16,11 @@ import {
     renderPanelGestionServiciosHtml,
     renderPanelGestionServiciosPostAprobacionHtml,
     esGestionServiciosPostAprobacion,
+    esGestionServiciosPanelActivo,
+    esGestionServiciosSolicitarAnticipo,
+    esGestionServiciosContinuacionPostAnticipo,
+    anticipoServicioGestionado,
+    tieneEvidenciaSolicitanteCierre,
     renderPanelTramiteOcHtml,
     renderVisitaProgramadaRowHtml,
     renderFacturasHistorialHtml,
@@ -32,7 +37,7 @@ import {
     solicitudPuedeCerrarConPendientes,
     solicitudTieneOcRegistrada,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=25";
+} from "./gestion-solicitudes-common.js?v=27";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -59,7 +64,7 @@ function puedeGestionar(solicitud, userId, isAdmin = false) {
     if (estado === "tramitando_oc") {
         return esGestorAsignado(solicitud, userId, isAdmin);
     }
-    if (estado === "cotizacion" || estado === "gestionando_servicio" || estado === "items_en_camino" || estado === "recepcion_insumos" || estado === "tramitada_oc" || estado === "entregado_parcial") {
+    if (estado === "cotizacion" || estado === "gestionando_servicio" || estado === "pendiente_evidencia_cierre" || estado === "items_en_camino" || estado === "recepcion_insumos" || estado === "tramitada_oc" || estado === "entregado_parcial") {
         return esGestorAsignado(solicitud, userId, isAdmin);
     }
     return false;
@@ -127,6 +132,13 @@ export function initPanelSolicitudesGestion() {
     const btnEnviar = document.getElementById("btn-panel-enviar-aprobacion");
     const btnGuardarGestionServicios = document.getElementById("btn-panel-guardar-gestion-servicios");
     const btnSolicitarAnticipoServicios = document.getElementById("btn-panel-solicitar-anticipo-servicios");
+    const btnGuardarObsServicioPostAnticipo = document.getElementById(
+        "btn-panel-guardar-obs-servicio-post-anticipo"
+    );
+    const btnNotificarEvidenciaServicio = document.getElementById(
+        "btn-panel-notificar-evidencia-servicio"
+    );
+    const btnCerrarServicio = document.getElementById("btn-panel-cerrar-servicio");
     const btnGuardarTramite = document.getElementById("btn-panel-guardar-tramite-oc");
     const btnEntregado = document.getElementById("btn-panel-entregado");
     const btnEntregadoParcial = document.getElementById("btn-panel-entregado-parcial");
@@ -151,11 +163,26 @@ export function initPanelSolicitudesGestion() {
     const currentUser = session.getUser();
     const isAdmin = currentUser?.role === "admin";
 
+    let alertHideTimer = null;
+
+    function scheduleAlertHide(element, delayMs) {
+        if (!element) return;
+        if (alertHideTimer) {
+            clearTimeout(alertHideTimer);
+            alertHideTimer = null;
+        }
+        alertHideTimer = setTimeout(() => {
+            element.classList.remove("show");
+            alertHideTimer = null;
+        }, delayMs);
+    }
+
     function showError(msg) {
         if (!alertError) return;
         alertError.textContent = msg;
         alertError.classList.add("show");
         alertSuccess?.classList.remove("show");
+        scheduleAlertHide(alertError, 7000);
     }
 
     function showSuccess(msg) {
@@ -163,6 +190,7 @@ export function initPanelSolicitudesGestion() {
         alertSuccess.textContent = msg;
         alertSuccess.classList.add("show");
         alertError?.classList.remove("show");
+        scheduleAlertHide(alertSuccess, 5000);
     }
 
     if (!tbody) {
@@ -511,6 +539,9 @@ export function initPanelSolicitudesGestion() {
         setModalBtnHidden(btnEnviar, false);
         setModalBtnHidden(btnGuardarGestionServicios, true);
         setModalBtnHidden(btnSolicitarAnticipoServicios, true);
+        setModalBtnHidden(btnGuardarObsServicioPostAnticipo, true);
+        setModalBtnHidden(btnNotificarEvidenciaServicio, true);
+        setModalBtnHidden(btnCerrarServicio, true);
         setModalBtnHidden(btnGuardarTramite, true);
         setModalBtnHidden(btnEntregado, true);
         setModalBtnHidden(btnEntregadoParcial, true);
@@ -623,12 +654,32 @@ export function initPanelSolicitudesGestion() {
 
     function syncGestionServiciosAccionesUI() {
         if (!modoGestion || !esSolicitudServicios(selectedSolicitud)) return;
-        if (esGestionServiciosPostAprobacion(selectedSolicitud.estado)) {
+        if (esGestionServiciosContinuacionPostAnticipo(selectedSolicitud)) {
+            setModalBtnHidden(btnGuardarGestionServicios, true);
+            setModalBtnHidden(btnEnviar, true);
+            setModalBtnHidden(btnSolicitarAnticipoServicios, true);
+            const esperando =
+                normalizarEstado(selectedSolicitud.estado) === "pendiente_evidencia_cierre";
+            setModalBtnHidden(btnGuardarObsServicioPostAnticipo, esperando);
+            setModalBtnHidden(btnNotificarEvidenciaServicio, esperando);
+            const puedeCerrar =
+                esperando && tieneEvidenciaSolicitanteCierre(selectedSolicitud);
+            setModalBtnHidden(btnCerrarServicio, !puedeCerrar);
+            return;
+        }
+        setModalBtnHidden(btnCerrarServicio, true);
+        if (esGestionServiciosSolicitarAnticipo(selectedSolicitud)) {
             setModalBtnHidden(btnGuardarGestionServicios, true);
             setModalBtnHidden(btnEnviar, true);
             setModalBtnHidden(btnSolicitarAnticipoServicios, false);
+            setModalBtnHidden(btnGuardarObsServicioPostAnticipo, true);
+            setModalBtnHidden(btnNotificarEvidenciaServicio, true);
+            setModalBtnHidden(btnCerrarServicio, true);
             return;
         }
+        setModalBtnHidden(btnGuardarObsServicioPostAnticipo, true);
+        setModalBtnHidden(btnNotificarEvidenciaServicio, true);
+        setModalBtnHidden(btnCerrarServicio, true);
         const adjuntar = adjuntarCotizacionesSeleccionado();
         setModalBtnHidden(btnGuardarGestionServicios, adjuntar);
         setModalBtnHidden(btnEnviar, !adjuntar);
@@ -782,7 +833,7 @@ export function initPanelSolicitudesGestion() {
             const estado = normalizarEstado(s.estado);
             const esLogistica = esGestionEntrega(estado) && estado !== "tramitada_oc";
             const esServiciosGestion =
-                esSolicitudServicios(s) && esGestionServiciosPostAprobacion(estado);
+                esSolicitudServicios(s) && esGestionServiciosPanelActivo(s);
             const puedeActuar = puedeGestionar(s, currentUser?.id, isAdmin);
 
             if ((esLogistica && puedeActuar) || (esServiciosGestion && puedeActuar)) {
@@ -961,6 +1012,9 @@ export function initPanelSolicitudesGestion() {
         setModalBtnHidden(btnEnviar, esEntrega);
         setModalBtnHidden(btnGuardarGestionServicios, true);
         setModalBtnHidden(btnSolicitarAnticipoServicios, true);
+        setModalBtnHidden(btnGuardarObsServicioPostAnticipo, true);
+        setModalBtnHidden(btnNotificarEvidenciaServicio, true);
+        setModalBtnHidden(btnCerrarServicio, true);
         if (esEntrega) {
             updateAccionesEntrega();
         } else if (modoGestion && esSolicitudServicios(selectedSolicitud)) {
@@ -1201,8 +1255,8 @@ export function initPanelSolicitudesGestion() {
                 : `Gestionar · ${solicitud.codigo}`;
         detailContent.innerHTML = esEntrega
             ? renderPanelTramiteOcHtml(solicitud)
-            : esSolicitudServicios(solicitud) &&
-                esGestionServiciosPostAprobacion(estado)
+              : esSolicitudServicios(solicitud) &&
+                esGestionServiciosPanelActivo(solicitud)
               ? renderPanelGestionServiciosPostAprobacionHtml(
                     solicitud,
                     buildLideresOptions(solicitud.lider_anticipo_id || "")
@@ -1226,7 +1280,7 @@ export function initPanelSolicitudesGestion() {
         } else {
             bindGestionFormEvents();
             if (esSolicitudServicios(solicitud)) {
-                if (!esGestionServiciosPostAprobacion(estado)) {
+                if (!esGestionServiciosPanelActivo(solicitud)) {
                     bindVisitasFormEvents();
                     bindGestionServiciosCotizacionesEvents();
                 } else {
@@ -1281,6 +1335,12 @@ export function initPanelSolicitudesGestion() {
                 showSuccess(`Solicitud ${solicitud.codigo} en estado Cotización.`);
             } else if (estado === "gestionando_servicio") {
                 showSuccess(`Gestión del servicio — ${solicitud.codigo}`);
+            } else if (estado === "pendiente_evidencia_cierre") {
+                showSuccess(
+                    tieneEvidenciaSolicitanteCierre(solicitud)
+                        ? `Revisar evidencia y cerrar servicio — ${solicitud.codigo}`
+                        : `Esperando evidencia del solicitante — ${solicitud.codigo}`
+                );
             } else {
                 showSuccess(`Solicitud ${solicitud.codigo} lista para gestionar.`);
             }
@@ -1529,7 +1589,7 @@ export function initPanelSolicitudesGestion() {
 
     async function solicitarAnticipoServicios() {
         if (!selectedSolicitud || !modoGestion || !esSolicitudServicios(selectedSolicitud)) return;
-        if (!esGestionServiciosPostAprobacion(selectedSolicitud.estado)) return;
+        if (!esGestionServiciosSolicitarAnticipo(selectedSolicitud)) return;
 
         observacionControl?.editor.syncHidden();
         const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
@@ -1585,6 +1645,165 @@ export function initPanelSolicitudesGestion() {
         } finally {
             btnSolicitarAnticipoServicios.disabled = false;
             btnSolicitarAnticipoServicios.textContent = "Solicitar anticipo";
+        }
+    }
+
+    function validarObservacionGestorServicio() {
+        observacionControl?.editor.syncHidden();
+        const texto = observacionControl?.editor.getText()?.trim() ?? "";
+        const html = observacionControl?.editor.getHtml()?.trim() ?? "";
+        const adjuntos = observacionControl?.getFiles() ?? [];
+        if (!texto && !html && !adjuntos.length) {
+            showError("Escribe una observación del gestor antes de continuar.");
+            return null;
+        }
+        return {
+            html: observacionControl?.editor.getHtml() ?? "",
+            texto: observacionControl?.editor.getText() ?? "",
+            adjuntos,
+        };
+    }
+
+    async function guardarObservacionServicioPostAnticipo() {
+        if (!selectedSolicitud || !modoGestion || !esGestionServiciosContinuacionPostAnticipo(selectedSolicitud)) {
+            return;
+        }
+        const obs = validarObservacionGestorServicio();
+        if (!obs) return;
+
+        const formData = new FormData();
+        formData.append("contenido", obs.html);
+        formData.append("contenido_texto", obs.texto);
+        formData.append("contexto_rol", "gestor");
+        obs.adjuntos.forEach((file) => formData.append("adjuntos", file));
+
+        btnGuardarObsServicioPostAnticipo.disabled = true;
+        btnGuardarObsServicioPostAnticipo.textContent = "Guardando...";
+
+        try {
+            await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/observaciones`,
+                formData
+            );
+            showSuccess("Observación del gestor registrada.");
+            const solicitud = await api.get(`/solicitudes-gestion/${selectedSolicitud.id}`);
+            await abrirGestion(solicitud);
+        } catch (err) {
+            showError(
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo guardar la observación del gestor."
+            );
+        } finally {
+            btnGuardarObsServicioPostAnticipo.disabled = false;
+            btnGuardarObsServicioPostAnticipo.textContent = "Guardar observación";
+        }
+    }
+
+    async function notificarEvidenciaCierreServicios() {
+        if (!selectedSolicitud || !modoGestion || !esGestionServiciosContinuacionPostAnticipo(selectedSolicitud)) {
+            return;
+        }
+        if (normalizarEstado(selectedSolicitud.estado) === "pendiente_evidencia_cierre") return;
+
+        const obs = validarObservacionGestorServicio();
+        if (!obs) return;
+
+        if (
+            !confirm(
+                "¿Notificar al solicitante para que adjunte evidencia y observación de cierre desde Mis solicitudes?"
+            )
+        ) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("nueva_observacion", obs.html);
+        formData.append("nueva_observacion_texto", obs.texto);
+        obs.adjuntos.forEach((file) => formData.append("adjuntos", file));
+
+        btnNotificarEvidenciaServicio.disabled = true;
+        btnNotificarEvidenciaServicio.textContent = "Notificando...";
+
+        try {
+            const solicitud = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/notificar-evidencia-cierre-servicios`,
+                formData
+            );
+            showSuccess(
+                `Solicitante notificado — ${solicitud.codigo} quedó pendiente de evidencia de cierre.`
+            );
+            closeModal();
+            await load();
+        } catch (err) {
+            showError(
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo notificar al solicitante."
+            );
+        } finally {
+            btnNotificarEvidenciaServicio.disabled = false;
+            btnNotificarEvidenciaServicio.textContent = "Notificar solicitante (evidencia)";
+        }
+    }
+
+    async function cerrarServicioSolicitud() {
+        if (!selectedSolicitud || !modoGestion || !esGestionServiciosContinuacionPostAnticipo(selectedSolicitud)) {
+            return;
+        }
+        if (normalizarEstado(selectedSolicitud.estado) !== "pendiente_evidencia_cierre") return;
+        if (!tieneEvidenciaSolicitanteCierre(selectedSolicitud)) {
+            showError("El solicitante aún no ha registrado evidencia de cierre.");
+            return;
+        }
+
+        if (
+            !confirm(
+                `¿Confirmas el cierre del servicio ${selectedSolicitud.codigo}? ` +
+                    "La solicitud pasará a Entregado y se notificará al solicitante."
+            )
+        ) {
+            return;
+        }
+
+        observacionControl?.editor.syncHidden();
+        const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
+        const nuevaObsTexto = observacionControl?.editor.getText() ?? "";
+
+        const formData = new FormData();
+        formData.append("observacion", nuevaObsHtml);
+        formData.append("observacion_texto", nuevaObsTexto);
+        (observacionControl?.getFiles() ?? []).forEach((file) =>
+            formData.append("adjuntos", file)
+        );
+
+        btnCerrarServicio.disabled = true;
+        btnCerrarServicio.textContent = "Cerrando...";
+
+        try {
+            const result = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/cerrar-servicio`,
+                formData
+            );
+            const codigo = result?.solicitud?.codigo || selectedSolicitud.codigo;
+            if (result?.email_enviado) {
+                showSuccess(
+                    `Servicio ${codigo} cerrado como Entregado. Se notificó al solicitante por correo.`
+                );
+            } else {
+                showSuccess(
+                    `Servicio ${codigo} cerrado como Entregado. No se pudo enviar el correo.`
+                );
+            }
+            closeModal();
+            await load();
+        } catch (err) {
+            showError(
+                err instanceof ApiError ? err.message : "No se pudo cerrar el servicio."
+            );
+        } finally {
+            btnCerrarServicio.disabled = false;
+            btnCerrarServicio.textContent = "Cerrar servicio";
         }
     }
 
@@ -1735,6 +1954,12 @@ export function initPanelSolicitudesGestion() {
     btnEnviar?.addEventListener("click", enviarParaAprobacion);
     btnGuardarGestionServicios?.addEventListener("click", guardarGestionServicios);
     btnSolicitarAnticipoServicios?.addEventListener("click", solicitarAnticipoServicios);
+    btnGuardarObsServicioPostAnticipo?.addEventListener(
+        "click",
+        guardarObservacionServicioPostAnticipo
+    );
+    btnNotificarEvidenciaServicio?.addEventListener("click", notificarEvidenciaCierreServicios);
+    btnCerrarServicio?.addEventListener("click", cerrarServicioSolicitud);
     btnGuardarTramite?.addEventListener("click", guardarTramiteOc);
     btnEntregado?.addEventListener("click", marcarEntregaTotal);
     btnEntregadoParcial?.addEventListener("click", abrirFormularioEntregaParcial);

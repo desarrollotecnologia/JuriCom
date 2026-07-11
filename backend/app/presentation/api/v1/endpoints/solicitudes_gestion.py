@@ -42,6 +42,8 @@ from app.application.use_cases.solicitudes_gestion import (
     ResolverAprobacionAnticipo,
     ResolverAprobacionSolicitud,
     SolicitarAnticipoServiciosSolicitud,
+    NotificarEvidenciaCierreServiciosSolicitud,
+    CerrarServicioSolicitud,
     SolicitarRecotizacionSolicitud,
 )
 from app.domain.entities.solicitud_gestion import (
@@ -266,6 +268,7 @@ def _to_list_item(s: SolicitudGestion, actor: User) -> SolicitudGestionListItem:
         monto_anticipo=float(s.monto_anticipo) if s.monto_anticipo is not None else None,
         gestor_anticipo_id=s.gestor_anticipo_id,
         gestor_anticipo_username=s.gestor_anticipo_username or "",
+        anticipo_gestionado=s.anticipo_gestionado,
         factura_registrada=s.factura_registrada if _actor_ve_estado_interno(actor) else False,
         factura_registrada_at=s.factura_registrada_at
         if _actor_ve_estado_interno(actor)
@@ -372,6 +375,7 @@ def _to_response(
         observaciones_anticipo=s.observaciones_anticipo or "",
         gestor_anticipo_id=s.gestor_anticipo_id,
         gestor_anticipo_username=s.gestor_anticipo_username or "",
+        anticipo_gestionado=s.anticipo_gestionado,
         factura_registrada=s.factura_registrada if actor and _actor_ve_estado_interno(actor) else False,
         factura_registrada_at=s.factura_registrada_at
         if actor and _actor_ve_estado_interno(actor)
@@ -999,6 +1003,113 @@ async def solicitar_anticipo_servicios_solicitud(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return _to_response(solicitud, historial, current)
+
+
+@router.post(
+    "/{solicitud_id}/notificar-evidencia-cierre-servicios",
+    response_model=SolicitudGestionResponse,
+)
+async def notificar_evidencia_cierre_servicios_solicitud(
+    solicitud_id: int,
+    nueva_observacion: str = Form(""),
+    nueva_observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        adjuntos_entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud = NotificarEvidenciaCierreServiciosSolicitud(
+            repo, storage, notificador
+        ).execute(
+            current,
+            solicitud_id,
+            nueva_observacion=nueva_observacion,
+            nueva_observacion_texto=nueva_observacion_texto,
+            archivos_observacion=adjuntos_entradas,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post(
+    "/{solicitud_id}/cerrar-servicio",
+    response_model=MarcarEntregaSolicitudResponse,
+)
+async def cerrar_servicio_solicitud(
+    solicitud_id: int,
+    observacion: str = Form(""),
+    observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> MarcarEntregaSolicitudResponse:
+    adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        adjuntos_entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud, email_enviado = CerrarServicioSolicitud(
+            repo, storage, notificador
+        ).execute(
+            current,
+            solicitud_id,
+            observacion=observacion,
+            observacion_texto=observacion_texto,
+            archivos_observacion=adjuntos_entradas,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return MarcarEntregaSolicitudResponse(
+        solicitud=_to_response(solicitud, historial, current),
+        email_enviado=email_enviado,
+    )
 
 
 @router.post("/{solicitud_id}/enviar-cotizacion", response_model=SolicitudGestionResponse)
