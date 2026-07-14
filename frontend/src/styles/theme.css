@@ -491,6 +491,18 @@ table.clickable-rows tbody tr[data-id]:focus {
     display: block;
 }
 
+/* Alertas visibles por encima de modales (detalle, gestión, aprobación) */
+.main > .alert.show {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100;
+    width: min(560px, calc(100vw - 2rem));
+    margin-bottom: 0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+}
+
 .alert-error {
     background: #fee2e2;
     color: #991b1b;
@@ -1552,6 +1564,128 @@ table.clickable-rows tbody tr[data-id]:focus {
     width: auto;
     accent-color: var(--color-primary);
     cursor: pointer;
+}
+
+.programado-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+}
+
+.programado-fecha {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: var(--radius-md, 8px);
+    background: var(--color-surface-muted, #f4f6f9);
+    border: 1px solid var(--color-border, #d8dee8);
+}
+
+.programado-fecha-label {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.input-date-compact {
+    width: auto;
+    min-width: 10.5rem;
+    max-width: 11.5rem;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+}
+
+.sg-visitas-programadas-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.sg-visita-row-card {
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    background: var(--color-surface-muted, #f8f9fb);
+    border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.sg-visitas-programadas-wrap {
+    margin-top: 10px;
+}
+
+.sg-cotizaciones-gestion-wrap {
+    margin-top: 10px;
+}
+
+.sg-adjuntar-cotizaciones-field {
+    margin-top: 16px;
+}
+
+.sg-visita-row-compact {
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    background: var(--color-surface-muted, #f8f9fb);
+    border: 1px solid var(--color-border, #e2e8f0);
+    border-radius: var(--radius-md, 8px);
+}
+
+.sg-visita-row-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px 12px;
+}
+
+.sg-visita-row-fields .field {
+    margin: 0;
+}
+
+.sg-visita-field-proveedor {
+    flex: 1 1 12rem;
+    min-width: 10rem;
+}
+
+.sg-visita-field-fecha,
+.sg-visita-field-hora {
+    flex: 0 0 auto;
+}
+
+.sg-visita-field-hora .sg-visita-hora {
+    width: 7.5rem;
+}
+
+.sg-visita-row-fields .btn-quitar-visita {
+    flex: 0 0 auto;
+    min-width: 2.25rem;
+    padding-inline: 10px;
+    line-height: 1.2;
+}
+
+.sg-visitas-detalle-list {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.sg-visitas-detalle-list li + li {
+    margin-top: 6px;
+}
+
+@media (max-width: 720px) {
+    .programado-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .input-date-compact {
+        width: 100%;
+        max-width: none;
+    }
 }
 
 .form-actions {

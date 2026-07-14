@@ -16,8 +16,9 @@ import {
     normalizarEstado,
 
     renderDetalleSolicitudHtml,
+    esSolicitudServicios,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=18";
+} from "./gestion-solicitudes-common.js?v=22";
 
 
 
@@ -67,6 +68,13 @@ function esAprobacionAnticipo(estado) {
     return normalizarEstado(estado) === "aprobacion_anticipo";
 }
 
+function liderAprobacionLabel(s) {
+    if (esAprobacionAnticipo(s?.estado)) {
+        return s.lider_anticipo_label || s.lider_area_label || "—";
+    }
+    return s.lider_area_label || "—";
+}
+
 
 
 export function initAprobarSolicitudesGestion() {
@@ -113,6 +121,22 @@ export function initAprobarSolicitudesGestion() {
     let selectedSolicitud = null;
 
     let observacionControl = null;
+
+    function findItemById(id) {
+        return items.find((s) => s.id === id) ?? null;
+    }
+
+    function resolveAprobacionContext(solicitudId, estadoPrecargado = null) {
+        const item = findItemById(solicitudId);
+        const desdeModal = solicitudId === selectedId;
+        const estado =
+            estadoPrecargado ??
+            (desdeModal ? selectedEstado : null) ??
+            item?.estado ??
+            "solicitud";
+        const solicitud = (desdeModal && selectedSolicitud) || item;
+        return { estado, solicitud };
+    }
 
 
 
@@ -269,6 +293,10 @@ export function initAprobarSolicitudesGestion() {
 
                 s.lider_area_label,
 
+                s.lider_anticipo_label,
+
+                TIPO_LABEL[s.tipo],
+
                 etiquetaAprobacion(s.estado),
 
             ]
@@ -297,7 +325,7 @@ export function initAprobarSolicitudesGestion() {
 
             tbody.innerHTML = `<tr><td colspan="7" class="muted text-center">
 
-                No hay solicitudes de compra pendientes de aprobación.
+                No hay solicitudes pendientes de aprobación.
 
             </td></tr>`;
 
@@ -329,7 +357,7 @@ export function initAprobarSolicitudesGestion() {
 
                 <td data-label="Etapa">${badgeEstado(s.estado)}</td>
 
-                <td data-label="Líder aprobador">${escapeHtml(s.lider_area_label || "—")}</td>
+                <td data-label="Líder aprobador">${escapeHtml(liderAprobacionLabel(s))}</td>
 
                 <td data-label="Fecha de registro">${formatDate(s.created_at)}</td>
 
@@ -341,7 +369,7 @@ export function initAprobarSolicitudesGestion() {
 
                     </button>
 
-                    <button type="button" class="btn btn-primary btn-sm btn-aprobar-rapido" data-id="${s.id}">Aprobar</button>
+                    <button type="button" class="btn btn-primary btn-sm btn-aprobar-rapido" data-id="${s.id}" data-estado="${escapeHtml(s.estado)}">Aprobar</button>
 
                 </td>
 
@@ -369,7 +397,9 @@ export function initAprobarSolicitudesGestion() {
 
         tbody.querySelectorAll(".btn-aprobar-rapido").forEach((btn) => {
 
-            btn.addEventListener("click", () => aprobar(Number(btn.dataset.id)));
+            btn.addEventListener("click", () =>
+                aprobar(Number(btn.dataset.id), btn.dataset.estado)
+            );
 
         });
 
@@ -390,15 +420,36 @@ export function initAprobarSolicitudesGestion() {
             let anticipos = [];
 
             if (["admin", "lider_aprobador"].includes(role)) {
-                [pendientes, anticipos] = await Promise.all([
+                const [pendientesResult, anticiposResult] = await Promise.allSettled([
                     api.get("/solicitudes-gestion/pendientes-aprobacion"),
                     api.get("/solicitudes-gestion/pendientes-aprobacion-anticipo"),
                 ]);
-                pendientes = Array.isArray(pendientes) ? pendientes : [];
-                anticipos = Array.isArray(anticipos) ? anticipos : [];
+
+                if (pendientesResult.status === "fulfilled") {
+                    pendientes = Array.isArray(pendientesResult.value)
+                        ? pendientesResult.value
+                        : [];
+                } else if (anticiposResult.status !== "fulfilled") {
+                    throw pendientesResult.reason;
+                }
+
+                if (anticiposResult.status === "fulfilled") {
+                    anticipos = Array.isArray(anticiposResult.value)
+                        ? anticiposResult.value
+                        : [];
+                } else {
+                    showError(
+                        anticiposResult.reason instanceof ApiError
+                            ? anticiposResult.reason.message
+                            : "No se pudieron cargar los anticipos pendientes de aprobación."
+                    );
+                }
             }
 
-            items = [...pendientes, ...anticipos];
+            const byId = new Map();
+            for (const s of pendientes) byId.set(s.id, s);
+            for (const s of anticipos) byId.set(s.id, s);
+            items = Array.from(byId.values()).sort((a, b) => (b.id || 0) - (a.id || 0));
 
             renderTable();
 
@@ -487,12 +538,13 @@ export function initAprobarSolicitudesGestion() {
 
 
             const isPrimera = esPrimeraAprobacion(s.estado);
+            const esServicios = esSolicitudServicios(s);
 
             detailContent.innerHTML =
                 renderDetalleSolicitudHtml(s, {
                 showAprobacionParcialAlert: false,
 
-                productosOptions: isPrimera
+                productosOptions: isPrimera && !esServicios
 
                     ? {
 
@@ -509,13 +561,13 @@ export function initAprobarSolicitudesGestion() {
                       }
 
                     : {
-                          showEstado: Boolean(s.aprobacion_parcial),
+                          showEstado: Boolean(s.aprobacion_parcial) && !esServicios,
                           cantidadEditable: false,
                       },
 
             }) ;
 
-            if (isPrimera) {
+            if (isPrimera && !esServicios) {
                 primeraPanel?.removeAttribute("hidden");
                 syncTipoAprobacionUI();
             } else {
@@ -572,20 +624,21 @@ export function initAprobarSolicitudesGestion() {
 
 
 
-    async function aprobar(id) {
+    async function aprobar(id, estadoPrecargado = null) {
 
         const solicitudId = id ?? selectedId;
 
         if (!solicitudId) return;
 
-
+        const { estado, solicitud } = resolveAprobacionContext(solicitudId, estadoPrecargado);
 
         const esDesdeModal = solicitudId === selectedId;
 
-        const etiqueta = etiquetaAprobacion(selectedEstado || "solicitud");
+        const etiqueta = etiquetaAprobacion(estado);
 
-        const isPrimera = esPrimeraAprobacion(selectedEstado || "solicitud");
-        const isAnticipo = esAprobacionAnticipo(selectedEstado || "solicitud");
+        const isPrimera = esPrimeraAprobacion(estado);
+        const isAnticipo = esAprobacionAnticipo(estado);
+        const esServicios = esSolicitudServicios(solicitud);
 
 
 
@@ -595,7 +648,7 @@ export function initAprobarSolicitudesGestion() {
 
 
 
-        if (isPrimera && esDesdeModal) {
+        if (isPrimera && esDesdeModal && !esServicios) {
 
             tipoAprobacion =
 
@@ -621,13 +674,14 @@ export function initAprobarSolicitudesGestion() {
 
 
 
+        const tipoLabel = TIPO_LABEL[solicitud?.tipo] || "solicitud";
         const confirmMsg =
 
             isPrimera && tipoAprobacion === "parcial"
 
                 ? `¿Confirmas la aprobación parcial de ${productosAprobados.length} ítem(s)? Los no seleccionados quedarán como no aprobados.`
 
-                : `¿Confirmas la ${etiqueta.toLowerCase()} de esta solicitud de compra?`;
+                : `¿Confirmas la ${etiqueta.toLowerCase()} de esta ${tipoLabel.toLowerCase()}?`;
 
 
 
@@ -741,9 +795,13 @@ export function initAprobarSolicitudesGestion() {
 
         }
 
+        const esServiciosAnticipo =
+            esAprobacionAnticipo(selectedEstado) && esSolicitudServicios(selectedSolicitud);
         if (!confirm(
             esAprobacionAnticipo(selectedEstado)
-                ? "¿Confirmas rechazar el anticipo? La solicitud continuará en Tramitada OC sin anticipo."
+                ? esServiciosAnticipo
+                    ? "¿Confirmas rechazar el anticipo? La solicitud volverá a Gestionando servicio sin anticipo."
+                    : "¿Confirmas rechazar el anticipo? La solicitud continuará en Tramitada OC sin anticipo."
                 : "¿Confirmas la cancelación de esta solicitud?"
         )) return;
 

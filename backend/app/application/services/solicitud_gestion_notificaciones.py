@@ -12,7 +12,7 @@ from app.domain.entities.solicitud_gestion import SolicitudGestion
 from app.domain.entities.user import User
 from app.domain.value_objects.estado_solicitud_gestion import EstadoSolicitudGestion
 from app.domain.value_objects.roles import Role
-from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
+from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen, es_flujo_servicios
 from app.infrastructure.config import settings
 from app.infrastructure.email import templates as tpl
 
@@ -35,6 +35,8 @@ def resolver_email_solicitante(
 def _tipo_legible(solicitud: SolicitudGestion) -> str:
     if es_flujo_salidas_almacen(solicitud.tipo):
         return "solicitud de pedido"
+    if es_flujo_servicios(solicitud.tipo):
+        return "solicitud de servicios"
     return "solicitud de compra"
 
 
@@ -72,9 +74,6 @@ class NotificadorSolicitudGestion:
                 continue
             if (user.email or "").strip():
                 emails.append(user.email.strip())
-        catalog_email = email_lider_catalogo(lid)
-        if catalog_email:
-            emails.append(catalog_email)
         return self._dedupe(emails)
 
     def _emails_lider_catalogo(
@@ -448,6 +447,44 @@ class NotificadorSolicitudGestion:
                 destinatarios=compras,
             )
 
+    def notificar_anticipo_solicitado(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        codigo = solicitud.codigo or ""
+        lideres = self._emails_lider_catalogo(
+            solicitud.lider_anticipo_id,
+            exclude_user_id=actor.id,
+        )
+        compras = self._emails_rol(Role.COMPRAS, exclude_user_id=actor.id)
+
+        if lideres:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo pendiente de aprobación",
+                titulo="Aprobación de anticipo",
+                mensaje=(
+                    f"Hay un anticipo pendiente de aprobación para la solicitud "
+                    f"<strong>{codigo}</strong>."
+                ),
+                url=self._url_aprobar(),
+                boton="Aprobar solicitudes",
+                destinatarios=lideres,
+            )
+        if compras:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo enviado a aprobación",
+                titulo="Anticipo en aprobación",
+                mensaje=(
+                    f"Se solicitó aprobación de anticipo para <strong>{codigo}</strong>."
+                ),
+                url=self._url_panel(),
+                boton="Panel de solicitudes",
+                destinatarios=compras,
+            )
+
     def notificar_anticipo_aprobado(
         self,
         solicitud: SolicitudGestion,
@@ -560,6 +597,29 @@ class NotificadorSolicitudGestion:
                 boton="Ver solicitudes",
                 destinatarios=lideres,
             )
+
+    def notificar_evidencia_cierre_solicitado(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        codigo = solicitud.codigo or ""
+        sol = resolver_email_solicitante(solicitud, self._users)
+        if not sol:
+            return
+        self._enviar_evento(
+            solicitud,
+            asunto=f"[JURICOM_BEEF] {codigo} — Adjuntar evidencia de cierre",
+            titulo="Evidencia requerida para cierre",
+            mensaje=(
+                f"El gestor de tu solicitud de servicios <strong>{codigo}</strong> "
+                "solicita que adjuntes evidencia y una observación en "
+                "<strong>Mis solicitudes</strong> para continuar con el cierre."
+            ),
+            url=self._url_mis_solicitudes(),
+            boton="Adjuntar evidencia",
+            destinatarios=[sol],
+        )
 
     def notificar_entrega(
         self,

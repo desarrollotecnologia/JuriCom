@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Mis Solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=5" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=6" />
     </head>
     <body>
         <div class="app-shell">
@@ -48,7 +48,7 @@
                             <option value="">Todos los tipos</option>
                             <option value="compra">Solicitud de Compra</option>
                             <option value="salidas_almacen">Salidas de Almacén</option>
-                            <option value="insumos_servicios">Insumos/Servicios</option>
+                            <option value="insumos_servicios">Solicitud de Servicios</option>
                         </select>
                         <span class="info" id="gestion-result-count"></span>
                     </div>
@@ -92,7 +92,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=15";
+            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=17";
 
             const user = await requireSessionRole(["compras", "admin", "solicitante", "anticipos"]);
             if (user) {

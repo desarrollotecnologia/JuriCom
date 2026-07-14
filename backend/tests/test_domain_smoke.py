@@ -113,3 +113,15 @@ def test_calcular_fecha_fin_con_meses():
 
     assert calcular_fecha_fin(date(2026, 1, 31), 1, UnidadPlazo.MESES) == date(2026, 2, 28)
     assert calcular_fecha_fin(date(2026, 7, 10), 30, UnidadPlazo.DIAS) == date(2026, 8, 9)
+
+
+def test_codigo_solicitud_por_tipo():
+    from app.domain.entities.solicitud_gestion import construir_codigo_solicitud
+    from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
+
+    assert construir_codigo_solicitud(1, TipoSolicitudGestion.COMPRA) == "SG-0001"
+    assert construir_codigo_solicitud(42, TipoSolicitudGestion.SALIDAS_ALMACEN) == "SA-0042"
+    assert construir_codigo_solicitud(7, TipoSolicitudGestion.INSUMOS_SERVICIOS) == "SRV-0007"
+    assert construir_codigo_solicitud(3, "salidas_almacen") == "SA-0003"
+    # Consecutivos independientes: el #3 de compra y el #3 de salidas comparten número, no ID global.
+    assert construir_codigo_solicitud(3, TipoSolicitudGestion.COMPRA) == "SG-0003"

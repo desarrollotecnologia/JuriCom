@@ -25,16 +25,24 @@ class ListarGestionAnticipo:
         if not actor.puede_operar_anticipos():
             raise UnauthorizedError("Sólo Anticipos o Admin pueden gestionar anticipos.")
 
-        if actor.is_admin() or actor.is_anticipos():
-            return self._solicitudes.list_all(
-                tipo=TipoSolicitudGestion.COMPRA,
-                estados=ETAPAS_GESTION_ANTICIPO,
-                query=query,
-            )
-
-        return self._solicitudes.list_all(
-            tipo=TipoSolicitudGestion.COMPRA,
-            estados=ETAPAS_GESTION_ANTICIPO,
-            gestor_anticipo_id=actor.id,
-            query=query,
-        )
+        tipos = (TipoSolicitudGestion.COMPRA, TipoSolicitudGestion.INSUMOS_SERVICIOS)
+        items: list[SolicitudGestion] = []
+        for tipo in tipos:
+            if actor.is_admin() or actor.is_anticipos():
+                items.extend(
+                    self._solicitudes.list_all(
+                        tipo=tipo,
+                        estados=ETAPAS_GESTION_ANTICIPO,
+                        query=query,
+                    )
+                )
+            else:
+                items.extend(
+                    self._solicitudes.list_all(
+                        tipo=tipo,
+                        estados=ETAPAS_GESTION_ANTICIPO,
+                        gestor_anticipo_id=actor.id,
+                        query=query,
+                    )
+                )
+        return items

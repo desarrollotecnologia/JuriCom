@@ -22,7 +22,10 @@ from app.domain.value_objects.estado_solicitud_gestion import (
     normalizar_estado,
     siguiente_etapa,
 )
-from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
+from app.domain.value_objects.tipo_solicitud_gestion import (
+    TipoSolicitudGestion,
+    es_flujo_servicios,
+)
 
 
 class ResolverAprobacionSolicitud:
@@ -74,15 +77,19 @@ class ResolverAprobacionSolicitud:
 
         comentario_historial = ""
         if etapa_actual == EstadoSolicitudGestion.SOLICITUD:
-            self._aplicar_cantidades_productos(solicitud, productos_cantidades)
-            comentario_historial = self._aplicar_primera_aprobacion_productos(
-                solicitud,
-                tipo_aprobacion,
-                productos_aprobados_ids,
-            )
+            if not es_flujo_servicios(solicitud.tipo):
+                self._aplicar_cantidades_productos(solicitud, productos_cantidades)
+                comentario_historial = self._aplicar_primera_aprobacion_productos(
+                    solicitud,
+                    tipo_aprobacion,
+                    productos_aprobados_ids,
+                )
 
         if etapa_actual == EstadoSolicitudGestion.EN_APROBACION:
-            proxima = EstadoSolicitudGestion.TRAMITANDO_OC
+            if es_flujo_servicios(solicitud.tipo):
+                proxima = EstadoSolicitudGestion.GESTIONANDO_SERVICIO
+            else:
+                proxima = EstadoSolicitudGestion.TRAMITANDO_OC
         else:
             proxima = siguiente_etapa(etapa_actual)
         if proxima is None:
@@ -219,9 +226,10 @@ class ResolverAprobacionSolicitud:
         if solicitud.tipo not in (
             TipoSolicitudGestion.COMPRA,
             TipoSolicitudGestion.SALIDAS_ALMACEN,
+            TipoSolicitudGestion.INSUMOS_SERVICIOS,
         ):
             raise ValueError(
-                "Sólo se pueden aprobar solicitudes de compra o salidas de almacén."
+                "Sólo se pueden aprobar solicitudes de compra, salidas de almacén o servicios."
             )
 
         if not es_pendiente_aprobacion(solicitud.estado):

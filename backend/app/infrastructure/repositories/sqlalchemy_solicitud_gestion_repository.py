@@ -3,7 +3,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from app.application.interfaces.solicitud_gestion_repository import (
@@ -15,6 +15,7 @@ from app.domain.entities.solicitud_gestion import (
     SolicitudGestionHistorialEstado,
     SolicitudGestionObservacion,
     SolicitudGestionProducto,
+    SolicitudGestionVisitaProgramada,
     construir_codigo_solicitud,
 )
 from app.domain.value_objects.estado_aprobacion_producto import (
@@ -31,6 +32,7 @@ from app.infrastructure.database.models import (
     SolicitudGestionModel,
     SolicitudGestionObservacionModel,
     SolicitudGestionProductoModel,
+    SolicitudGestionVisitaProgramadaModel,
     UserModel,
 )
 
@@ -51,6 +53,19 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             usuario_username=username,
             comentario=model.comentario or "",
             created_at=model.created_at,
+        )
+
+    @classmethod
+    def _visita_to_entity(
+        cls, model: SolicitudGestionVisitaProgramadaModel
+    ) -> SolicitudGestionVisitaProgramada:
+        return SolicitudGestionVisitaProgramada(
+            id=model.id,
+            solicitud_id=model.solicitud_id,
+            programador_visita=model.programador_visita or "",
+            proveedor_visita=model.proveedor_visita or "",
+            fecha_visita=getattr(model, "fecha_visita", None),
+            hora_visita=getattr(model, "hora_visita", None),
         )
 
     @classmethod
@@ -93,6 +108,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         return SolicitudGestion(
             id=model.id,
             codigo=model.codigo,
+            numero_consecutivo=getattr(model, "numero_consecutivo", None),
             tipo=TipoSolicitudGestion(model.tipo),
             titulo=model.titulo,
             presupuestado=model.presupuestado,
@@ -104,6 +120,12 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             or "",
             observaciones=model.observaciones,
             observaciones_texto=model.observaciones_texto,
+            requiere_visita=getattr(model, "requiere_visita", None),
+            servicio_programado=getattr(model, "servicio_programado", None),
+            fecha_servicio_programado=getattr(model, "fecha_servicio_programado", None),
+            descripcion_servicio=getattr(model, "descripcion_servicio", "") or "",
+            descripcion_servicio_texto=getattr(model, "descripcion_servicio_texto", "") or "",
+            proveedor_sugerido=getattr(model, "proveedor_sugerido", "") or "",
             observaciones_gestion=getattr(model, "observaciones_gestion", "") or "",
             justificacion_cotizaciones=getattr(model, "justificacion_cotizaciones", "") or "",
             numero_tramite_oc=getattr(model, "numero_tramite_oc", "") or "",
@@ -116,6 +138,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones_anticipo=getattr(model, "observaciones_anticipo", "") or "",
             gestor_anticipo_id=getattr(model, "gestor_anticipo_id", None),
             gestor_anticipo_username=gestor_anticipo_username,
+            anticipo_gestionado=bool(getattr(model, "anticipo_gestionado", False)),
             factura_registrada_at=getattr(model, "factura_registrada_at", None),
             factura_registrada_por_id=getattr(model, "factura_registrada_por_id", None),
             gestor_id=getattr(model, "gestor_id", None),
@@ -152,13 +175,31 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones_trazabilidad=[
                 cls._observacion_to_entity(o) for o in (model.observaciones_trazabilidad or [])
             ],
+            visitas_programadas=[
+                cls._visita_to_entity(v) for v in (getattr(model, "visitas_programadas", None) or [])
+            ],
         )
+
+    def _siguiente_numero_consecutivo(self, tipo: TipoSolicitudGestion) -> int:
+        """Consecutivo independiente por tipo (SG, SA, SRV)."""
+        self._db.query(SolicitudGestionModel.id).filter(
+            SolicitudGestionModel.tipo == tipo.value
+        ).with_for_update().first()
+        max_num = (
+            self._db.query(func.max(SolicitudGestionModel.numero_consecutivo))
+            .filter(SolicitudGestionModel.tipo == tipo.value)
+            .scalar()
+        )
+        return int(max_num or 0) + 1
 
     def create(self, solicitud: SolicitudGestion) -> SolicitudGestion:
         etapa_inicial = normalizar_estado(solicitud.estado)
+        numero_consecutivo = self._siguiente_numero_consecutivo(solicitud.tipo)
+        codigo = construir_codigo_solicitud(numero_consecutivo, solicitud.tipo)
         model = SolicitudGestionModel(
-            codigo="PENDING",
+            codigo=codigo,
             tipo=solicitud.tipo.value,
+            numero_consecutivo=numero_consecutivo,
             titulo=solicitud.titulo,
             presupuestado=solicitud.presupuestado,
             centro_costo_area=solicitud.centro_costo_area,
@@ -166,13 +207,18 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             lider_area_label=solicitud.lider_area_label,
             observaciones=solicitud.observaciones,
             observaciones_texto=solicitud.observaciones_texto,
+            requiere_visita=solicitud.requiere_visita,
+            servicio_programado=solicitud.servicio_programado,
+            fecha_servicio_programado=solicitud.fecha_servicio_programado,
+            descripcion_servicio=solicitud.descripcion_servicio or "",
+            descripcion_servicio_texto=solicitud.descripcion_servicio_texto or "",
+            proveedor_sugerido=solicitud.proveedor_sugerido or "",
             estado=etapa_inicial.value,
             creado_por_id=solicitud.creado_por_id,
             creado_por_email=(solicitud.creado_por_email or "").strip(),
         )
         self._db.add(model)
         self._db.flush()
-        model.codigo = construir_codigo_solicitud(model.id)
 
         for producto in solicitud.productos:
             self._db.add(
@@ -236,6 +282,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             .options(
                 selectinload(SolicitudGestionModel.productos),
                 selectinload(SolicitudGestionModel.archivos),
+                selectinload(SolicitudGestionModel.visitas_programadas),
                 selectinload(SolicitudGestionModel.observaciones_trazabilidad).selectinload(
                     SolicitudGestionObservacionModel.archivos
                 ),
@@ -269,6 +316,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             .options(
                 selectinload(SolicitudGestionModel.productos),
                 selectinload(SolicitudGestionModel.archivos),
+                selectinload(SolicitudGestionModel.visitas_programadas),
                 selectinload(SolicitudGestionModel.observaciones_trazabilidad).selectinload(
                     SolicitudGestionObservacionModel.archivos
                 ),
@@ -329,6 +377,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model.monto_anticipo = solicitud.monto_anticipo
         model.observaciones_anticipo = solicitud.observaciones_anticipo or ""
         model.gestor_anticipo_id = solicitud.gestor_anticipo_id
+        model.anticipo_gestionado = bool(solicitud.anticipo_gestionado)
         model.factura_registrada_at = solicitud.factura_registrada_at
         model.factura_registrada_por_id = solicitud.factura_registrada_por_id
         model.gestor_id = solicitud.gestor_id
@@ -411,6 +460,28 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             )
             .count()
         )
+
+    def replace_visitas_programadas(
+        self,
+        solicitud_id: int,
+        visitas: list[SolicitudGestionVisitaProgramada],
+    ) -> None:
+        (
+            self._db.query(SolicitudGestionVisitaProgramadaModel)
+            .filter(SolicitudGestionVisitaProgramadaModel.solicitud_id == solicitud_id)
+            .delete(synchronize_session=False)
+        )
+        for visita in visitas:
+            self._db.add(
+                SolicitudGestionVisitaProgramadaModel(
+                    solicitud_id=solicitud_id,
+                    programador_visita=(visita.programador_visita or "").strip(),
+                    proveedor_visita=(visita.proveedor_visita or "").strip(),
+                    fecha_visita=visita.fecha_visita,
+                    hora_visita=visita.hora_visita,
+                )
+            )
+        self._db.commit()
 
     def add_observacion(
         self,

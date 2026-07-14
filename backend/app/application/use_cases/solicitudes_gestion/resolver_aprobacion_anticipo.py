@@ -90,6 +90,26 @@ class ResolverAprobacionAnticipo:
                 contexto_rol="aprobador_anticipo",
             )
 
+        from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_servicios
+
+        motivo_hist = motivo or "Anticipo rechazado"
+        if es_flujo_servicios(solicitud.tipo):
+            solicitud.estado = EstadoSolicitudGestion.GESTIONANDO_SERVICIO
+            solicitud.requiere_anticipo = False
+            solicitud.porcentaje_anticipo = None
+            solicitud.monto_anticipo = None
+            solicitud.lider_anticipo_id = ""
+            solicitud.lider_anticipo_label = ""
+            solicitud.observaciones_anticipo = ""
+            actualizada = self._solicitudes.update(solicitud)
+            self._solicitudes.registrar_historial(
+                solicitud_id,
+                EstadoSolicitudGestion.GESTIONANDO_SERVICIO,
+                usuario_id=actor.id,
+                comentario=f"{motivo_hist} — continúa gestión del servicio",
+            )
+            return self._solicitudes.get_by_id(solicitud_id) or actualizada
+
         solicitud.estado = EstadoSolicitudGestion.TRAMITADA_OC
         solicitud.requiere_anticipo = False
         actualizada = self._solicitudes.update(solicitud)

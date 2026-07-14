@@ -555,6 +555,173 @@ def migrar_archivos_observacion() -> None:
         )
 
 
+def migrar_campos_solicitud_servicios() -> None:
+    """Campos específicos del formulario Solicitud de Servicios."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    columnas = [
+        (
+            "requiere_visita",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN requiere_visita TINYINT(1) NULL "
+            "AFTER observaciones_texto",
+        ),
+        (
+            "servicio_programado",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN servicio_programado TINYINT(1) NULL "
+            "AFTER requiere_visita",
+        ),
+        (
+            "fecha_servicio_programado",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN fecha_servicio_programado DATE NULL "
+            "AFTER servicio_programado",
+        ),
+        (
+            "descripcion_servicio",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN descripcion_servicio TEXT NOT NULL "
+            "AFTER fecha_servicio_programado",
+        ),
+        (
+            "descripcion_servicio_texto",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN descripcion_servicio_texto TEXT NOT NULL "
+            "AFTER descripcion_servicio",
+        ),
+        (
+            "proveedor_sugerido",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN proveedor_sugerido VARCHAR(500) NOT NULL "
+            "DEFAULT '' AFTER descripcion_servicio_texto",
+        ),
+    ]
+    with engine.begin() as conn:
+        for columna, ddl in columnas:
+            if not _columna_existe("solicitudes_gestion", columna):
+                logger.info("Agregando columna '%s' a solicitudes_gestion...", columna)
+                conn.execute(text(ddl))
+
+
+def migrar_numero_consecutivo_solicitudes() -> None:
+    """Consecutivo y código independientes por tipo de solicitud."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+
+    if not _columna_existe("solicitudes_gestion", "numero_consecutivo"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'numero_consecutivo' a solicitudes_gestion...")
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion "
+                    "ADD COLUMN numero_consecutivo INT NULL AFTER tipo"
+                )
+            )
+
+    prefijos = {
+        "compra": "SG",
+        "salidas_almacen": "SA",
+        "insumos_servicios": "SRV",
+    }
+
+    with engine.begin() as conn:
+        sin_consecutivo = conn.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM solicitudes_gestion
+                WHERE numero_consecutivo IS NULL
+                """
+            )
+        ).scalar()
+        if not sin_consecutivo:
+            if not _indice_existe("solicitudes_gestion", "uq_sg_tipo_numero_consecutivo"):
+                logger.info(
+                    "Creando índice único uq_sg_tipo_numero_consecutivo en solicitudes_gestion..."
+                )
+                conn.execute(
+                    text(
+                        "ALTER TABLE solicitudes_gestion "
+                        "ADD UNIQUE KEY uq_sg_tipo_numero_consecutivo (tipo, numero_consecutivo)"
+                    )
+                )
+            return
+
+        logger.info(
+            "Asignando consecutivos por tipo a %s solicitud(es)...",
+            sin_consecutivo,
+        )
+        for tipo, prefijo in prefijos.items():
+            filas = conn.execute(
+                text(
+                    """
+                    SELECT id FROM solicitudes_gestion
+                    WHERE tipo = :tipo AND numero_consecutivo IS NULL
+                    ORDER BY id
+                    """
+                ),
+                {"tipo": tipo},
+            ).fetchall()
+            if not filas:
+                continue
+            max_num = conn.execute(
+                text(
+                    """
+                    SELECT COALESCE(MAX(numero_consecutivo), 0)
+                    FROM solicitudes_gestion
+                    WHERE tipo = :tipo
+                    """
+                ),
+                {"tipo": tipo},
+            ).scalar()
+            for numero, (solicitud_id,) in enumerate(filas, start=int(max_num) + 1):
+                codigo = f"{prefijo}-{numero:04d}"
+                conn.execute(
+                    text(
+                        """
+                        UPDATE solicitudes_gestion
+                        SET numero_consecutivo = :numero, codigo = :codigo
+                        WHERE id = :id
+                        """
+                    ),
+                    {"numero": numero, "codigo": codigo, "id": solicitud_id},
+                )
+
+        if not _indice_existe("solicitudes_gestion", "uq_sg_tipo_numero_consecutivo"):
+            logger.info(
+                "Creando índice único uq_sg_tipo_numero_consecutivo en solicitudes_gestion..."
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion "
+                    "ADD UNIQUE KEY uq_sg_tipo_numero_consecutivo (tipo, numero_consecutivo)"
+                )
+            )
+
+
+def migrar_visitas_programadas_servicios() -> None:
+    """Tabla de visitas programadas por el gestor en solicitudes de servicios."""
+    if _tabla_existe("solicitudes_gestion_visitas_programadas"):
+        return
+    with engine.begin() as conn:
+        logger.info("Creando tabla solicitudes_gestion_visitas_programadas...")
+        conn.execute(
+            text(
+                """
+                CREATE TABLE solicitudes_gestion_visitas_programadas (
+                    id                  INT          NOT NULL AUTO_INCREMENT,
+                    solicitud_id        INT          NOT NULL,
+                    programador_visita  VARCHAR(255) NOT NULL DEFAULT '',
+                    proveedor_visita    VARCHAR(500) NOT NULL DEFAULT '',
+                    fecha_visita        DATE         NULL,
+                    hora_visita         TIME         NULL,
+                    created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (id),
+                    KEY ix_sg_visita_solicitud_id (solicitud_id),
+                    CONSTRAINT fk_sg_visita_solicitud
+                        FOREIGN KEY (solicitud_id)
+                        REFERENCES solicitudes_gestion (id)
+                        ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+        )
+
+
 def run_all() -> None:
     migrar_codigo_contratos()
     migrar_tipo_codigo_contratos()
@@ -585,6 +752,46 @@ def run_all() -> None:
     migrar_estado_facturada_existentes()
     migrar_tipo_salidas_almacen()
     migrar_area_consumo_producto()
+    migrar_campos_solicitud_servicios()
+    migrar_numero_consecutivo_solicitudes()
+    migrar_visitas_programadas_servicios()
+    migrar_anticipo_gestionado_servicios()
+
+
+def migrar_anticipo_gestionado_servicios() -> None:
+    """Marca anticipo gestionado y habilita cierre con evidencia en servicios."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    if not _columna_existe("solicitudes_gestion", "anticipo_gestionado"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'anticipo_gestionado' a solicitudes_gestion...")
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE solicitudes_gestion
+                    ADD COLUMN anticipo_gestionado TINYINT(1) NOT NULL DEFAULT 0
+                    AFTER gestor_anticipo_id
+                    """
+                )
+            )
+    if not _tabla_existe("solicitudes_gestion_historial_estados"):
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE solicitudes_gestion sg
+                SET anticipo_gestionado = 1
+                WHERE sg.tipo = 'insumos_servicios'
+                  AND sg.anticipo_gestionado = 0
+                  AND EXISTS (
+                    SELECT 1 FROM solicitudes_gestion_historial_estados h
+                    WHERE h.solicitud_id = sg.id
+                      AND h.etapa = 'gestion_anticipo'
+                  )
+                """
+            )
+        )
 
 
 def migrar_area_consumo_producto() -> None:

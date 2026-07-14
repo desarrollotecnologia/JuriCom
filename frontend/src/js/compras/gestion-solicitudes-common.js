@@ -2,12 +2,12 @@ import { session } from "../auth/session.js";
 import { LIDERES_COLBEEF } from "../catalogos/lideres-colbeef.js";
 import { renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js";
 import { API_BASE } from "../utils/config.js";
-import { escapeHtml, formatCantidad, formatDate, formatFileSize, formatValorTramiteOc } from "../utils/format.js";
+import { escapeHtml, formatCantidad, formatDate, formatDateOnly, formatFileSize, formatValorTramiteOc } from "../utils/format.js";
 
 export const TIPO_LABEL = {
     compra: "Solicitud de Compra",
     salidas_almacen: "Salidas de Almacén",
-    insumos_servicios: "Insumos/Servicios",
+    insumos_servicios: "Solicitud de Servicios",
 };
 
 export const TIPO_BADGE = {
@@ -33,6 +33,8 @@ export const ESTADO_LABEL = {
     primera_aprobacion: "Primera Aprobación",
     cotizacion: "Cotización",
     en_aprobacion: "En Aprobación",
+    gestionando_servicio: "Gestionando servicio",
+    pendiente_evidencia_cierre: "Pendiente evidencia cierre",
     tramitada_oc: "Tramitada OC",
     items_en_camino: "Ítems en camino",
     recepcion_insumos: "Recepción de Insumos",
@@ -53,6 +55,8 @@ export const ESTADO_BADGE = {
     primera_aprobacion: "badge-sg-aprobacion",
     cotizacion: "badge-sg-aprobacion",
     en_aprobacion: "badge-sg-aprobacion",
+    gestionando_servicio: "badge-sg-aprobacion",
+    pendiente_evidencia_cierre: "badge-sg-aprobacion",
     tramitada_oc: "badge-sg-aprobado",
     items_en_camino: "badge-sg-aprobacion",
     recepcion_insumos: "badge-sg-aprobado",
@@ -78,10 +82,89 @@ const ESTADOS_COMENTARIO_COTIZACION = new Set([
     "tramitando_oc",
     "entregado_parcial",
     "entregado",
+    "pendiente_evidencia_cierre",
 ]);
 
 export function puedeComentarPosteriorCotizacion(estado) {
     return ESTADOS_COMENTARIO_COTIZACION.has(normalizarEstado(estado));
+}
+
+export function puedeEnviarEvidenciaCierreServicio(estado, solicitud) {
+    return (
+        esSolicitudServicios(solicitud) &&
+        normalizarEstado(estado) === "pendiente_evidencia_cierre"
+    );
+}
+
+function fechaNotificacionEvidenciaCierre(solicitud) {
+    const historial = [...(solicitud.historial_estados || [])].sort(
+        (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)
+    );
+    let maxFecha = null;
+    for (const h of historial) {
+        if (normalizarEstado(h.etapa) !== "pendiente_evidencia_cierre") continue;
+        if (!h.created_at) continue;
+        const d = new Date(h.created_at);
+        if (!maxFecha || d > maxFecha) maxFecha = d;
+    }
+    return maxFecha;
+}
+
+export function obtenerEvidenciaSolicitanteCierre(solicitud) {
+    const corte = fechaNotificacionEvidenciaCierre(solicitud);
+    if (!corte) return [];
+    const porObs = archivosPorObservacion(solicitud);
+    return [...(solicitud.observaciones_trazabilidad || [])]
+        .filter((o) => {
+            const rol = (o.autor_rol || "").toLowerCase();
+            if (!rol.includes("solicitante")) return false;
+            if (!o.created_at) return false;
+            return new Date(o.created_at) >= corte;
+        })
+        .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0))
+        .map((item) => ({
+            ...item,
+            archivos:
+                item.archivos?.length > 0 ? item.archivos : porObs.get(item.id) || [],
+        }));
+}
+
+export function tieneEvidenciaSolicitanteCierre(solicitud) {
+    return obtenerEvidenciaSolicitanteCierre(solicitud).length > 0;
+}
+
+function renderEvidenciaSolicitanteCierreHtml(solicitud) {
+    const items = obtenerEvidenciaSolicitanteCierre(solicitud);
+    if (!items.length) return "";
+
+    const lista = items
+        .map((item) => {
+            const etiqueta = escapeHtml(
+                item.autor_etiqueta ||
+                    `${item.autor_nombre || "Usuario"} (${item.autor_rol || ""})`
+            );
+            const fecha = formatObservacionFecha(item.created_at);
+            const adjuntos = renderObservacionArchivosHtml(solicitud.id, item.archivos);
+            return `
+                <li class="sg-obs-timeline-item">
+                    <p class="sg-obs-timeline-meta">
+                        <span class="sg-obs-timeline-fecha">[${escapeHtml(fecha)}]</span>
+                        <strong>${etiqueta}:</strong>
+                    </p>
+                    <div class="sg-obs-timeline-content sg-observaciones-readonly">${item.contenido || ""}</div>
+                    ${adjuntos}
+                </li>`;
+        })
+        .join("");
+
+    return `
+        <div class="sg-detail-panel sg-evidencia-cierre-panel">
+            <h3 class="sg-detail-panel-title">Evidencia del solicitante</h3>
+            <p class="muted sg-detail-panel-hint">
+                Revisa la evidencia adjunta. Si es correcta, confirma el cierre del servicio.
+            </p>
+            <ul class="sg-obs-timeline">${lista}</ul>
+        </div>`;
 }
 
 export function normalizarEstado(estado) {
@@ -514,6 +597,7 @@ export function renderAgregarComentarioHtml({
     title = "Agregar comentario",
     label = "Nuevo comentario",
     showIntro = true,
+    introHtml = "",
     showHint = true,
     showSaveButton = true,
 } = {}) {
@@ -521,11 +605,13 @@ export function renderAgregarComentarioHtml({
         <div class="sg-detail-panel sg-obs-nuevo-comentario-panel">
             <h3 class="sg-detail-panel-title">${escapeHtml(title)}</h3>
             ${
-                showIntro
-                    ? `<p class="muted sg-detail-panel-hint">
+                introHtml
+                    ? introHtml
+                    : showIntro
+                      ? `<p class="muted sg-detail-panel-hint">
                 El comentario se añadirá al historial sin modificar entradas anteriores.
             </p>`
-                    : ""
+                      : ""
             }
             ${renderObservacionAdjuntosFieldHtml({
                 editorContainerId,
@@ -743,6 +829,14 @@ function renderArchivosHtml(solicitud, { categoria = null, titulo = "Archivos ad
         archivos = archivos.filter((a) => (a.categoria || "solicitud") === categoria);
     } else {
         archivos = archivos.filter((a) => (a.categoria || "solicitud") !== "cotizacion");
+        if (esSolicitudServicios(solicitud)) {
+            archivos = archivos.filter(
+                (a) =>
+                    !["detalle_servicio", "ficha_tecnica", "hoja_vida_equipo"].includes(
+                        a.categoria || ""
+                    )
+            );
+        }
     }
     if (!archivos.length) {
         return "";
@@ -1006,8 +1100,631 @@ export function renderAnticipoTramiteFormHtml(lideresOptionsHtml = "") {
         </div>`;
 }
 
+export function esGestionServiciosPostAprobacion(estado) {
+    return normalizarEstado(estado) === "gestionando_servicio";
+}
+
+export function anticipoServicioGestionado(s) {
+    return Boolean(s?.anticipo_gestionado);
+}
+
+export function esGestionServiciosSolicitarAnticipo(s) {
+    return (
+        esSolicitudServicios(s) &&
+        esGestionServiciosPostAprobacion(s.estado) &&
+        !anticipoServicioGestionado(s)
+    );
+}
+
+export function esGestionServiciosContinuacionPostAnticipo(s) {
+    const estado = normalizarEstado(s?.estado);
+    return (
+        esSolicitudServicios(s) &&
+        ((estado === "gestionando_servicio" && anticipoServicioGestionado(s)) ||
+            estado === "pendiente_evidencia_cierre")
+    );
+}
+
+export function esGestionServiciosPanelActivo(s) {
+    const estado = normalizarEstado(s?.estado);
+    return (
+        esSolicitudServicios(s) &&
+        (esGestionServiciosPostAprobacion(estado) || estado === "pendiente_evidencia_cierre")
+    );
+}
+
+export function renderPanelServiciosPostAnticipoGestionadoHtml(s) {
+    const esperandoEvidencia =
+        normalizarEstado(s.estado) === "pendiente_evidencia_cierre";
+    const evidenciaHtml = esperandoEvidencia ? renderEvidenciaSolicitanteCierreHtml(s) : "";
+    const conEvidencia = tieneEvidenciaSolicitanteCierre(s);
+
+    let hintHtml;
+    if (esperandoEvidencia && conEvidencia) {
+        hintHtml = `<p class="muted sg-detail-panel-hint">
+            El solicitante registró evidencia de cierre. Revísala y confirma el cierre del servicio.
+        </p>`;
+    } else if (esperandoEvidencia) {
+        hintHtml = `<p class="muted sg-detail-panel-hint">
+            El solicitante fue notificado para adjuntar evidencia y observación de cierre.
+            La solicitud quedará en este estado hasta que responda desde
+            <strong>Mis solicitudes</strong>.
+        </p>`;
+    } else {
+        hintHtml = `<p class="muted sg-detail-panel-hint">
+            El anticipo ya fue gestionado. Registra tu observación y notifica al solicitante
+            para que adjunte evidencia y comentario de cierre.
+        </p>`;
+    }
+
+    return `
+        <div class="sg-detail-panel sg-gestion-form-panel sg-servicio-post-anticipo-panel">
+            <h3 class="sg-detail-panel-title">Continuar gestión del servicio</h3>
+            ${hintHtml}
+            ${evidenciaHtml}
+            ${renderAnticipoDetalleHtml(s)}
+        </div>`;
+}
+
+export function renderAnticipoServicioGestionHtml(s, lideresOptionsHtml = "") {
+    const valor =
+        s.valor_tramite_oc !== null && s.valor_tramite_oc !== undefined
+            ? String(s.valor_tramite_oc)
+            : "";
+    const pct =
+        s.porcentaje_anticipo !== null && s.porcentaje_anticipo !== undefined
+            ? String(s.porcentaje_anticipo)
+            : "";
+    return `
+        <div class="sg-detail-panel sg-gestion-form-panel sg-anticipo-servicio-panel">
+            <h3 class="sg-detail-panel-title">Solicitud de anticipo</h3>
+            <p class="muted sg-detail-panel-hint">
+                El anticipo se enviará a <strong>Aprobar solicitudes</strong>. Una vez aprobado
+                pasará a <strong>Gestionar anticipo</strong> y, al cerrarse, la solicitud volverá
+                al panel para continuar la gestión del servicio.
+            </p>
+            <div class="field">
+                <label for="gestion-valor-servicio">
+                    Valor del servicio
+                    <span class="required">*</span>
+                </label>
+                <input
+                    type="number"
+                    id="gestion-valor-servicio"
+                    class="input-table"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="Valor acordado del servicio"
+                    value="${escapeHtml(valor)}"
+                    autocomplete="off"
+                />
+            </div>
+            <div class="row-2">
+                <div class="field">
+                    <label for="gestion-porcentaje-anticipo">
+                        Porcentaje de anticipo (%)
+                        <span class="required">*</span>
+                    </label>
+                    <input
+                        type="number"
+                        id="gestion-porcentaje-anticipo"
+                        class="input-table"
+                        min="0.01"
+                        max="100"
+                        step="0.01"
+                        placeholder="Ej: 30"
+                        value="${escapeHtml(pct)}"
+                        autocomplete="off"
+                    />
+                </div>
+                <div class="field">
+                    <label for="gestion-lider-anticipo">
+                        Líder aprobador del anticipo
+                        <span class="required">*</span>
+                    </label>
+                    <select id="gestion-lider-anticipo" class="input-table">
+                        <option value="">Seleccione líder...</option>
+                        ${lideresOptionsHtml}
+                    </select>
+                </div>
+            </div>
+            <div class="field">
+                <label for="gestion-observaciones-anticipo">Observaciones del anticipo</label>
+                <textarea
+                    id="gestion-observaciones-anticipo"
+                    rows="3"
+                    class="input-table"
+                    placeholder="Detalle o soporte del anticipo (opcional)"
+                >${escapeHtml(s.observaciones_anticipo || "")}</textarea>
+            </div>
+        </div>`;
+}
+
+export function renderPanelGestionServiciosPostAprobacionHtml(s, lideresOptionsHtml) {
+    const cotizaciones = (s.archivos || []).filter((a) => a.categoria === "cotizacion");
+    const panelGestion = esGestionServiciosContinuacionPostAnticipo(s)
+        ? renderPanelServiciosPostAnticipoGestionadoHtml(s)
+        : renderAnticipoServicioGestionHtml(s, lideresOptionsHtml);
+
+    return `
+        <div class="sg-detail-layout">
+            ${renderWorkflowTimelineHtml(s)}
+            ${renderInformacionGeneralHtml(s, {
+                showPresupuestado: false,
+                showServiciosCampos: true,
+                showFechaRegistro: true,
+                showCreadoPor: true,
+                showValorServicio: Boolean(s.valor_tramite_oc),
+            })}
+            ${renderServiciosDetalleHtml(s)}
+
+            ${
+                cotizaciones.length
+                    ? renderArchivosHtml(s, {
+                          categoria: "cotizacion",
+                          titulo: "Cotizaciones registradas",
+                      })
+                    : ""
+            }
+
+            ${renderObservacionesTrazabilidadHtml(s)}
+            ${renderArchivosHtml(s)}
+
+            ${renderAgregarComentarioHtml({
+                showIntro: false,
+                showHint: false,
+                showSaveButton: false,
+                title: "Observación del gestor",
+                label: "Comentario",
+            })}
+
+            ${panelGestion}
+        </div>`;
+}
+
 export function esSolicitudSalidasAlmacen(solicitud) {
     return (solicitud?.tipo || "") === "salidas_almacen";
+}
+
+export function esSolicitudServicios(solicitud) {
+    return (solicitud?.tipo || "") === "insumos_servicios";
+}
+
+function renderArchivosCategoriaHtml(archivos, categoria, titulo, solicitudId) {
+    const list = (archivos || []).filter((a) => (a.categoria || "") === categoria);
+    if (!list.length) return "";
+    return `
+        <div class="sg-detail-field sg-detail-field-full">
+            <dt>${escapeHtml(titulo)}</dt>
+            <dd>
+                <ul class="sg-attachment-list">
+                    ${list
+                        .map(
+                            (a) => `
+                        <li class="sg-attachment-item">
+                            <span class="sg-attachment-icon" aria-hidden="true">📎</span>
+                            <div class="sg-attachment-info">
+                                <strong>${escapeHtml(a.nombre_original)}</strong>
+                                <span class="muted">${formatFileSize(a.tamano_bytes)}</span>
+                            </div>
+                            <a
+                                href="#"
+                                class="btn btn-secondary btn-sm"
+                                data-download-url="/solicitudes-gestion/${solicitudId}/archivos/${a.id}"
+                                data-filename="${escapeHtml(a.nombre_original)}"
+                                data-mime-type="${escapeHtml(a.mime_type || "")}"
+                            >Descargar</a>
+                        </li>`
+                        )
+                        .join("")}
+                </ul>
+            </dd>
+        </div>`;
+}
+
+export function renderInformacionGeneralHtml(s, options = {}) {
+    const {
+        liderTitulo = "Líder aprobador",
+        showPresupuestado = true,
+        showServiciosCampos = false,
+        showFechaRegistro = false,
+        showCreadoPor = false,
+        showGestor = false,
+        showTramiteOc = false,
+        showValorServicio = false,
+    } = options;
+
+    const presupuestado =
+        s.presupuestado === null || s.presupuestado === undefined
+            ? "—"
+            : s.presupuestado
+              ? "Sí"
+              : "No";
+    const tramiteGeneral = (s.numero_tramite_oc || "").trim();
+    const mostrarServicios = showServiciosCampos && esSolicitudServicios(s);
+    const fechaProgramada =
+        mostrarServicios && s.servicio_programado && s.fecha_servicio_programado
+            ? formatDateOnly(s.fecha_servicio_programado)
+            : "—";
+
+    return `
+        <div class="sg-detail-panel">
+            <h3 class="sg-detail-panel-title">Información general</h3>
+            <dl class="sg-detail-grid">
+                <div class="sg-detail-field">
+                    <dt>Título</dt>
+                    <dd>${escapeHtml(s.titulo)}</dd>
+                </div>
+                <div class="sg-detail-field">
+                    <dt>Estado actual</dt>
+                    <dd>${badgeEstado(s.estado, s)}</dd>
+                </div>
+                <div class="sg-detail-field">
+                    <dt>Centro de costo</dt>
+                    <dd>${escapeHtml(s.centro_costo_area)}</dd>
+                </div>
+                <div class="sg-detail-field">
+                    <dt>${escapeHtml(liderTitulo)}</dt>
+                    <dd>${escapeHtml(s.lider_area_label || "—")}</dd>
+                </div>
+                ${
+                    showPresupuestado && s.tipo === "compra"
+                        ? `<div class="sg-detail-field">
+                    <dt>Presupuestado</dt>
+                    <dd>${presupuestado}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    mostrarServicios
+                        ? `<div class="sg-detail-field">
+                    <dt>Requiere visita</dt>
+                    <dd>${
+                        s.requiere_visita === null || s.requiere_visita === undefined
+                            ? "—"
+                            : s.requiere_visita
+                              ? "Sí"
+                              : "No"
+                    }</dd>
+                </div>
+                <div class="sg-detail-field">
+                    <dt>Servicio programado</dt>
+                    <dd>${
+                        s.servicio_programado === null || s.servicio_programado === undefined
+                            ? "—"
+                            : s.servicio_programado
+                              ? "Sí"
+                              : "No"
+                    }</dd>
+                </div>
+                <div class="sg-detail-field">
+                    <dt>Fecha programada</dt>
+                    <dd>${fechaProgramada}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    showGestor && s.gestor_username
+                        ? `<div class="sg-detail-field">
+                    <dt>Gestor asignado</dt>
+                    <dd>${escapeHtml(s.gestor_username)}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    showFechaRegistro
+                        ? `<div class="sg-detail-field">
+                    <dt>Fecha de registro</dt>
+                    <dd>${formatDate(s.created_at)}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    showCreadoPor && s.creado_por_username
+                        ? `<div class="sg-detail-field">
+                    <dt>Registrada por</dt>
+                    <dd>${escapeHtml(s.creado_por_username)}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    showValorServicio &&
+                    mostrarServicios &&
+                    s.valor_tramite_oc !== null &&
+                    s.valor_tramite_oc !== undefined
+                        ? `<div class="sg-detail-field">
+                    <dt>Valor del servicio</dt>
+                    <dd>${formatValorTramiteOc(s.valor_tramite_oc)}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    showTramiteOc && tramiteGeneral
+                        ? `<div class="sg-detail-field">
+                    <dt>Trámite Orden de Compra</dt>
+                    <dd>${escapeHtml(tramiteGeneral)}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    showTramiteOc &&
+                    s.valor_tramite_oc !== null &&
+                    s.valor_tramite_oc !== undefined
+                        ? `<div class="sg-detail-field">
+                    <dt>Valor trámite OC</dt>
+                    <dd>${formatValorTramiteOc(s.valor_tramite_oc)}</dd>
+                </div>`
+                        : ""
+                }
+            </dl>
+        </div>`;
+}
+
+export function renderServiciosDetalleHtml(s) {
+    if (!esSolicitudServicios(s)) return "";
+
+    const descripcionHtml = (s.descripcion_servicio || "").trim();
+    const archivos = s.archivos || [];
+
+    return `
+        <div class="sg-detail-panel">
+            <h3 class="sg-detail-panel-title">Detalle del servicio</h3>
+            <dl class="sg-detail-grid">
+                ${
+                    (s.proveedor_sugerido || "").trim()
+                        ? `<div class="sg-detail-field sg-detail-field-full">
+                    <dt>Proveedor sugerido</dt>
+                    <dd>${escapeHtml(s.proveedor_sugerido)}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    descripcionHtml
+                        ? `<div class="sg-detail-field sg-detail-field-full">
+                    <dt>Descripción del servicio</dt>
+                    <dd class="sg-rich-content">${descripcionHtml}</dd>
+                </div>`
+                        : ""
+                }
+                ${renderArchivosCategoriaHtml(archivos, "detalle_servicio", "Adjuntos del detalle", s.id)}
+                ${renderArchivosCategoriaHtml(archivos, "ficha_tecnica", "Ficha técnica", s.id)}
+                ${renderArchivosCategoriaHtml(archivos, "hoja_vida_equipo", "Hoja de vida del equipo", s.id)}
+                ${renderVisitasProgramadasDetalleHtml(s)}
+            </dl>
+        </div>`;
+}
+
+function formatHoraVisita(hora) {
+    if (!hora) return "—";
+    const text = String(hora);
+    return text.length >= 5 ? text.slice(0, 5) : text;
+}
+
+export function renderVisitasProgramadasDetalleHtml(s) {
+    if (!esSolicitudServicios(s)) return "";
+    const visitas = s.visitas_programadas || [];
+    if (!visitas.length) return "";
+    return `
+        <div class="sg-detail-field sg-detail-field-full">
+            <dt>Visitas programadas</dt>
+            <dd>
+                <ul class="sg-visitas-detalle-list">
+                    ${visitas
+                        .map(
+                            (v, i) => `
+                        <li>
+                            <strong>Visita ${i + 1}</strong> —
+                            Proveedor: ${escapeHtml(v.proveedor_visita || "—")}
+                            ${
+                                v.fecha_visita
+                                    ? ` · Fecha: ${formatDateOnly(v.fecha_visita)}`
+                                    : ""
+                            }
+                            ${v.hora_visita ? ` · Hora: ${formatHoraVisita(v.hora_visita)}` : ""}
+                        </li>`
+                        )
+                        .join("")}
+                </ul>
+            </dd>
+        </div>`;
+}
+
+export function renderVisitaProgramadaRowHtml(visita = {}, { removable = true } = {}) {
+    const fecha = visita.fecha_visita ? String(visita.fecha_visita).slice(0, 10) : "";
+    const hora = visita.hora_visita ? formatHoraVisita(visita.hora_visita) : "";
+    return `
+        <div class="sg-visita-row sg-visita-row-compact" data-visita-row>
+            <div class="sg-visita-row-fields">
+                <div class="field sg-visita-field-proveedor">
+                    <label>Proveedor que visita</label>
+                    <input
+                        type="text"
+                        class="sg-visita-proveedor"
+                        placeholder="Proveedor asignado"
+                        value="${escapeHtml(visita.proveedor_visita || "")}"
+                    />
+                </div>
+                <div class="field sg-visita-field-fecha">
+                    <label>Fecha</label>
+                    <input
+                        type="date"
+                        class="sg-visita-fecha input-date-compact"
+                        value="${escapeHtml(fecha)}"
+                    />
+                </div>
+                <div class="field sg-visita-field-hora">
+                    <label>Hora</label>
+                    <input type="time" class="sg-visita-hora" value="${escapeHtml(hora)}" />
+                </div>
+                ${
+                    removable
+                        ? `<button
+                            type="button"
+                            class="btn btn-sm btn-secondary btn-quitar-visita"
+                            title="Quitar visita"
+                            aria-label="Quitar visita"
+                        >
+                            ×
+                        </button>`
+                        : ""
+                }
+            </div>
+        </div>`;
+}
+
+export function renderPanelGestionServiciosHtml(s, lideresOptionsHtml) {
+    const cotizaciones = (s.archivos || []).filter((a) => a.categoria === "cotizacion");
+    const requiereVisita = Boolean(s.requiere_visita);
+    const visitas = s.visitas_programadas || [];
+    const programarVisitaInicial = visitas.length > 0 || requiereVisita;
+    const visitasIniciales = visitas.length ? visitas : [{}];
+    const adjuntarCotizacionesInicial = cotizaciones.length > 0;
+
+    return `
+        <div class="sg-detail-layout">
+            ${renderWorkflowTimelineHtml(s)}
+            ${renderInformacionGeneralHtml(s, {
+                showPresupuestado: false,
+                showServiciosCampos: true,
+                showFechaRegistro: true,
+                showCreadoPor: true,
+            })}
+            ${renderServiciosDetalleHtml(s)}
+
+            ${renderObservacionesTrazabilidadHtml(s)}
+            ${renderArchivosHtml(s)}
+
+            ${renderAgregarComentarioHtml({
+                showIntro: false,
+                showHint: false,
+                showSaveButton: false,
+                title: "Observación del gestor",
+                label: "Comentario",
+            })}
+
+            <div class="sg-detail-panel sg-gestion-form-panel">
+                <h3 class="sg-detail-panel-title">Gestión del servicio</h3>
+
+                <div class="field sg-visitas-programadas-field">
+                    <label>¿Programar visita?</label>
+                    <div class="radio-group" id="sg-programar-visita-group">
+                        <label class="radio-option">
+                            <input
+                                type="radio"
+                                name="programar_visita"
+                                value="si"
+                                ${programarVisitaInicial ? "checked" : ""}
+                            />
+                            Sí
+                        </label>
+                        <label class="radio-option">
+                            <input
+                                type="radio"
+                                name="programar_visita"
+                                value="no"
+                                ${programarVisitaInicial ? "" : "checked"}
+                            />
+                            No
+                        </label>
+                    </div>
+                    <div
+                        id="sg-visitas-programadas-wrap"
+                        class="sg-visitas-programadas-wrap"
+                        ${programarVisitaInicial ? "" : "hidden"}
+                    >
+                        <div class="sg-visitas-programadas-header">
+                            <p class="hint ${requiereVisita ? "" : "muted"}" id="sg-visitas-hint">
+                                ${
+                                    requiereVisita
+                                        ? "El solicitante indicó que requiere visita. Registra proveedor y fecha de cada visita."
+                                        : "Indica proveedor y fecha de cada visita programada."
+                                }
+                            </p>
+                            <button
+                                type="button"
+                                class="btn btn-secondary btn-sm"
+                                id="btn-agregar-visita-programada"
+                            >
+                                + Agregar visita
+                            </button>
+                        </div>
+                        <div id="sg-visitas-programadas-list">
+                            ${visitasIniciales
+                                .map((v) => renderVisitaProgramadaRowHtml(v))
+                                .join("")}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field sg-adjuntar-cotizaciones-field">
+                    <label>¿Adjuntar cotizaciones ahora?</label>
+                    <div class="radio-group" id="sg-adjuntar-cotizaciones-group">
+                        <label class="radio-option">
+                            <input
+                                type="radio"
+                                name="adjuntar_cotizaciones"
+                                value="no"
+                                ${adjuntarCotizacionesInicial ? "" : "checked"}
+                            />
+                            No
+                        </label>
+                        <label class="radio-option">
+                            <input
+                                type="radio"
+                                name="adjuntar_cotizaciones"
+                                value="si"
+                                ${adjuntarCotizacionesInicial ? "checked" : ""}
+                            />
+                            Sí
+                        </label>
+                    </div>
+                    <p class="hint muted" id="sg-adjuntar-cotizaciones-hint">
+                        Si eliges <strong>No</strong>, guarda la programación de visitas y la solicitud
+                        seguirá en Cotización hasta que adjuntes cotizaciones.
+                    </p>
+                </div>
+
+                <div
+                    id="sg-cotizaciones-gestion-wrap"
+                    class="sg-cotizaciones-gestion-wrap"
+                    ${adjuntarCotizacionesInicial ? "" : "hidden"}
+                >
+                ${renderCotizacionesUploadHtml(cotizaciones.length)}
+
+                ${
+                    cotizaciones.length
+                        ? renderArchivosHtml(s, {
+                              categoria: "cotizacion",
+                              titulo: "Cotizaciones ya registradas",
+                          })
+                        : ""
+                }
+
+                <div class="field" id="gestion-justificacion-wrap" hidden>
+                    <label for="gestion-justificacion">
+                        Justificación
+                        <span class="required">*</span>
+                    </label>
+                    <textarea
+                        id="gestion-justificacion"
+                        rows="3"
+                        placeholder="Indica por qué se adjuntan menos de 3 cotizaciones..."
+                    >${escapeHtml(s.justificacion_cotizaciones || "")}</textarea>
+                </div>
+
+                <div class="field">
+                    <label for="gestion-lider-aprobacion">
+                        Líder Colbeef — segunda aprobación
+                        <span class="required">*</span>
+                    </label>
+                    <select id="gestion-lider-aprobacion">
+                        <option value="">Selecciona un líder</option>
+                        ${lideresOptionsHtml}
+                    </select>
+                </div>
+                </div>
+            </div>
+        </div>`;
 }
 
 export function renderSalidasEntregaAlertHtml(s, options = {}) {
@@ -1329,12 +2046,6 @@ export function renderProductosTableHtml(productos, options = {}) {
 
 export function renderDetalleSolicitudHtml(s, options = {}) {
     const { productosOptions = {}, showAprobacionParcialAlert = true } = options;
-    const presupuestado =
-        s.presupuestado === null || s.presupuestado === undefined
-            ? "—"
-            : s.presupuestado
-              ? "Sí"
-              : "No";
     const tieneTramiteParcial = (s.productos || []).some((p) =>
         Boolean((p.numero_tramite_oc || "").trim())
     );
@@ -1348,65 +2059,19 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
             ${renderTramitandoOcAlertHtml(s, { contexto: "solicitante" })}
             ${renderOrdenOcRegistradaAlertHtml(s, { contexto: "solicitante" })}
 
-            <div class="sg-detail-panel">
-                <h3 class="sg-detail-panel-title">Información general</h3>
-                <dl class="sg-detail-grid">
-                    <div class="sg-detail-field">
-                        <dt>Título</dt>
-                        <dd>${escapeHtml(s.titulo)}</dd>
-                    </div>
-                    <div class="sg-detail-field">
-                        <dt>Estado actual</dt>
-                        <dd>${badgeEstado(s.estado, s)}</dd>
-                    </div>
-                    <div class="sg-detail-field">
-                        <dt>Centro de costo</dt>
-                        <dd>${escapeHtml(s.centro_costo_area)}</dd>
-                    </div>
-                    <div class="sg-detail-field">
-                        <dt>Líder aprobador</dt>
-                        <dd>${escapeHtml(s.lider_area_label || "—")}</dd>
-                    </div>
-                    ${
-                        s.tipo === "compra"
-                            ? `<div class="sg-detail-field">
-                        <dt>Presupuestado</dt>
-                        <dd>${presupuestado}</dd>
-                    </div>`
-                            : ""
-                    }
-                    <div class="sg-detail-field">
-                        <dt>Fecha de registro</dt>
-                        <dd>${formatDate(s.created_at)}</dd>
-                    </div>
-                    ${
-                        s.creado_por_username
-                            ? `<div class="sg-detail-field">
-                        <dt>Registrada por</dt>
-                        <dd>${escapeHtml(s.creado_por_username)}</dd>
-                    </div>`
-                            : ""
-                    }
-                    ${
-                        tramiteGeneral
-                            ? `<div class="sg-detail-field">
-                        <dt>Trámite Orden de Compra</dt>
-                        <dd>${escapeHtml(tramiteGeneral)}</dd>
-                    </div>`
-                            : ""
-                    }
-                    ${
-                        s.valor_tramite_oc !== null && s.valor_tramite_oc !== undefined
-                            ? `<div class="sg-detail-field">
-                        <dt>Valor trámite OC</dt>
-                        <dd>${formatValorTramiteOc(s.valor_tramite_oc)}</dd>
-                    </div>`
-                            : ""
-                    }
-                </dl>
-            </div>
+            ${renderInformacionGeneralHtml(s, {
+                showServiciosCampos: true,
+                showFechaRegistro: true,
+                showCreadoPor: true,
+                showTramiteOc: true,
+            })}
 
-            ${renderProductosTableHtml(s.productos, {
+            ${renderServiciosDetalleHtml(s)}
+
+            ${
+                esSolicitudServicios(s)
+                    ? ""
+                    : renderProductosTableHtml(s.productos, {
                 ...productosOptions,
                 modoSalidas: esSolicitudSalidasAlmacen(s),
                 titulo: productosOptions.titulo
@@ -1438,7 +2103,8 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
                         (s.productos || []).some(
                             (p) => Number(p.cantidad_entregada || 0) > 0
                         )),
-            })}
+            })
+            }
 
             ${renderObservacionesTrazabilidadHtml(s)}
 
@@ -1449,54 +2115,16 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
 
 export function renderPanelGestionHtml(s, lideresOptionsHtml) {
     const cotizaciones = (s.archivos || []).filter((a) => a.categoria === "cotizacion");
-    const presupuestado =
-        s.presupuestado === null || s.presupuestado === undefined
-            ? "—"
-            : s.presupuestado
-              ? "Sí"
-              : "No";
 
     return `
         <div class="sg-detail-layout">
             ${renderWorkflowTimelineHtml(s)}
 
-            <div class="sg-detail-panel">
-                <h3 class="sg-detail-panel-title">Información general</h3>
-                <dl class="sg-detail-grid">
-                    <div class="sg-detail-field">
-                        <dt>Título</dt>
-                        <dd>${escapeHtml(s.titulo)}</dd>
-                    </div>
-                    <div class="sg-detail-field">
-                        <dt>Estado actual</dt>
-                        <dd>${badgeEstado(s.estado, s)}</dd>
-                    </div>
-                    <div class="sg-detail-field">
-                        <dt>Centro de costo</dt>
-                        <dd>${escapeHtml(s.centro_costo_area)}</dd>
-                    </div>
-                    <div class="sg-detail-field">
-                        <dt>Líder aprobador inicial</dt>
-                        <dd>${escapeHtml(s.lider_area_label || "—")}</dd>
-                    </div>
-                    ${
-                        s.tipo === "compra"
-                            ? `<div class="sg-detail-field">
-                        <dt>Presupuestado</dt>
-                        <dd>${presupuestado}</dd>
-                    </div>`
-                            : ""
-                    }
-                    ${
-                        s.gestor_username
-                            ? `<div class="sg-detail-field">
-                        <dt>Gestor asignado</dt>
-                        <dd>${escapeHtml(s.gestor_username)}</dd>
-                    </div>`
-                            : ""
-                    }
-                </dl>
-            </div>
+            ${renderInformacionGeneralHtml(s, {
+                liderTitulo: "Líder aprobador inicial",
+                showServiciosCampos: false,
+                showGestor: true,
+            })}
 
             ${renderAprobacionParcialAlertHtml(s)}
 

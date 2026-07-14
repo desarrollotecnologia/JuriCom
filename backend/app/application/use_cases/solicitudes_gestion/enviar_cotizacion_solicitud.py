@@ -1,5 +1,8 @@
 """Envía cotizaciones y solicita segunda aprobación."""
 
+import json
+from datetime import date, time
+
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
@@ -13,7 +16,11 @@ from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud
 from app.application.use_cases.solicitudes_gestion.registrar_solicitud_compra import (
     ArchivoEntradaSolicitud,
 )
-from app.domain.entities.solicitud_gestion import SolicitudGestion, SolicitudGestionArchivo
+from app.domain.entities.solicitud_gestion import (
+    SolicitudGestion,
+    SolicitudGestionArchivo,
+    SolicitudGestionVisitaProgramada,
+)
 from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
 from app.domain.value_objects.estado_solicitud_gestion import (
@@ -22,6 +29,64 @@ from app.domain.value_objects.estado_solicitud_gestion import (
 )
 
 MIN_COTIZACIONES = 3
+
+
+def _parse_visitas_programadas(visitas_json: str) -> list[SolicitudGestionVisitaProgramada]:
+    if not (visitas_json or "").strip():
+        return []
+    try:
+        raw = json.loads(visitas_json)
+    except json.JSONDecodeError as e:
+        raise ValueError("El formato de visitas programadas no es válido.") from e
+    if not isinstance(raw, list):
+        raise ValueError("El formato de visitas programadas no es válido.")
+
+    visitas: list[SolicitudGestionVisitaProgramada] = []
+    for i, item in enumerate(raw, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"Visita {i}: formato inválido.")
+        proveedor = str(item.get("proveedor_visita") or "").strip()
+        fecha_raw = str(item.get("fecha_visita") or "").strip()
+        hora_raw = str(item.get("hora_visita") or "").strip()
+        if not proveedor and not fecha_raw and not hora_raw:
+            continue
+        fecha_visita: date | None = None
+        hora_visita: time | None = None
+        if fecha_raw:
+            try:
+                fecha_visita = date.fromisoformat(fecha_raw)
+            except ValueError as e:
+                raise ValueError(f"Visita {i}: la fecha no es válida.") from e
+        if hora_raw:
+            try:
+                hora_visita = time.fromisoformat(hora_raw)
+            except ValueError as e:
+                raise ValueError(f"Visita {i}: la hora no es válida.") from e
+        visitas.append(
+            SolicitudGestionVisitaProgramada(
+                programador_visita="",
+                proveedor_visita=proveedor,
+                fecha_visita=fecha_visita,
+                hora_visita=hora_visita,
+            )
+        )
+    return visitas
+
+
+def _validar_visitas_servicios(
+    solicitud: SolicitudGestion, visitas: list[SolicitudGestionVisitaProgramada]
+) -> None:
+    from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_servicios
+
+    if not es_flujo_servicios(solicitud.tipo):
+        return
+    if not visitas:
+        return
+    for i, visita in enumerate(visitas, start=1):
+        if not (visita.proveedor_visita or "").strip():
+            raise ValueError(f"Visita {i}: el proveedor de la visita es obligatorio.")
+        if visita.fecha_visita is None:
+            raise ValueError(f"Visita {i}: la fecha de visita es obligatoria.")
 
 
 def _append_justificacion_a_observacion(
@@ -74,6 +139,7 @@ class EnviarCotizacionSolicitud:
         lider_segunda_aprobacion_label: str,
         cotizaciones: list[ArchivoEntradaSolicitud],
         archivos_observacion: list[ArchivoEntradaSolicitud] | None = None,
+        visitas_json: str = "",
     ) -> SolicitudGestion:
         if not (actor.is_admin() or actor.is_compras()):
             raise UnauthorizedError("Sólo Compras o Admin pueden enviar cotizaciones.")
@@ -92,6 +158,9 @@ class EnviarCotizacionSolicitud:
 
         if solicitud.gestor_id != actor.id and not actor.is_admin():
             raise UnauthorizedError("Sólo el gestor asignado puede enviar la cotización.")
+
+        visitas = _parse_visitas_programadas(visitas_json)
+        _validar_visitas_servicios(solicitud, visitas)
 
         if not lider_segunda_aprobacion_id.strip():
             raise ValueError("Debes seleccionar un líder Colbeef para la segunda aprobación.")
@@ -155,6 +224,7 @@ class EnviarCotizacionSolicitud:
 
         solicitud.lider_segunda_aprobacion_id = lider_segunda_aprobacion_id.strip()
         solicitud.lider_segunda_aprobacion_label = (lider_segunda_aprobacion_label or "").strip()
+        self._solicitudes.replace_visitas_programadas(solicitud_id, visitas)
         solicitud.estado = EstadoSolicitudGestion.EN_APROBACION
         actualizada = self._solicitudes.update(solicitud)
 

@@ -8,6 +8,7 @@ from app.domain.entities.solicitud_gestion import (
     SolicitudGestionArchivo,
     SolicitudGestionHistorialEstado,
     SolicitudGestionObservacion,
+    SolicitudGestionVisitaProgramada,
 )
 from app.domain.value_objects.estado_solicitud_gestion import EstadoSolicitudGestion
 from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
@@ -65,6 +66,14 @@ class SolicitudGestionRepository(ABC):
 
     @abstractmethod
     def count_archivos_categoria(self, solicitud_id: int, categoria: str) -> int:
+        ...
+
+    @abstractmethod
+    def replace_visitas_programadas(
+        self,
+        solicitud_id: int,
+        visitas: list["SolicitudGestionVisitaProgramada"],
+    ) -> None:
         ...
 
     @abstractmethod

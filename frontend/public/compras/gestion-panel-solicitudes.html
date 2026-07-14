@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Panel de solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=9" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=6" />
     </head>
     <body>
         <div class="app-shell">
@@ -45,7 +45,7 @@
                             <option value="">Todos los tipos</option>
                             <option value="compra">Solicitud de Compra</option>
                             <option value="salidas_almacen">Salidas de Almacén</option>
-                            <option value="insumos_servicios">Insumos/Servicios</option>
+                            <option value="insumos_servicios">Solicitud de Servicios</option>
                         </select>
                         <span class="info" id="panel-result-count"></span>
                     </div>
@@ -80,6 +80,46 @@
                     <div id="panel-detail-content"></div>
                 </div>
                 <div class="modal-actions" id="panel-modal-actions-gestion" hidden>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-solicitar-anticipo-servicios"
+                        hidden
+                    >
+                        Solicitar anticipo
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        id="btn-panel-guardar-obs-servicio-post-anticipo"
+                        hidden
+                    >
+                        Guardar observación
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-notificar-evidencia-servicio"
+                        hidden
+                    >
+                        Notificar solicitante (evidencia)
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-cerrar-servicio"
+                        hidden
+                    >
+                        Cerrar servicio
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-guardar-gestion-servicios"
+                        hidden
+                    >
+                        Guardar programación
+                    </button>
                     <button
                         type="button"
                         class="btn btn-primary"
@@ -191,7 +231,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=31";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=37";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

@@ -94,8 +94,11 @@ class SolicitarRecotizacionSolicitud:
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
 
-        if solicitud.tipo != TipoSolicitudGestion.COMPRA:
-            raise ValueError("Sólo aplica a solicitudes de compra.")
+        if solicitud.tipo not in (
+            TipoSolicitudGestion.COMPRA,
+            TipoSolicitudGestion.INSUMOS_SERVICIOS,
+        ):
+            raise ValueError("Sólo aplica a solicitudes de compra o servicios.")
 
         if normalizar_estado(solicitud.estado) != EstadoSolicitudGestion.EN_APROBACION:
             raise ValueError(

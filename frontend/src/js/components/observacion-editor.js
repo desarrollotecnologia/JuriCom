@@ -9,6 +9,16 @@ export const OBSERVACION_ADJUNTOS_HINT =
     "Usa el clip en la barra del editor para adjuntar archivos (también puedes arrastrarlos sobre el área de texto). " +
     "Usa el botón de imagen para insertar una foto dentro del comentario.";
 
+export const OBSERVACION_ADJUNTOS_ACCEPT =
+    ".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.webp,.gif";
+
+export const DETALLE_SERVICIO_ADJUNTOS_ACCEPT =
+    ".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.webp,.gif,.mp4,.mov,.avi,.mkv,.webm,.mp3,.wav";
+
+export const DETALLE_SERVICIO_ADJUNTOS_HINT =
+    "Adjunta imágenes, documentos o videos desde el clip o arrastrándolos al editor. " +
+    "Usa el botón de imagen para insertar fotos dentro del texto.";
+
 export function renderObservacionAdjuntosFieldHtml({
     editorContainerId,
     fileInputId,
@@ -16,6 +26,7 @@ export function renderObservacionAdjuntosFieldHtml({
     label = "Comentario",
     hint = OBSERVACION_ADJUNTOS_HINT,
     showHint = true,
+    accept = OBSERVACION_ADJUNTOS_ACCEPT,
 } = {}) {
     return `
         <div class="field sg-observacion-field">
@@ -26,7 +37,7 @@ export function renderObservacionAdjuntosFieldHtml({
                 id="${escapeHtml(fileInputId)}"
                 multiple
                 hidden
-                accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.webp,.gif"
+                accept="${escapeHtml(accept)}"
             />
             <ul class="file-list" id="${escapeHtml(fileListId)}" hidden></ul>
             ${showHint ? `<span class="hint">${escapeHtml(hint)}</span>` : ""}
@@ -41,6 +52,7 @@ export function renderObservacionAdjuntosFieldHtml({
  *   name?: string,
  *   placeholder?: string,
  *   minHeight?: number,
+ *   accept?: string,
  * }} options
  */
 export function createObservacionConAdjuntos({
@@ -50,10 +62,15 @@ export function createObservacionConAdjuntos({
     name = "observacion",
     placeholder = "Escribe tu observación...",
     minHeight = 160,
+    accept = OBSERVACION_ADJUNTOS_ACCEPT,
 }) {
     const fileInput = document.getElementById(fileInputId);
     const fileListEl = document.getElementById(fileListId);
     const editorHost = document.getElementById(editorContainerId);
+
+    if (fileInput && accept) {
+        fileInput.accept = accept;
+    }
 
     if (!editorHost) {
         throw new Error(`No se encontró el contenedor #${editorContainerId}`);
