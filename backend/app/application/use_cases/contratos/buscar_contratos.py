@@ -21,6 +21,7 @@ class BuscarContratos:
         actor: User,
         query: Optional[str] = None,
         estado: Optional[EstadoContrato] = None,
+        eliminados: bool = False,
     ) -> list[Contrato]:
         creador_id: Optional[int] = None
         if actor.is_compras():
@@ -30,4 +31,5 @@ class BuscarContratos:
             estado=estado,
             creador_id=creador_id,
             solo_aprobados=actor.is_admin() or actor.is_juridica(),
+            incluir_eliminados=eliminados,
         )

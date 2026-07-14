@@ -1,4 +1,4 @@
-"""Caso de uso: Jurídica/Admin adjunta póliza o borrador firmado."""
+"""Caso de uso: Jurídica/Admin adjunta póliza o contrato firmado."""
 
 from dataclasses import dataclass
 

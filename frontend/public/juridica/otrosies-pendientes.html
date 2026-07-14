@@ -32,7 +32,8 @@
                     <div>
                         <h1>Otrosíes pendientes</h1>
                         <p class="muted">
-                            Solicitudes aprobadas por líder y gerencia. Jurídica puede editar, cargar el firmado y aplicar el cambio.
+                            Solicitudes aprobadas por líder y gerencia. Jurídica puede editar tiempos,
+                            cargar el firmado y aplicar el cambio.
                         </p>
                     </div>
                     <a class="btn btn-secondary" href="/app/juridica/gestion-juridica.html">
@@ -122,7 +123,7 @@
                                     <div class="field">
                                         <label>Tipo de otrosí</label>
                                         <select id="tipo-${o.id}">
-                                            <option value="prorroga" ${o.tipo === "prorroga" ? "selected" : ""}>Prórroga</option>
+                                            <option value="prorroga" ${o.tipo === "prorroga" ? "selected" : ""}>Prórroga (modificar tiempos)</option>
                                             <option value="adicion" ${o.tipo === "adicion" ? "selected" : ""}>Adición</option>
                                             <option value="modificacion" ${o.tipo === "modificacion" ? "selected" : ""}>Modificación</option>
                                             <option value="otro" ${o.tipo === "otro" ? "selected" : ""}>Otro</option>

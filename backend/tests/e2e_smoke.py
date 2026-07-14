@@ -251,8 +251,8 @@ def main() -> None:
         timeout=30,
     )
     if r.status_code != 200:
-        fail(f"Subir borrador falló: {r.status_code} {r.text}")
-    ok("Borrador firmado adjuntado.")
+        fail(f"Subir contrato firmado falló: {r.status_code} {r.text}")
+    ok("Contrato firmado adjuntado.")
 
     section("10. CAMBIO DE ESTADO → ACTIVO")
     r = requests.put(

@@ -5,7 +5,7 @@ entidades del dominio (`app.domain.entities`). Los repositorios se
 encargan de traducir entre estos modelos y las entidades.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional
 
@@ -19,6 +19,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    Time,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -80,8 +81,17 @@ class ContratoModel(Base):
     fecha_inicio: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     fecha_proxima_notificacion: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    hora_proxima_notificacion: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    fecha_ultima_notificacion_vencimiento: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
     aprobado_lider_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     aprobado_gerencia_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    eliminado_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    eliminado_por_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    eliminado_observacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     creado_por_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )

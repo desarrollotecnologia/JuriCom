@@ -76,6 +76,10 @@
             table.clickable-rows tbody tr.contrato-vencimiento-alerta:hover {
                 background: #fee2e2;
             }
+            table.clickable-rows tbody tr.contrato-eliminado {
+                background: #f8fafc;
+                color: var(--color-text-muted);
+            }
             .vigencia-alert {
                 background: #fef2f2;
                 border-left: 4px solid var(--color-danger);
@@ -241,6 +245,10 @@
                             <option value="activo">Activo</option>
                             <option value="finalizado">Finalizado</option>
                         </select>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;">
+                            <input type="checkbox" id="filter-eliminados" />
+                            Ver eliminados
+                        </label>
                         <span class="info" id="result-count"></span>
                     </div>
 
@@ -324,6 +332,7 @@
             const detailContent = document.getElementById("detail-content");
             const searchInput = document.getElementById("search-input");
             const filterEstado = document.getElementById("filter-estado");
+            const filterEliminados = document.getElementById("filter-eliminados");
             const resultCount = document.getElementById("result-count");
             const alertError = document.getElementById("alert-error");
             const alertSuccess = document.getElementById("alert-success");
@@ -336,7 +345,7 @@
                 correo_aprobacion_lider: "Aprobación líder",
                 opcional: "Archivo opcional",
                 poliza: "Póliza",
-                borrador_firmado: "Borrador firmado",
+                borrador_firmado: "Contrato firmado",
                 otrosi: "Otrosí firmado",
             };
 
@@ -380,6 +389,9 @@
                 setTimeout(() => alertSuccess.classList.remove("show"), 5000);
                 window.scrollTo({ top: 0, behavior: "smooth" });
             }
+            function formatHora(value) {
+                return value ? String(value).slice(0, 5) : "00:10";
+            }
 
             let timer = null;
             function debouncedLoad() {
@@ -388,11 +400,13 @@
             }
             searchInput.addEventListener("input", debouncedLoad);
             filterEstado.addEventListener("change", load);
+            filterEliminados.addEventListener("change", load);
 
             async function load() {
                 const params = new URLSearchParams();
                 if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
                 if (filterEstado.value) params.set("estado", filterEstado.value);
+                if (filterEliminados.checked) params.set("eliminados", "true");
                 const url = "/contratos" + (params.toString() ? `?${params}` : "");
 
                 try {
@@ -425,9 +439,16 @@
                                 ? formatDate(c.fecha_proxima_notificacion)
                                 : '<span class="muted">Sin programar</span>';
                             const aprobacionHtml = `<span class="badge badge-${c.estado_aprobacion === "aprobado" ? "activo" : "en_proceso"}">${APROBACION_LABEL[c.estado_aprobacion] || c.estado_aprobacion}</span>`;
+                            const eliminado = Boolean(c.eliminado_at);
+                            const estadoHtml = eliminado
+                                ? '<span class="badge badge-finalizado">Eliminado</span>'
+                                : `<span class="badge badge-${c.estado}">${ESTADO_LABEL[c.estado] || c.estado}</span>`;
+                            const faltantesFinal = eliminado
+                                ? `<span title="${escapeHtml(c.eliminado_observacion || "")}">${escapeHtml(c.eliminado_observacion || "Sin observación")}</span>`
+                                : faltantesHtml;
                             return `
                                 <tr data-id="${c.id}" tabindex="0" role="button"
-                                    class="${c.alerta_vencimiento ? "contrato-vencimiento-alerta" : ""}"
+                                    class="${eliminado ? "contrato-eliminado" : c.alerta_vencimiento ? "contrato-vencimiento-alerta" : ""}"
                                     aria-label="Abrir contrato ${escapeHtml(c.codigo ?? '')}">
                                     <td><span class="codigo-contrato">${escapeHtml(c.codigo ?? "—")}</span></td>
                                     <td><strong>${escapeHtml(c.proveedor_contratista)}</strong></td>
@@ -437,9 +458,9 @@
                                     <td>${venceHtml}</td>
                                     <td>${notificacionHtml}</td>
                                     <td>${aprobacionHtml}</td>
-                                    <td><span class="badge badge-${c.estado}">${ESTADO_LABEL[c.estado] || c.estado}</span></td>
+                                    <td>${estadoHtml}</td>
                                     <td>${otrosiHtml}</td>
-                                    <td>${faltantesHtml}</td>
+                                    <td>${faltantesFinal}</td>
                                     <td>${formatDate(c.created_at)}</td>
                                 </tr>
                             `;
@@ -537,25 +558,34 @@
                               o si se dejará vencer.
                            </div>`
                         : "";
+                const eliminado = Boolean(c.eliminado_at);
+                const eliminadoWarning = eliminado
+                    ? `<div class="vigencia-alert">
+                          Este contrato fue eliminado el ${formatDate(c.eliminado_at)}.
+                          <br><strong>Observación:</strong> ${escapeHtml(c.eliminado_observacion || "Sin observación")}
+                       </div>`
+                    : "";
 
-                const juridicaActionsHtml = esJuridica
+                const juridicaActionsHtml = esJuridica && !eliminado
                     ? buildJuridicaActions(c)
                     : "";
                 const otrosiSectionHtml =
-                    puedeAplicarOtrosi || c.estado === "activo" || (c.otrosies || []).length > 0
+                    !eliminado && (puedeAplicarOtrosi || c.estado === "activo" || (c.otrosies || []).length > 0)
                         ? buildOtrosiSection(c)
                         : "";
 
                 detailContent.innerHTML = `
+                    ${eliminadoWarning}
                     ${vigenciaWarning}
                     ${polizaWarning}
                     <div class="detail-section">
                         <p>
                             <span class="codigo-contrato">${escapeHtml(c.codigo ?? "—")}</span>
                             &nbsp;
-                            <span class="badge badge-${c.estado}">
-                                ${ESTADO_LABEL[c.estado] || c.estado}
-                            </span>
+                            ${eliminado
+                                ? '<span class="badge badge-finalizado">Eliminado</span>'
+                                : `<span class="badge badge-${c.estado}">${ESTADO_LABEL[c.estado] || c.estado}</span>`
+                            }
                         </p>
 
                         <h3>Información general</h3>
@@ -594,8 +624,8 @@
                     ${juridicaActionsHtml}
                 `;
 
-                if (puedeAplicarOtrosi) wireOtrosiForm(c);
-                if (esJuridica) wireJuridicaActions(c);
+                if (!eliminado && puedeAplicarOtrosi) wireOtrosiForm(c);
+                if (!eliminado && esJuridica) wireJuridicaActions(c);
             }
 
             function buildJuridicaActions(c) {
@@ -679,6 +709,10 @@
                                 <label>Volver a notificar el</label>
                                 <input id="edit-fecha-proxima-notificacion" type="date" value="${c.fecha_proxima_notificacion || ""}" />
                             </div>
+                            <div class="field">
+                                <label>Hora de notificación</label>
+                                <input id="edit-hora-proxima-notificacion" type="time" value="${formatHora(c.hora_proxima_notificacion)}" />
+                            </div>
                             <div class="row-2">
                                 <div class="field">
                                     <label>Renovación automática</label>
@@ -745,10 +779,10 @@
                                 ${polizaStatus}
                             </div>
                             <div class="file-upload">
-                                <label>📋 Borrador firmado</label>
+                                <label>📋 Contrato firmado</label>
                                 <input type="file" id="file-borrador" accept="application/pdf" />
                                 <button class="btn btn-sm btn-primary mt-2" id="btn-upload-borrador" style="margin-top:8px;">
-                                    Subir borrador
+                                    Subir contrato firmado
                                 </button>
                                 ${borradorStatus}
                             </div>
@@ -817,13 +851,13 @@
                     ? `
                         <div class="otrosi-form">
                             <p class="muted" style="margin-bottom:10px;">
-                                Datos enviados por Compras. Jurídica puede ajustar, cargar el firmado y aplicar el cambio.
+                                Datos enviados por Compras. Jurídica puede ajustar tiempos, cargar el firmado y aplicar el cambio.
                             </p>
                             <div class="row">
                                 <div>
                                     <label>Tipo de otrosí *</label>
                                     <select id="otrosi-tipo">
-                                        <option value="prorroga" ${tipoFormulario === "prorroga" ? "selected" : ""}>Prórroga</option>
+                                        <option value="prorroga" ${tipoFormulario === "prorroga" ? "selected" : ""}>Prórroga (modificar tiempos)</option>
                                         <option value="adicion" ${tipoFormulario === "adicion" ? "selected" : ""}>Adición</option>
                                         <option value="modificacion" ${tipoFormulario === "modificacion" ? "selected" : ""}>Modificación</option>
                                         <option value="otro" ${tipoFormulario === "otro" ? "selected" : ""}>Otro</option>
@@ -851,11 +885,14 @@
                                 <div>
                                     <label>Tipo de otrosí *</label>
                                     <select id="otrosi-tipo">
-                                        <option value="prorroga">Prórroga</option>
                                         <option value="adicion">Adición</option>
                                         <option value="modificacion">Modificación</option>
                                         <option value="otro">Otro</option>
                                     </select>
+                                    <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">
+                                        Si necesitas cambiar tiempos o plazo, descríbelo en "Otro";
+                                        Jurídica define la prórroga al finalizar.
+                                    </span>
                                 </div>
                                 <div id="otrosi-extra-wrap"></div>
                             </div>
@@ -867,7 +904,8 @@
                             </button>
                             ${user.role === "compras" ? `
                                 <p class="muted" style="margin-top:8px;font-size:0.82rem;">
-                                    La solicitud se enviará al líder del proceso y a gerencia. El PDF firmado lo carga Jurídica.
+                                    La solicitud se enviará primero al líder del proceso y luego a gerencia.
+                                    El PDF firmado sólo lo carga Jurídica cuando ambas aprobaciones estén listas.
                                 </p>
                             ` : ""}
                         </div>
@@ -1014,6 +1052,7 @@
                         fecha_inicio: document.getElementById("edit-fecha-inicio").value || null,
                         fecha_fin: document.getElementById("edit-fecha-fin").value || null,
                         fecha_proxima_notificacion: document.getElementById("edit-fecha-proxima-notificacion").value || null,
+                        hora_proxima_notificacion: document.getElementById("edit-hora-proxima-notificacion").value || "00:10",
                     };
                     if (!payload.proveedor_contratista || !payload.nit_proveedor || !payload.descripcion_servicio) {
                         showError("Completa proveedor, NIT y descripción.");
@@ -1063,7 +1102,7 @@
                     fd.append("archivo", file);
                     try {
                         await api.postForm(`/contratos/${c.id}/borrador`, fd);
-                        showSuccess("Borrador firmado adjuntado correctamente.");
+                        showSuccess("Contrato firmado adjuntado correctamente.");
                         await openDetail(c.id);
                         load();
                     } catch (err) {
@@ -1072,12 +1111,19 @@
                 });
 
                 document.getElementById("btn-delete-contrato").addEventListener("click", async () => {
-                    const ok = confirm(
-                        `¿Seguro que deseas eliminar el contrato ${c.codigo}? Esta acción no se puede deshacer.`
+                    const observacion = prompt(
+                        `Escribe la observación para eliminar el contrato ${c.codigo}:`
                     );
+                    if (observacion === null) return;
+                    const motivo = observacion.trim();
+                    if (!motivo) {
+                        showError("La observación de eliminación es obligatoria.");
+                        return;
+                    }
+                    const ok = confirm(`¿Seguro que deseas eliminar el contrato ${c.codigo}?`);
                     if (!ok) return;
                     try {
-                        await api.delete(`/contratos/${c.id}`);
+                        await api.delete(`/contratos/${c.id}?observacion=${encodeURIComponent(motivo)}`);
                         showSuccess(`Contrato ${c.codigo} eliminado correctamente.`);
                         modal.classList.remove("show");
                         load();

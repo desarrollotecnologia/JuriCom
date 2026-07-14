@@ -277,9 +277,9 @@
                                 <button class="btn btn-sm btn-primary mt-2" id="btn-poliza">Subir póliza</button>
                             </div>
                             <div class="upload-card">
-                                <label>Borrador firmado</label>
+                                <label>Contrato firmado</label>
                                 <input type="file" id="file-borrador" accept="application/pdf" />
-                                <button class="btn btn-sm btn-primary mt-2" id="btn-borrador">Subir borrador</button>
+                                <button class="btn btn-sm btn-primary mt-2" id="btn-borrador">Subir contrato firmado</button>
                             </div>
                         </div>
                     </div>
@@ -364,12 +364,19 @@
             }
 
             async function deleteContract(c) {
-                const ok = confirm(
-                    `¿Seguro que deseas eliminar el contrato ${c.codigo}? Esta acción no se puede deshacer.`
+                const observacion = prompt(
+                    `Escribe la observación para eliminar el contrato ${c.codigo}:`
                 );
+                if (observacion === null) return;
+                const motivo = observacion.trim();
+                if (!motivo) {
+                    showError("La observación de eliminación es obligatoria.");
+                    return;
+                }
+                const ok = confirm(`¿Seguro que deseas eliminar el contrato ${c.codigo}?`);
                 if (!ok) return;
                 try {
-                    await api.delete(`/contratos/${c.id}`);
+                    await api.delete(`/contratos/${c.id}?observacion=${encodeURIComponent(motivo)}`);
                     showSuccess(`Contrato ${c.codigo} eliminado correctamente.`);
                     modal.classList.remove("show");
                     load();

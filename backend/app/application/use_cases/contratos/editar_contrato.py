@@ -1,14 +1,16 @@
 """Editar datos del contrato desde Jurídica/Admin."""
 
-from datetime import date
+from datetime import date, time, timedelta
 from decimal import Decimal
 from typing import Optional
 
 from app.application.interfaces.contrato_repository import ContratoRepository
+from app.application.use_cases.contratos.radicar_solicitud import calcular_fecha_fin
 from app.domain.entities.contrato import Contrato
 from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
 from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
+from app.domain.value_objects.estado_contrato import EstadoContrato
 from app.domain.value_objects.moneda import Moneda
 from app.domain.value_objects.unidad_plazo import UnidadPlazo
 
@@ -36,6 +38,7 @@ class EditarContrato:
         fecha_inicio: Optional[date],
         fecha_fin: Optional[date],
         fecha_proxima_notificacion: Optional[date],
+        hora_proxima_notificacion: Optional[time],
     ) -> Contrato:
         if not (actor.is_admin() or actor.is_juridica()):
             raise UnauthorizedError("Sólo Jurídica o Admin pueden editar contratos.")
@@ -80,6 +83,9 @@ class EditarContrato:
         contrato.fecha_inicio = fecha_inicio
         contrato.fecha_fin = fecha_fin
         contrato.fecha_proxima_notificacion = fecha_proxima_notificacion
+        contrato.hora_proxima_notificacion = hora_proxima_notificacion or time(0, 10)
+        if contrato.estado == EstadoContrato.ACTIVO:
+            self._asegurar_fechas_vigencia(contrato)
 
         return self._contratos.update(contrato)
 
@@ -87,3 +93,21 @@ class EditarContrato:
     def _validar_textos(*valores: str) -> None:
         if any(not v or not str(v).strip() for v in valores):
             raise ValueError("Todos los campos de texto obligatorios deben estar llenos.")
+
+    @staticmethod
+    def _asegurar_fechas_vigencia(contrato: Contrato) -> None:
+        if contrato.fecha_inicio is None:
+            contrato.fecha_inicio = date.today()
+        if contrato.fecha_fin is None:
+            contrato.fecha_fin = calcular_fecha_fin(
+                contrato.fecha_inicio,
+                contrato.plazo_cantidad,
+                contrato.plazo_unidad,
+            )
+        if contrato.fecha_proxima_notificacion is None:
+            contrato.fecha_proxima_notificacion = max(
+                contrato.fecha_inicio,
+                contrato.fecha_fin - timedelta(days=30),
+            )
+        if contrato.hora_proxima_notificacion is None:
+            contrato.hora_proxima_notificacion = time(0, 10)

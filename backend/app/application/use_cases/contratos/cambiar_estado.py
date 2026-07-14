@@ -7,7 +7,10 @@ Reglas de negocio:
   pero la operación normal es de un solo paso).
 """
 
+from datetime import date, time, timedelta
+
 from app.application.interfaces.contrato_repository import ContratoRepository
+from app.application.use_cases.contratos.radicar_solicitud import calcular_fecha_fin
 from app.domain.entities.contrato import Contrato
 from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
@@ -45,4 +48,24 @@ class CambiarEstadoContrato:
             )
 
         contrato.estado = nuevo_estado
+        if nuevo_estado == EstadoContrato.ACTIVO:
+            self._asegurar_fechas_vigencia(contrato)
         return self._contratos.update(contrato)
+
+    @staticmethod
+    def _asegurar_fechas_vigencia(contrato: Contrato) -> None:
+        if contrato.fecha_inicio is None:
+            contrato.fecha_inicio = date.today()
+        if contrato.fecha_fin is None:
+            contrato.fecha_fin = calcular_fecha_fin(
+                contrato.fecha_inicio,
+                contrato.plazo_cantidad,
+                contrato.plazo_unidad,
+            )
+        if contrato.fecha_proxima_notificacion is None:
+            contrato.fecha_proxima_notificacion = max(
+                contrato.fecha_inicio,
+                contrato.fecha_fin - timedelta(days=30),
+            )
+        if contrato.hora_proxima_notificacion is None:
+            contrato.hora_proxima_notificacion = time(0, 10)

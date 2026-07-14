@@ -75,8 +75,13 @@ CREATE TABLE contratos (
     fecha_inicio                        DATE           NULL,
     fecha_fin                           DATE           NULL,
     fecha_proxima_notificacion          DATE           NULL,
+    hora_proxima_notificacion           TIME           NULL DEFAULT '00:10:00',
+    fecha_ultima_notificacion_vencimiento DATETIME      NULL,
     aprobado_lider_at                   DATETIME       NULL,
     aprobado_gerencia_at                DATETIME       NULL,
+    eliminado_at                        DATETIME       NULL,
+    eliminado_por_id                    INT            NULL,
+    eliminado_observacion               TEXT           NULL,
     creado_por_id                       INT            NOT NULL,
     created_at                          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at                          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -87,8 +92,11 @@ CREATE TABLE contratos (
     KEY ix_contratos_creado_por (creado_por_id),
     KEY ix_contratos_estado (estado),
     KEY ix_contratos_estado_aprobacion (estado_aprobacion),
+    KEY ix_contratos_eliminado_at (eliminado_at),
     CONSTRAINT fk_contratos_creado_por
-        FOREIGN KEY (creado_por_id) REFERENCES users (id) ON DELETE RESTRICT
+        FOREIGN KEY (creado_por_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_contratos_eliminado_por
+        FOREIGN KEY (eliminado_por_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------

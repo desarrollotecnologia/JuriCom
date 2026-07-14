@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS contratos (
     fecha_inicio                        DATE           NULL,
     fecha_fin                           DATE           NULL,
     fecha_proxima_notificacion          DATE           NULL,
+    hora_proxima_notificacion           TIME           NULL DEFAULT '00:10:00',
+    fecha_ultima_notificacion_vencimiento DATETIME      NULL,
     aprobado_lider_at                   DATETIME       NULL,
     aprobado_gerencia_at                DATETIME       NULL,
     creado_por_id                       INT            NOT NULL,

@@ -5,6 +5,7 @@ Ejecutar:
 """
 
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.infrastructure.config import settings
 from app.infrastructure.database.bootstrap import init_database, seed_admin_user
+from app.infrastructure.scheduler import vencimientos_scheduler
 from app.presentation.api.v1.router import api_v1_router
 
 
@@ -42,7 +44,17 @@ async def lifespan(app: FastAPI):
         )
     settings.upload_dir_path.mkdir(parents=True, exist_ok=True)
     logger.info("Aplicación lista en %s:%s", settings.APP_HOST, settings.APP_PORT)
-    yield
+    stop_scheduler = asyncio.Event()
+    scheduler_task = asyncio.create_task(vencimientos_scheduler(stop_scheduler))
+    try:
+        yield
+    finally:
+        stop_scheduler.set()
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(

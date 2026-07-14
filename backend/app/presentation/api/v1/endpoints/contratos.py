@@ -175,10 +175,14 @@ def _to_contrato_response(c) -> ContratoResponse:
         fecha_inicio=c.fecha_inicio,
         fecha_fin=c.fecha_fin,
         fecha_proxima_notificacion=c.fecha_proxima_notificacion,
+        hora_proxima_notificacion=c.hora_proxima_notificacion,
         estado=c.estado,
         creado_por_id=c.creado_por_id,
         tiene_poliza=c.tiene_poliza(),
         tiene_borrador=c.tiene_borrador(),
+        eliminado_at=c.eliminado_at,
+        eliminado_por_id=c.eliminado_por_id,
+        eliminado_observacion=c.eliminado_observacion,
         created_at=c.created_at,
         updated_at=c.updated_at,
         archivos=[_to_archivo_response(a) for a in c.archivos],
@@ -207,6 +211,10 @@ def _to_list_item(c) -> ContratoListItem:
         fecha_inicio=c.fecha_inicio,
         fecha_fin=c.fecha_fin,
         fecha_proxima_notificacion=c.fecha_proxima_notificacion,
+        hora_proxima_notificacion=c.hora_proxima_notificacion,
+        eliminado_at=c.eliminado_at,
+        eliminado_por_id=c.eliminado_por_id,
+        eliminado_observacion=c.eliminado_observacion,
         dias_para_vencer=_dias_para_vencer(c),
         alerta_vencimiento=_alerta_vencimiento(c),
         created_at=c.created_at,
@@ -265,6 +273,9 @@ def radicar_solicitud(
     moneda: Moneda = Form(...),
     plazo_cantidad: int = Form(...),
     plazo_unidad: UnidadPlazo = Form(...),
+    fecha_inicio: Optional[date] = Form(None),
+    fecha_fin: Optional[date] = Form(None),
+    fecha_proxima_notificacion: Optional[date] = Form(None),
     renovacion_automatica: bool = Form(...),
     condiciones_recibido_satisfactorio: str = Form(...),
     requiere_poliza: bool = Form(...),
@@ -285,6 +296,15 @@ def radicar_solicitud(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El valor del contrato no es un número válido.",
+        )
+    if current.is_compras() and (
+        fecha_inicio is not None
+        or fecha_fin is not None
+        or fecha_proxima_notificacion is not None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Compras no puede asignar fechas de vigencia ni notificación. Eso lo define Jurídica.",
         )
 
     archivos: list[ArchivoEntrada] = []
@@ -317,6 +337,9 @@ def radicar_solicitud(
             correo_gerencia=correo_gerencia.strip() or settings.GERENCIA_EMAIL.strip(),
             tipo_codigo=tipo_codigo,
             archivos=archivos,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            fecha_proxima_notificacion=fecha_proxima_notificacion,
         )
     except UnauthorizedError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
@@ -347,10 +370,16 @@ def list_contratos_endpoint(
     estado: Optional[EstadoContrato] = Query(
         None, description="Filtrar por estado del contrato."
     ),
+    eliminados: bool = Query(False, description="Ver contratos eliminados."),
     current: User = Depends(get_current_user),
     contratos: ContratoRepository = Depends(get_contrato_repository),
 ) -> list[ContratoListItem]:
-    items = BuscarContratos(contratos).execute(actor=current, query=q, estado=estado)
+    items = BuscarContratos(contratos).execute(
+        actor=current,
+        query=q,
+        estado=estado,
+        eliminados=eliminados,
+    )
     return [_to_list_item(c) for c in items]
 
 
@@ -430,6 +459,7 @@ def get_contrato(
 @router.delete("/{contrato_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_contrato(
     contrato_id: int,
+    observacion: str = Query(..., min_length=1, description="Motivo de eliminación."),
     current: User = Depends(get_current_user),
     contratos: ContratoRepository = Depends(get_contrato_repository),
 ) -> None:
@@ -449,7 +479,17 @@ def eliminar_contrato(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Este contrato todavía no tiene aprobación de líder y gerencia.",
         )
-    eliminado = contratos.delete(contrato_id)
+    observacion = (observacion or "").strip()
+    if not observacion:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La observación de eliminación es obligatoria.",
+        )
+    eliminado = contratos.delete(
+        contrato_id,
+        eliminado_por_id=current.id,
+        observacion=observacion,
+    )
     if not eliminado:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -815,6 +855,7 @@ def editar_contrato(
             fecha_inicio=payload.fecha_inicio,
             fecha_fin=payload.fecha_fin,
             fecha_proxima_notificacion=payload.fecha_proxima_notificacion,
+            hora_proxima_notificacion=payload.hora_proxima_notificacion,
         )
     except ContratoNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -1074,7 +1115,7 @@ def finalizar_otrosi_juridica(
     if otrosi.archivo_id is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Este otrosí ya tiene PDF firmado cargado.",
+            detail="Este otrosí ya tiene contrato firmado cargado.",
         )
 
     try:

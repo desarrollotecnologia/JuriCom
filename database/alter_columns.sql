@@ -25,8 +25,17 @@ USE Juridica;
 -- ALTER TABLE contratos ADD COLUMN fecha_inicio DATE NULL AFTER estado;
 -- ALTER TABLE contratos ADD COLUMN fecha_fin DATE NULL AFTER fecha_inicio;
 -- ALTER TABLE contratos ADD COLUMN fecha_proxima_notificacion DATE NULL AFTER fecha_fin;
--- ALTER TABLE contratos ADD COLUMN aprobado_lider_at DATETIME NULL AFTER fecha_proxima_notificacion;
+-- ALTER TABLE contratos ADD COLUMN hora_proxima_notificacion TIME NULL DEFAULT '00:10:00' AFTER fecha_proxima_notificacion;
+-- ALTER TABLE contratos ADD COLUMN fecha_ultima_notificacion_vencimiento DATETIME NULL AFTER hora_proxima_notificacion;
+-- ALTER TABLE contratos ADD COLUMN aprobado_lider_at DATETIME NULL AFTER fecha_ultima_notificacion_vencimiento;
 -- ALTER TABLE contratos ADD COLUMN aprobado_gerencia_at DATETIME NULL AFTER aprobado_lider_at;
+
+-- contratos: eliminación lógica
+-- ALTER TABLE contratos ADD COLUMN eliminado_at DATETIME NULL AFTER aprobado_gerencia_at;
+-- ALTER TABLE contratos ADD COLUMN eliminado_por_id INT NULL AFTER eliminado_at;
+-- ALTER TABLE contratos ADD COLUMN eliminado_observacion TEXT NULL AFTER eliminado_por_id;
+-- ALTER TABLE contratos ADD INDEX ix_contratos_eliminado_at (eliminado_at);
+-- ALTER TABLE contratos ADD CONSTRAINT fk_contratos_eliminado_por FOREIGN KEY (eliminado_por_id) REFERENCES users(id) ON DELETE SET NULL;
 
 -- archivos_contrato.subido_por_id
 -- ALTER TABLE archivos_contrato ADD COLUMN subido_por_id INT NULL;

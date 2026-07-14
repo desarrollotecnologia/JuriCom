@@ -17,7 +17,12 @@ class ContratoRepository(ABC):
     def update(self, contrato: Contrato) -> Contrato: ...
 
     @abstractmethod
-    def delete(self, contrato_id: int) -> bool: ...
+    def delete(
+        self,
+        contrato_id: int,
+        eliminado_por_id: Optional[int] = None,
+        observacion: str = "",
+    ) -> bool: ...
 
     @abstractmethod
     def add_archivo(self, archivo: ArchivoAdjunto) -> ArchivoAdjunto: ...
@@ -43,10 +48,14 @@ class ContratoRepository(ABC):
     def get_by_codigo(self, codigo: str) -> Optional[Contrato]: ...
 
     @abstractmethod
-    def list_all(self) -> list[Contrato]: ...
+    def list_all(self, incluir_eliminados: bool = False) -> list[Contrato]: ...
 
     @abstractmethod
-    def list_by_creador(self, user_id: int) -> list[Contrato]: ...
+    def list_by_creador(
+        self,
+        user_id: int,
+        incluir_eliminados: bool = False,
+    ) -> list[Contrato]: ...
 
     @abstractmethod
     def user_has_related_records(self, user_id: int) -> bool: ...
@@ -62,4 +71,5 @@ class ContratoRepository(ABC):
         estado: Optional[EstadoContrato] = None,
         creador_id: Optional[int] = None,
         solo_aprobados: bool = False,
+        incluir_eliminados: bool = False,
     ) -> list[Contrato]: ...

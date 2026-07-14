@@ -181,9 +181,15 @@
                                 <input id="fecha-fin" type="date" />
                             </div>
                         </div>
-                        <div class="field">
-                            <label>Volver a notificar el</label>
-                            <input id="fecha-proxima-notificacion" type="date" />
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Volver a notificar el</label>
+                                <input id="fecha-proxima-notificacion" type="date" />
+                            </div>
+                            <div class="field">
+                                <label>Hora de notificación</label>
+                                <input id="hora-proxima-notificacion" type="time" value="00:10" />
+                            </div>
                             <span class="hint">
                                 Jurídica define manualmente cuándo el sistema debe volver a notificar este contrato.
                             </span>
@@ -226,10 +232,10 @@
                                 </button>
                             </div>
                             <div class="upload-card">
-                                <label>Borrador firmado</label>
+                                <label>Contrato firmado</label>
                                 <input type="file" id="file-borrador" accept="application/pdf" />
                                 <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-borrador">
-                                    Subir borrador
+                                    Subir contrato firmado
                                 </button>
                             </div>
                         </div>
@@ -347,6 +353,7 @@
                 setValue("fecha-inicio", c.fecha_inicio);
                 setValue("fecha-fin", c.fecha_fin);
                 setValue("fecha-proxima-notificacion", c.fecha_proxima_notificacion);
+                setValue("hora-proxima-notificacion", (c.hora_proxima_notificacion || "00:10").slice(0, 5));
                 setValue("renovacion", String(Boolean(c.renovacion_automatica)));
                 setValue("requiere-poliza", String(Boolean(c.requiere_poliza)));
                 setValue("condiciones", c.condiciones_recibido_satisfactorio);
@@ -370,6 +377,7 @@
                     fecha_inicio: document.getElementById("fecha-inicio").value || null,
                     fecha_fin: document.getElementById("fecha-fin").value || null,
                     fecha_proxima_notificacion: document.getElementById("fecha-proxima-notificacion").value || null,
+                    hora_proxima_notificacion: document.getElementById("hora-proxima-notificacion").value || "00:10",
                 };
             }
 

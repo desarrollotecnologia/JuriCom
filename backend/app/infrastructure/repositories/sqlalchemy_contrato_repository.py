@@ -1,5 +1,6 @@
 """Implementación de ContratoRepository sobre SQLAlchemy + MySQL."""
 
+from datetime import datetime, time, timedelta
 from typing import Optional
 
 from sqlalchemy import or_
@@ -29,6 +30,18 @@ from app.infrastructure.database.models import (
 class SqlAlchemyContratoRepository(ContratoRepository):
     def __init__(self, db: Session) -> None:
         self._db = db
+
+    @staticmethod
+    def _normalizar_hora(value) -> Optional[time]:
+        if value is None or isinstance(value, time):
+            return value
+        if isinstance(value, timedelta):
+            total_seconds = int(value.total_seconds())
+            hours = (total_seconds // 3600) % 24
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            return time(hours, minutes, seconds)
+        return value
 
     @staticmethod
     def _archivo_to_entity(m: ArchivoContratoModel) -> ArchivoAdjunto:
@@ -94,8 +107,17 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             fecha_inicio=model.fecha_inicio,
             fecha_fin=model.fecha_fin,
             fecha_proxima_notificacion=model.fecha_proxima_notificacion,
+            hora_proxima_notificacion=cls._normalizar_hora(
+                getattr(model, "hora_proxima_notificacion", None)
+            ),
+            fecha_ultima_notificacion_vencimiento=getattr(
+                model, "fecha_ultima_notificacion_vencimiento", None
+            ),
             aprobado_lider_at=model.aprobado_lider_at,
             aprobado_gerencia_at=model.aprobado_gerencia_at,
+            eliminado_at=getattr(model, "eliminado_at", None),
+            eliminado_por_id=getattr(model, "eliminado_por_id", None),
+            eliminado_observacion=getattr(model, "eliminado_observacion", "") or "",
             creado_por_id=model.creado_por_id,
             created_at=model.created_at,
             updated_at=model.updated_at,
@@ -128,6 +150,8 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             fecha_inicio=contrato.fecha_inicio,
             fecha_fin=contrato.fecha_fin,
             fecha_proxima_notificacion=contrato.fecha_proxima_notificacion,
+            hora_proxima_notificacion=contrato.hora_proxima_notificacion,
+            fecha_ultima_notificacion_vencimiento=contrato.fecha_ultima_notificacion_vencimiento,
             aprobado_lider_at=contrato.aprobado_lider_at,
             aprobado_gerencia_at=contrato.aprobado_gerencia_at,
             creado_por_id=contrato.creado_por_id,
@@ -194,6 +218,10 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         model.fecha_inicio = contrato.fecha_inicio
         model.fecha_fin = contrato.fecha_fin
         model.fecha_proxima_notificacion = contrato.fecha_proxima_notificacion
+        model.hora_proxima_notificacion = contrato.hora_proxima_notificacion
+        model.fecha_ultima_notificacion_vencimiento = (
+            contrato.fecha_ultima_notificacion_vencimiento
+        )
         model.valor = contrato.valor
         model.plazo_cantidad = contrato.plazo_cantidad
         model.plazo_unidad = contrato.plazo_unidad.value
@@ -213,7 +241,12 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         self._db.refresh(model)
         return self._to_entity(model)
 
-    def delete(self, contrato_id: int) -> bool:
+    def delete(
+        self,
+        contrato_id: int,
+        eliminado_por_id: Optional[int] = None,
+        observacion: str = "",
+    ) -> bool:
         model = (
             self._db.query(ContratoModel)
             .filter(ContratoModel.id == contrato_id)
@@ -221,7 +254,9 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         )
         if model is None:
             return False
-        self._db.delete(model)
+        model.eliminado_at = datetime.now()
+        model.eliminado_por_id = eliminado_por_id
+        model.eliminado_observacion = observacion
         self._db.commit()
         return True
 
@@ -295,6 +330,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             .join(ContratoModel)
             .options(selectinload(OtrosiContratoModel.contrato))
             .filter(OtrosiContratoModel.estado_aprobacion == estado.value)
+            .filter(ContratoModel.eliminado_at.is_(None))
             .order_by(OtrosiContratoModel.id.desc())
             .all()
         )
@@ -334,17 +370,22 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         model = self._query_base().filter(ContratoModel.codigo == codigo).one_or_none()
         return self._to_entity(model) if model else None
 
-    def list_all(self) -> list[Contrato]:
-        models = self._query_base().order_by(ContratoModel.id.desc()).all()
+    def list_all(self, incluir_eliminados: bool = False) -> list[Contrato]:
+        q = self._query_base()
+        if incluir_eliminados:
+            q = q.filter(ContratoModel.eliminado_at.isnot(None))
+        else:
+            q = q.filter(ContratoModel.eliminado_at.is_(None))
+        models = q.order_by(ContratoModel.id.desc()).all()
         return [self._to_entity(m) for m in models]
 
-    def list_by_creador(self, user_id: int) -> list[Contrato]:
-        models = (
-            self._query_base()
-            .filter(ContratoModel.creado_por_id == user_id)
-            .order_by(ContratoModel.id.desc())
-            .all()
-        )
+    def list_by_creador(self, user_id: int, incluir_eliminados: bool = False) -> list[Contrato]:
+        q = self._query_base().filter(ContratoModel.creado_por_id == user_id)
+        if incluir_eliminados:
+            q = q.filter(ContratoModel.eliminado_at.isnot(None))
+        else:
+            q = q.filter(ContratoModel.eliminado_at.is_(None))
+        models = q.order_by(ContratoModel.id.desc()).all()
         return [self._to_entity(m) for m in models]
 
     def user_has_related_records(self, user_id: int) -> bool:
@@ -368,6 +409,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         models = (
             self._query_base()
             .filter(ContratoModel.estado == estado.value)
+            .filter(ContratoModel.eliminado_at.is_(None))
             .order_by(ContratoModel.id.desc())
             .all()
         )
@@ -380,8 +422,13 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         estado: Optional[EstadoContrato] = None,
         creador_id: Optional[int] = None,
         solo_aprobados: bool = False,
+        incluir_eliminados: bool = False,
     ) -> list[Contrato]:
         q = self._query_base()
+        if incluir_eliminados:
+            q = q.filter(ContratoModel.eliminado_at.isnot(None))
+        else:
+            q = q.filter(ContratoModel.eliminado_at.is_(None))
 
         if query:
             patron = f"%{query.strip()}%"

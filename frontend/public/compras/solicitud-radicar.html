@@ -150,7 +150,7 @@
                             </label>
                             <select name="tipo_codigo" required>
                                 <option value="C">Contrato (C)</option>
-                                <option value="OS">Operación de Servicio (OS)</option>
+                                <option value="OS">Orden de Trabajo (OS)</option>
                             </select>
                             <span class="hint">
                                 Define el prefijo del consecutivo: C-0001 u OS-0001.
@@ -502,6 +502,7 @@
             const alertError = document.getElementById("alert-error");
             const alertSuccess = document.getElementById("alert-success");
             const submitBtn = document.getElementById("btn-submit");
+            let isSubmitting = false;
 
             function showError(msg) {
                 alertSuccess.classList.remove("show");
@@ -519,6 +520,8 @@
 
             form.addEventListener("submit", async (e) => {
                 e.preventDefault();
+                if (isSubmitting) return;
+                isSubmitting = true;
                 alertError.classList.remove("show");
                 alertSuccess.classList.remove("show");
                 submitBtn.disabled = true;
@@ -563,6 +566,7 @@
                             : "Error al enviar la solicitud.";
                     showError(msg);
                 } finally {
+                    isSubmitting = false;
                     submitBtn.disabled = false;
                     submitBtn.textContent = "Radicar solicitud";
                 }

@@ -141,8 +141,9 @@
                     <div class="form-section otrosi-panel">
                         <h3>3. Solicitar nuevo otrosí</h3>
                         <p class="muted">
-                            Al enviar la solicitud se notificará al Líder de proceso y a Gerencia.
-                            El PDF firmado del otrosí lo carga únicamente Jurídica.
+                            Al enviar la solicitud primero se notificará al Líder de proceso.
+                            Si el Líder aprueba, pasará a Gerencia. El PDF firmado del otrosí
+                            sólo podrá cargarlo Jurídica cuando ambas aprobaciones estén listas.
                         </p>
                         <div id="otrosi-disabled"></div>
                         <form id="form-otrosi">
@@ -150,11 +151,14 @@
                                 <div class="field">
                                     <label>Tipo de otrosí <span class="required">*</span></label>
                                     <select id="otrosi-tipo" required>
-                                        <option value="prorroga">Prórroga (extender plazo)</option>
                                         <option value="adicion">Adición (aumentar valor)</option>
                                         <option value="modificacion">Modificación (cambiar servicio)</option>
                                         <option value="otro">Otro</option>
                                     </select>
+                                    <span class="hint">
+                                        Si necesitas cambiar tiempos o plazo, descríbelo en "Otro";
+                                        Jurídica define la prórroga al finalizar el otrosí.
+                                    </span>
                                 </div>
                                 <div id="otrosi-extra-wrap"></div>
                             </div>

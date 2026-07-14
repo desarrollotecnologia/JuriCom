@@ -557,7 +557,7 @@ def render_pendientes_html(contratos: Iterable[Contrato]) -> str:
         <p>
             Hay <strong>{len(contratos)}</strong> contrato(s) en estado
             <em>En proceso</em>. Por favor revisa cada uno y completa los
-            documentos faltantes (póliza y/o borrador firmado).
+            documentos faltantes (póliza y/o contrato firmado).
         </p>
         <div class="warn">
             Ojo: estos contratos aún no se han terminado de tramitar.

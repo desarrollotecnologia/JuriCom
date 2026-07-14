@@ -80,7 +80,14 @@ class AplicarOtrosi:
         if actor.is_compras() and archivo is not None:
             raise UnauthorizedError(
                 "Compras no puede adjuntar el otrosí firmado. "
-                "Ese PDF sólo lo carga Jurídica."
+                "Ese PDF sólo lo carga Jurídica después de aprobación de Líder y Gerencia."
+            )
+        if actor.is_compras() and (
+            tipo == TipoOtrosi.PRORROGA or plazo_adicional_cantidad is not None
+        ):
+            raise UnauthorizedError(
+                "Compras no puede modificar los tiempos del contrato por otrosí. "
+                "Describe la necesidad y Jurídica definirá la prórroga al finalizar."
             )
         if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
             raise UnauthorizedError(

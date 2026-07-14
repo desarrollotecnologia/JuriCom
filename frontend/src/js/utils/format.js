@@ -30,6 +30,16 @@ export function formatPlazo(cantidad, unidad) {
 
 export function formatDate(iso) {
     if (!iso) return "";
+    const value = String(iso);
+    const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.000)?(?:Z)?)?$/);
+    if (dateOnly) {
+        const [, year, month, day] = dateOnly.map(Number);
+        return new Date(year, month - 1, day).toLocaleDateString("es-CO", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        });
+    }
     const d = new Date(iso);
     return d.toLocaleString("es-CO", {
         year: "numeric",

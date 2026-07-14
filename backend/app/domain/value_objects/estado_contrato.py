@@ -5,7 +5,7 @@ Flujo típico:
     ACTIVO      → FINALIZADO   (cuando se vence o no se renueva)
 
 El estado inicial al radicar es EN_PROCESO (porque le faltan documentos
-de jurídica: póliza si aplica, borrador firmado, etc.).
+de jurídica: póliza si aplica, contrato firmado, etc.).
 
 Sólo Jurídica y Admin pueden cambiar el estado.
 """

@@ -1,6 +1,6 @@
 """Schemas Pydantic para contratos."""
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional
 
@@ -46,6 +46,7 @@ class ContratoBase(BaseModel):
     fecha_inicio: Optional[date] = None
     fecha_fin: Optional[date] = None
     fecha_proxima_notificacion: Optional[date] = None
+    hora_proxima_notificacion: Optional[time] = time(0, 10)
     estado: EstadoContrato
     creado_por_id: int
 
@@ -93,6 +94,10 @@ class ContratoListItem(BaseModel):
     fecha_inicio: Optional[date] = None
     fecha_fin: Optional[date] = None
     fecha_proxima_notificacion: Optional[date] = None
+    hora_proxima_notificacion: Optional[time] = time(0, 10)
+    eliminado_at: Optional[datetime] = None
+    eliminado_por_id: Optional[int] = None
+    eliminado_observacion: str = ""
     dias_para_vencer: Optional[int] = None
     alerta_vencimiento: bool = False
     created_at: Optional[datetime] = None
@@ -116,6 +121,9 @@ class ContratoResponse(ContratoBase):
     id: int
     tiene_poliza: bool = False
     tiene_borrador: bool = False
+    eliminado_at: Optional[datetime] = None
+    eliminado_por_id: Optional[int] = None
+    eliminado_observacion: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     archivos: list[ArchivoResponse] = Field(default_factory=list)
@@ -142,6 +150,7 @@ class EditarContratoRequest(BaseModel):
     fecha_inicio: Optional[date] = None
     fecha_fin: Optional[date] = None
     fecha_proxima_notificacion: Optional[date] = None
+    hora_proxima_notificacion: Optional[time] = time(0, 10)
 
 
 class NotificacionResponse(BaseModel):

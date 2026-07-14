@@ -4,6 +4,7 @@ No requieren BD ni FastAPI: validan que las entidades funcionan solas.
 Ejecuta con:  python -m pytest backend/tests -q
 """
 
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -66,11 +67,13 @@ def test_contrato_archivos_obligatorios():
         condiciones_recibido_satisfactorio="x",
         requiere_poliza=False,
         creado_por_id=1,
+        correo_lider_proceso="lider@example.com",
+        correo_gerencia="gerencia@example.com",
     )
 
     assert contrato.compania == COMPANIA_DEFAULT == "Colbeef"
     assert not contrato.archivos_obligatorios_presentes()
-    assert len(contrato.archivos_obligatorios_faltantes()) == 5
+    assert len(contrato.archivos_obligatorios_faltantes()) == 3
 
 
 def test_roles_values():
@@ -87,7 +90,7 @@ def test_roles_values():
 
 
 def test_tipo_archivo_obligatorios_count():
-    assert len(TipoArchivo.obligatorios_radicacion()) == 5
+    assert len(TipoArchivo.obligatorios_radicacion()) == 3
     assert TipoArchivo.OPCIONAL not in TipoArchivo.obligatorios_radicacion()
     assert TipoArchivo.POLIZA not in TipoArchivo.obligatorios_radicacion()
     assert TipoArchivo.BORRADOR_FIRMADO not in TipoArchivo.obligatorios_radicacion()
@@ -103,3 +106,10 @@ def test_estado_contrato_y_codigo():
     assert normalizar_tipo_codigo("os") == "OS"
     assert set(EstadoContrato.values()) == {"en_proceso", "activo", "finalizado"}
     assert EstadoContrato.EN_PROCESO.label == "En proceso"
+
+
+def test_calcular_fecha_fin_con_meses():
+    from app.application.use_cases.contratos.radicar_solicitud import calcular_fecha_fin
+
+    assert calcular_fecha_fin(date(2026, 1, 31), 1, UnidadPlazo.MESES) == date(2026, 2, 28)
+    assert calcular_fecha_fin(date(2026, 7, 10), 30, UnidadPlazo.DIAS) == date(2026, 8, 9)

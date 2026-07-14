@@ -9,6 +9,8 @@ Encapsula las reglas de negocio:
 """
 
 from dataclasses import dataclass
+from calendar import monthrange
+from datetime import date, timedelta
 from decimal import Decimal
 
 from app.application.interfaces.contrato_repository import ContratoRepository
@@ -63,6 +65,9 @@ class RadicarSolicitud:
         correo_gerencia: str,
         tipo_codigo: str,
         archivos: list[ArchivoEntrada],
+        fecha_inicio: date | None = None,
+        fecha_fin: date | None = None,
+        fecha_proxima_notificacion: date | None = None,
     ) -> Contrato:
         if not (actor.is_compras() or actor.is_admin()):
             raise UnauthorizedError(
@@ -82,6 +87,20 @@ class RadicarSolicitud:
             correo_lider_proceso=correo_lider_proceso,
             correo_gerencia=correo_gerencia,
         )
+        fecha_fin_calculada = fecha_fin
+        if fecha_inicio and fecha_fin_calculada is None:
+            fecha_fin_calculada = calcular_fecha_fin(
+                fecha_inicio,
+                plazo_cantidad,
+                plazo_unidad,
+            )
+        if fecha_inicio and fecha_fin_calculada and fecha_fin_calculada < fecha_inicio:
+            raise ValueError("La fecha de vencimiento no puede ser anterior a la fecha de inicio.")
+        if fecha_proxima_notificacion is None and fecha_fin_calculada:
+            fecha_proxima_notificacion = max(
+                fecha_inicio or fecha_fin_calculada,
+                fecha_fin_calculada - timedelta(days=30),
+            )
 
         contrato = Contrato(
             compania=COMPANIA_DEFAULT,
@@ -101,6 +120,9 @@ class RadicarSolicitud:
             correo_lider_proceso=correo_lider_proceso.strip(),
             correo_gerencia=correo_gerencia.strip(),
             tipo_codigo=normalizar_tipo_codigo(tipo_codigo),
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin_calculada,
+            fecha_proxima_notificacion=fecha_proxima_notificacion,
         )
 
         for entrada in archivos:
@@ -171,3 +193,19 @@ class RadicarSolicitud:
             raise ValueError("La cantidad de plazo debe ser mayor a 0.")
         if plazo_cantidad > PLAZO_MAXIMO:
             raise ValueError("La cantidad de plazo es demasiado grande.")
+
+
+def calcular_fecha_fin(
+    fecha_inicio: date,
+    plazo_cantidad: int,
+    plazo_unidad: UnidadPlazo,
+) -> date:
+    if plazo_unidad == UnidadPlazo.DIAS:
+        return fecha_inicio + timedelta(days=plazo_cantidad)
+
+    meses = plazo_cantidad if plazo_unidad == UnidadPlazo.MESES else plazo_cantidad * 12
+    mes_base = fecha_inicio.month - 1 + meses
+    anio = fecha_inicio.year + mes_base // 12
+    mes = mes_base % 12 + 1
+    dia = min(fecha_inicio.day, monthrange(anio, mes)[1])
+    return date(anio, mes, dia)

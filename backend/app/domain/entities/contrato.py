@@ -8,7 +8,7 @@ correos electrónicos y para búsquedas dentro del sistema.
 """
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
 from typing import Optional
@@ -23,8 +23,8 @@ from app.domain.value_objects.unidad_plazo import UnidadPlazo
 COMPANIA_DEFAULT = "Colbeef"
 CODIGO_PREFIX = "JC"
 TIPO_CODIGO_CONTRATO = "C"
-TIPO_CODIGO_OPERACION_SERVICIO = "OS"
-TIPOS_CODIGO_VALIDOS = {TIPO_CODIGO_CONTRATO, TIPO_CODIGO_OPERACION_SERVICIO}
+TIPO_CODIGO_ORDEN_TRABAJO = "OS"
+TIPOS_CODIGO_VALIDOS = {TIPO_CODIGO_CONTRATO, TIPO_CODIGO_ORDEN_TRABAJO}
 
 # La columna `valor` es DECIMAL(18,2): admite hasta 16 dígitos enteros.
 VALOR_MAXIMO = Decimal("9999999999999999.99")
@@ -118,8 +118,13 @@ class Contrato:
     fecha_inicio: Optional[date] = None
     fecha_fin: Optional[date] = None
     fecha_proxima_notificacion: Optional[date] = None
+    hora_proxima_notificacion: Optional[time] = time(0, 10)
+    fecha_ultima_notificacion_vencimiento: Optional[datetime] = None
     aprobado_lider_at: Optional[datetime] = None
     aprobado_gerencia_at: Optional[datetime] = None
+    eliminado_at: Optional[datetime] = None
+    eliminado_por_id: Optional[int] = None
+    eliminado_observacion: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     archivos: list[ArchivoAdjunto] = field(default_factory=list)

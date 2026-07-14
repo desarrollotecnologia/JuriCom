@@ -74,7 +74,7 @@ def migrar_estado_contratos() -> None:
 
 
 def migrar_tipo_codigo_contratos() -> None:
-    """Tipo de código documental: C (contrato) u OS (operación de servicio)."""
+    """Tipo de código documental: C (contrato) u OS (orden de trabajo)."""
     if not _tabla_existe("contratos"):
         return
     if _columna_existe("contratos", "tipo_codigo"):
@@ -125,7 +125,9 @@ def migrar_aprobacion_y_vigencia_contratos() -> None:
         "fecha_inicio": "ALTER TABLE contratos ADD COLUMN fecha_inicio DATE NULL AFTER estado",
         "fecha_fin": "ALTER TABLE contratos ADD COLUMN fecha_fin DATE NULL AFTER fecha_inicio",
         "fecha_proxima_notificacion": "ALTER TABLE contratos ADD COLUMN fecha_proxima_notificacion DATE NULL AFTER fecha_fin",
-        "aprobado_lider_at": "ALTER TABLE contratos ADD COLUMN aprobado_lider_at DATETIME NULL AFTER fecha_proxima_notificacion",
+        "hora_proxima_notificacion": "ALTER TABLE contratos ADD COLUMN hora_proxima_notificacion TIME NULL DEFAULT '00:10:00' AFTER fecha_proxima_notificacion",
+        "fecha_ultima_notificacion_vencimiento": "ALTER TABLE contratos ADD COLUMN fecha_ultima_notificacion_vencimiento DATETIME NULL AFTER hora_proxima_notificacion",
+        "aprobado_lider_at": "ALTER TABLE contratos ADD COLUMN aprobado_lider_at DATETIME NULL AFTER fecha_ultima_notificacion_vencimiento",
         "aprobado_gerencia_at": "ALTER TABLE contratos ADD COLUMN aprobado_gerencia_at DATETIME NULL AFTER aprobado_lider_at",
     }
     with engine.begin() as conn:
@@ -145,6 +147,110 @@ def migrar_aprobacion_y_vigencia_contratos() -> None:
                 logger.warning(
                     "No se pudo crear índice ix_contratos_estado_aprobacion: %s", e
                 )
+
+
+def migrar_fechas_contratos_activos() -> None:
+    """Backfill de vigencia para contratos activos que quedaron sin fechas."""
+    if not _tabla_existe("contratos"):
+        return
+    columnas = ("fecha_inicio", "fecha_fin", "fecha_proxima_notificacion")
+    if any(not _columna_existe("contratos", columna) for columna in columnas):
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE contratos
+                SET fecha_inicio = COALESCE(fecha_inicio, DATE(updated_at), CURDATE())
+                WHERE estado = 'activo'
+                  AND fecha_inicio IS NULL
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE contratos
+                SET fecha_fin = CASE plazo_unidad
+                    WHEN 'dias' THEN DATE_ADD(fecha_inicio, INTERVAL plazo_cantidad DAY)
+                    WHEN 'meses' THEN DATE_ADD(fecha_inicio, INTERVAL plazo_cantidad MONTH)
+                    WHEN 'anios' THEN DATE_ADD(fecha_inicio, INTERVAL plazo_cantidad YEAR)
+                    ELSE fecha_fin
+                END
+                WHERE estado = 'activo'
+                  AND fecha_inicio IS NOT NULL
+                  AND fecha_fin IS NULL
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE contratos
+                SET fecha_proxima_notificacion = GREATEST(
+                    fecha_inicio,
+                    DATE_SUB(fecha_fin, INTERVAL 30 DAY)
+                )
+                WHERE estado = 'activo'
+                  AND fecha_inicio IS NOT NULL
+                  AND fecha_fin IS NOT NULL
+                  AND fecha_proxima_notificacion IS NULL
+                """
+            )
+        )
+        if _columna_existe("contratos", "hora_proxima_notificacion"):
+            conn.execute(
+                text(
+                    """
+                    UPDATE contratos
+                    SET hora_proxima_notificacion = '00:10:00'
+                    WHERE hora_proxima_notificacion IS NULL
+                       OR hora_proxima_notificacion = '06:00:00'
+                    """
+                )
+            )
+
+
+def migrar_eliminacion_logica_contratos() -> None:
+    """Campos para ver contratos eliminados con motivo obligatorio."""
+    if not _tabla_existe("contratos"):
+        return
+    columnas = {
+        "eliminado_at": (
+            "ALTER TABLE contratos ADD COLUMN eliminado_at DATETIME NULL "
+            "AFTER aprobado_gerencia_at"
+        ),
+        "eliminado_por_id": (
+            "ALTER TABLE contratos ADD COLUMN eliminado_por_id INT NULL "
+            "AFTER eliminado_at"
+        ),
+        "eliminado_observacion": (
+            "ALTER TABLE contratos ADD COLUMN eliminado_observacion TEXT NULL "
+            "AFTER eliminado_por_id"
+        ),
+    }
+    with engine.begin() as conn:
+        for columna, sql in columnas.items():
+            if not _columna_existe("contratos", columna):
+                logger.info("Agregando columna '%s' a 'contratos'...", columna)
+                conn.execute(text(sql))
+        if not _indice_existe("contratos", "ix_contratos_eliminado_at"):
+            try:
+                conn.execute(
+                    text("ALTER TABLE contratos ADD INDEX ix_contratos_eliminado_at (eliminado_at)")
+                )
+            except Exception as e:
+                logger.warning("No se pudo crear índice ix_contratos_eliminado_at: %s", e)
+        try:
+            conn.execute(
+                text(
+                    "ALTER TABLE contratos ADD CONSTRAINT fk_contratos_eliminado_por "
+                    "FOREIGN KEY (eliminado_por_id) REFERENCES users(id) "
+                    "ON DELETE SET NULL"
+                )
+            )
+        except Exception as e:
+            logger.warning("No se pudo agregar FK fk_contratos_eliminado_por: %s", e)
 
 
 def migrar_aprobacion_otrosies() -> None:
@@ -455,6 +561,8 @@ def run_all() -> None:
     migrar_estado_contratos()
     migrar_subido_por_archivos()
     migrar_aprobacion_y_vigencia_contratos()
+    migrar_fechas_contratos_activos()
+    migrar_eliminacion_logica_contratos()
     migrar_aprobacion_otrosies()
     migrar_solicitudes_gestion_legacy()
     migrar_solicitudes_gestion_gestion()
