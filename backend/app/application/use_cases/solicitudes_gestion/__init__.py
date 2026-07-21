@@ -52,6 +52,8 @@ from .resolver_aprobacion_solicitud import ResolverAprobacionSolicitud
 
 from .solicitar_anticipo_servicios_solicitud import SolicitarAnticipoServiciosSolicitud
 
+from .registrar_valor_servicio_solicitud import RegistrarValorServicioSolicitud
+
 from .notificar_evidencia_cierre_servicios_solicitud import (
     NotificarEvidenciaCierreServiciosSolicitud,
 )
@@ -137,6 +139,8 @@ __all__ = [
 
 
     "SolicitarAnticipoServiciosSolicitud",
+
+    "RegistrarValorServicioSolicitud",
 
     "NotificarEvidenciaCierreServiciosSolicitud",
 

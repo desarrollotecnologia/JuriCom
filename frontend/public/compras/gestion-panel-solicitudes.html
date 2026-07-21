@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Panel de solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=6" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=7" />
     </head>
     <body>
         <div class="app-shell">
@@ -82,11 +82,27 @@
                 <div class="modal-actions" id="panel-modal-actions-gestion" hidden>
                     <button
                         type="button"
+                        class="btn btn-secondary"
+                        id="btn-panel-guardar-valor-servicio"
+                        hidden
+                    >
+                        Guardar gestión
+                    </button>
+                    <button
+                        type="button"
                         class="btn btn-primary"
                         id="btn-panel-solicitar-anticipo-servicios"
                         hidden
                     >
                         Solicitar anticipo
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-secondary"
+                        id="btn-panel-radicar-contrato-servicio"
+                        hidden
+                    >
+                        Radicar contrato
                     </button>
                     <button
                         type="button"
@@ -231,7 +247,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=37";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=39";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

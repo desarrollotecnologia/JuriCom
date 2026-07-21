@@ -17,10 +17,13 @@ import {
     renderPanelGestionServiciosPostAprobacionHtml,
     esGestionServiciosPostAprobacion,
     esGestionServiciosPanelActivo,
-    esGestionServiciosSolicitarAnticipo,
+    esGestionServiciosCapturaValor,
     esGestionServiciosContinuacionPostAnticipo,
     anticipoServicioGestionado,
     tieneEvidenciaSolicitanteCierre,
+    puedeRadicarContratoDesdeServicio,
+    clasificarDocumentoServicio,
+    labelClasificacionDocumentoServicio,
     renderPanelTramiteOcHtml,
     renderVisitaProgramadaRowHtml,
     renderFacturasHistorialHtml,
@@ -37,7 +40,7 @@ import {
     solicitudPuedeCerrarConPendientes,
     solicitudTieneOcRegistrada,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=27";
+} from "./gestion-solicitudes-common.js?v=29";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -132,6 +135,10 @@ export function initPanelSolicitudesGestion() {
     const btnEnviar = document.getElementById("btn-panel-enviar-aprobacion");
     const btnGuardarGestionServicios = document.getElementById("btn-panel-guardar-gestion-servicios");
     const btnSolicitarAnticipoServicios = document.getElementById("btn-panel-solicitar-anticipo-servicios");
+    const btnGuardarValorServicio = document.getElementById("btn-panel-guardar-valor-servicio");
+    const btnRadicarContratoServicio = document.getElementById(
+        "btn-panel-radicar-contrato-servicio"
+    );
     const btnGuardarObsServicioPostAnticipo = document.getElementById(
         "btn-panel-guardar-obs-servicio-post-anticipo"
     );
@@ -538,7 +545,9 @@ export function initPanelSolicitudesGestion() {
         modalActionsGestion?.setAttribute("hidden", "");
         setModalBtnHidden(btnEnviar, false);
         setModalBtnHidden(btnGuardarGestionServicios, true);
+        setModalBtnHidden(btnGuardarValorServicio, true);
         setModalBtnHidden(btnSolicitarAnticipoServicios, true);
+        setModalBtnHidden(btnRadicarContratoServicio, true);
         setModalBtnHidden(btnGuardarObsServicioPostAnticipo, true);
         setModalBtnHidden(btnNotificarEvidenciaServicio, true);
         setModalBtnHidden(btnCerrarServicio, true);
@@ -652,11 +661,52 @@ export function initPanelSolicitudesGestion() {
         );
     }
 
+    function requiereAnticipoServicioSeleccionado() {
+        return (
+            document.querySelector('input[name="requiere_anticipo_servicio"]:checked')?.value ===
+            "si"
+        );
+    }
+
+    function syncClasificacionDocumentoServicioLive() {
+        const input = document.getElementById("gestion-valor-servicio");
+        const badge = document.getElementById("sg-clasificacion-doc-badge");
+        if (!badge) return;
+        const key = clasificarDocumentoServicio(input?.value);
+        const label = labelClasificacionDocumentoServicio(key) || "—";
+        badge.textContent = label;
+    }
+
+    function syncRequiereAnticipoServicioUI() {
+        const campos = document.getElementById("gestion-anticipo-servicio-campos");
+        const requiere = requiereAnticipoServicioSeleccionado();
+        if (campos) campos.hidden = !requiere;
+        syncGestionServiciosAccionesUI();
+    }
+
+    function bindGestionValorServicioEvents() {
+        const input = document.getElementById("gestion-valor-servicio");
+        if (!input) return;
+        input.addEventListener("input", syncClasificacionDocumentoServicioLive);
+        document
+            .querySelectorAll('input[name="requiere_anticipo_servicio"]')
+            .forEach((radio) => {
+                radio.addEventListener("change", syncRequiereAnticipoServicioUI);
+            });
+        syncClasificacionDocumentoServicioLive();
+        syncRequiereAnticipoServicioUI();
+    }
+
     function syncGestionServiciosAccionesUI() {
         if (!modoGestion || !esSolicitudServicios(selectedSolicitud)) return;
+
+        const puedeRadicar = puedeRadicarContratoDesdeServicio(selectedSolicitud);
+        setModalBtnHidden(btnRadicarContratoServicio, !puedeRadicar);
+
         if (esGestionServiciosContinuacionPostAnticipo(selectedSolicitud)) {
             setModalBtnHidden(btnGuardarGestionServicios, true);
             setModalBtnHidden(btnEnviar, true);
+            setModalBtnHidden(btnGuardarValorServicio, true);
             setModalBtnHidden(btnSolicitarAnticipoServicios, true);
             const esperando =
                 normalizarEstado(selectedSolicitud.estado) === "pendiente_evidencia_cierre";
@@ -667,23 +717,27 @@ export function initPanelSolicitudesGestion() {
             setModalBtnHidden(btnCerrarServicio, !puedeCerrar);
             return;
         }
+
         setModalBtnHidden(btnCerrarServicio, true);
-        if (esGestionServiciosSolicitarAnticipo(selectedSolicitud)) {
-            setModalBtnHidden(btnGuardarGestionServicios, true);
-            setModalBtnHidden(btnEnviar, true);
-            setModalBtnHidden(btnSolicitarAnticipoServicios, false);
-            setModalBtnHidden(btnGuardarObsServicioPostAnticipo, true);
-            setModalBtnHidden(btnNotificarEvidenciaServicio, true);
-            setModalBtnHidden(btnCerrarServicio, true);
-            return;
-        }
         setModalBtnHidden(btnGuardarObsServicioPostAnticipo, true);
         setModalBtnHidden(btnNotificarEvidenciaServicio, true);
-        setModalBtnHidden(btnCerrarServicio, true);
+
+        if (esGestionServiciosCapturaValor(selectedSolicitud)) {
+            setModalBtnHidden(btnGuardarGestionServicios, true);
+            setModalBtnHidden(btnEnviar, true);
+            setModalBtnHidden(btnGuardarValorServicio, false);
+            setModalBtnHidden(
+                btnSolicitarAnticipoServicios,
+                !requiereAnticipoServicioSeleccionado()
+            );
+            return;
+        }
+
+        setModalBtnHidden(btnGuardarValorServicio, true);
+        setModalBtnHidden(btnSolicitarAnticipoServicios, true);
         const adjuntar = adjuntarCotizacionesSeleccionado();
         setModalBtnHidden(btnGuardarGestionServicios, adjuntar);
         setModalBtnHidden(btnEnviar, !adjuntar);
-        setModalBtnHidden(btnSolicitarAnticipoServicios, true);
     }
 
     function syncAdjuntarCotizacionesUI() {
@@ -1011,7 +1065,9 @@ export function initPanelSolicitudesGestion() {
     function updateAccionesGestionModal(esEntrega) {
         setModalBtnHidden(btnEnviar, esEntrega);
         setModalBtnHidden(btnGuardarGestionServicios, true);
+        setModalBtnHidden(btnGuardarValorServicio, true);
         setModalBtnHidden(btnSolicitarAnticipoServicios, true);
+        setModalBtnHidden(btnRadicarContratoServicio, true);
         setModalBtnHidden(btnGuardarObsServicioPostAnticipo, true);
         setModalBtnHidden(btnNotificarEvidenciaServicio, true);
         setModalBtnHidden(btnCerrarServicio, true);
@@ -1284,6 +1340,7 @@ export function initPanelSolicitudesGestion() {
                     bindVisitasFormEvents();
                     bindGestionServiciosCotizacionesEvents();
                 } else {
+                    bindGestionValorServicioEvents();
                     syncGestionServiciosAccionesUI();
                 }
             }
@@ -1566,16 +1623,21 @@ export function initPanelSolicitudesGestion() {
         }
     }
 
-    function validarAnticipoServicioForm() {
+    function validarValorServicioForm() {
         const valor = document.getElementById("gestion-valor-servicio")?.value.trim() ?? "";
-        const pct = document.getElementById("gestion-porcentaje-anticipo")?.value.trim() ?? "";
-        const liderId = document.getElementById("gestion-lider-anticipo")?.value ?? "";
         const valorNum = Number(valor);
-        const pctNum = Number(pct);
         if (!valor || Number.isNaN(valorNum) || valorNum <= 0) {
-            showError("Indica el valor del servicio.");
+            showError("Indica el valor total de la cotización del servicio.");
             return false;
         }
+        return true;
+    }
+
+    function validarAnticipoServicioForm() {
+        if (!validarValorServicioForm()) return false;
+        const pct = document.getElementById("gestion-porcentaje-anticipo")?.value.trim() ?? "";
+        const liderId = document.getElementById("gestion-lider-anticipo")?.value ?? "";
+        const pctNum = Number(pct);
         if (!pct || Number.isNaN(pctNum) || pctNum <= 0 || pctNum > 100) {
             showError("Indica un porcentaje de anticipo válido (0.01 – 100).");
             return false;
@@ -1587,9 +1649,70 @@ export function initPanelSolicitudesGestion() {
         return true;
     }
 
+    async function guardarValorServicio() {
+        if (!selectedSolicitud || !modoGestion || !esGestionServiciosCapturaValor(selectedSolicitud)) {
+            return;
+        }
+        if (!validarValorServicioForm()) return;
+
+        const valor = document.getElementById("gestion-valor-servicio")?.value.trim() ?? "";
+        const requiere = requiereAnticipoServicioSeleccionado();
+        const clasif = labelClasificacionDocumentoServicio(clasificarDocumentoServicio(valor));
+
+        observacionControl?.editor.syncHidden();
+        const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
+        const nuevaObsTexto = observacionControl?.editor.getText() ?? "";
+
+        const msg = requiere
+            ? `¿Guardar valor ${valor} (${clasif || "sin etiqueta"}) con anticipo requerido? Luego podrás solicitar el anticipo.`
+            : `¿Guardar valor ${valor} (${clasif || "sin etiqueta"}) sin anticipo y continuar la gestión?`;
+
+        if (!confirm(msg)) return;
+
+        const formData = new FormData();
+        formData.append("valor_servicio", valor);
+        formData.append("requiere_anticipo", requiere ? "true" : "false");
+        formData.append("nueva_observacion", nuevaObsHtml);
+        formData.append("nueva_observacion_texto", nuevaObsTexto);
+        (observacionControl?.getFiles() ?? []).forEach((file) =>
+            formData.append("adjuntos", file)
+        );
+
+        btnGuardarValorServicio.disabled = true;
+        btnGuardarValorServicio.textContent = "Guardando...";
+
+        try {
+            const solicitud = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/registrar-valor-servicio`,
+                formData
+            );
+            const etiqueta =
+                solicitud.clasificacion_documento_servicio_label ||
+                labelClasificacionDocumentoServicio(solicitud);
+            showSuccess(
+                `Gestión de ${solicitud.codigo} guardada — ${etiqueta || "valor registrado"}.`
+            );
+            await load();
+            await abrirGestion(solicitud);
+        } catch (err) {
+            showError(
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo guardar la gestión del servicio."
+            );
+        } finally {
+            btnGuardarValorServicio.disabled = false;
+            btnGuardarValorServicio.textContent = "Guardar gestión";
+        }
+    }
+
     async function solicitarAnticipoServicios() {
         if (!selectedSolicitud || !modoGestion || !esSolicitudServicios(selectedSolicitud)) return;
-        if (!esGestionServiciosSolicitarAnticipo(selectedSolicitud)) return;
+        if (!esGestionServiciosCapturaValor(selectedSolicitud)) return;
+        if (!requiereAnticipoServicioSeleccionado()) {
+            showError("Marca «Sí» en requiere anticipo para solicitarlo, o guarda la gestión sin anticipo.");
+            return;
+        }
 
         observacionControl?.editor.syncHidden();
         const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
@@ -1646,6 +1769,18 @@ export function initPanelSolicitudesGestion() {
             btnSolicitarAnticipoServicios.disabled = false;
             btnSolicitarAnticipoServicios.textContent = "Solicitar anticipo";
         }
+    }
+
+    function radicarContratoDesdeServicio() {
+        if (!selectedSolicitud || !puedeRadicarContratoDesdeServicio(selectedSolicitud)) return;
+        const params = new URLSearchParams({
+            tipo_codigo: "OS",
+            solicitud_gestion_id: String(selectedSolicitud.id),
+        });
+        if (selectedSolicitud.codigo) {
+            params.set("solicitud_gestion_codigo", selectedSolicitud.codigo);
+        }
+        window.location.href = `/app/compras/solicitud-radicar.html?${params.toString()}`;
     }
 
     function validarObservacionGestorServicio() {
@@ -1953,7 +2088,9 @@ export function initPanelSolicitudesGestion() {
     btnClose?.addEventListener("click", closeModal);
     btnEnviar?.addEventListener("click", enviarParaAprobacion);
     btnGuardarGestionServicios?.addEventListener("click", guardarGestionServicios);
+    btnGuardarValorServicio?.addEventListener("click", guardarValorServicio);
     btnSolicitarAnticipoServicios?.addEventListener("click", solicitarAnticipoServicios);
+    btnRadicarContratoServicio?.addEventListener("click", radicarContratoDesdeServicio);
     btnGuardarObsServicioPostAnticipo?.addEventListener(
         "click",
         guardarObservacionServicioPostAnticipo

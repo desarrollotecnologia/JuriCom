@@ -756,6 +756,110 @@ def run_all() -> None:
     migrar_numero_consecutivo_solicitudes()
     migrar_visitas_programadas_servicios()
     migrar_anticipo_gestionado_servicios()
+    migrar_clasificacion_documento_servicio()
+    migrar_vinculo_srv_contrato()
+
+
+def migrar_vinculo_srv_contrato() -> None:
+    """Trazabilidad bidireccional entre solicitud de servicios y contrato/OT."""
+    if _tabla_existe("contratos"):
+        if not _columna_existe("contratos", "solicitud_gestion_id"):
+            with engine.begin() as conn:
+                logger.info("Agregando columna 'solicitud_gestion_id' a contratos...")
+                conn.execute(
+                    text(
+                        """
+                        ALTER TABLE contratos
+                        ADD COLUMN solicitud_gestion_id INT NULL
+                        AFTER tipo_codigo
+                        """
+                    )
+                )
+                conn.execute(
+                    text(
+                        "CREATE INDEX ix_contratos_solicitud_gestion_id "
+                        "ON contratos (solicitud_gestion_id)"
+                    )
+                )
+        if not _columna_existe("contratos", "solicitud_gestion_codigo"):
+            with engine.begin() as conn:
+                logger.info("Agregando columna 'solicitud_gestion_codigo' a contratos...")
+                conn.execute(
+                    text(
+                        """
+                        ALTER TABLE contratos
+                        ADD COLUMN solicitud_gestion_codigo VARCHAR(20) NOT NULL DEFAULT ''
+                        AFTER solicitud_gestion_id
+                        """
+                    )
+                )
+
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    if not _columna_existe("solicitudes_gestion", "contrato_id"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'contrato_id' a solicitudes_gestion...")
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE solicitudes_gestion
+                    ADD COLUMN contrato_id INT NULL
+                    AFTER gestion_valor_registrada
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX ix_solicitudes_gestion_contrato_id "
+                    "ON solicitudes_gestion (contrato_id)"
+                )
+            )
+    if not _columna_existe("solicitudes_gestion", "contrato_codigo"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'contrato_codigo' a solicitudes_gestion...")
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE solicitudes_gestion
+                    ADD COLUMN contrato_codigo VARCHAR(20) NOT NULL DEFAULT ''
+                    AFTER contrato_id
+                    """
+                )
+            )
+
+
+def migrar_clasificacion_documento_servicio() -> None:
+    """Valor cotizado de servicios: clasificación documental y flag de registro."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    if not _columna_existe("solicitudes_gestion", "clasificacion_documento_servicio"):
+        with engine.begin() as conn:
+            logger.info(
+                "Agregando columna 'clasificacion_documento_servicio' a solicitudes_gestion..."
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE solicitudes_gestion
+                    ADD COLUMN clasificacion_documento_servicio VARCHAR(40) NOT NULL DEFAULT ''
+                    AFTER anticipo_gestionado
+                    """
+                )
+            )
+    if not _columna_existe("solicitudes_gestion", "gestion_valor_registrada"):
+        with engine.begin() as conn:
+            logger.info(
+                "Agregando columna 'gestion_valor_registrada' a solicitudes_gestion..."
+            )
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE solicitudes_gestion
+                    ADD COLUMN gestion_valor_registrada TINYINT(1) NOT NULL DEFAULT 0
+                    AFTER clasificacion_documento_servicio
+                    """
+                )
+            )
 
 
 def migrar_anticipo_gestionado_servicios() -> None:

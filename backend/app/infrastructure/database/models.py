@@ -57,6 +57,13 @@ class ContratoModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     codigo: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     tipo_codigo: Mapped[str] = mapped_column(String(10), nullable=False, default="C")
+    solicitud_gestion_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("solicitudes_gestion.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    solicitud_gestion_codigo: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     compania: Mapped[str] = mapped_column(String(150), nullable=False, default="Colbeef")
     proveedor_contratista: Mapped[str] = mapped_column(String(255), nullable=False)
     nit_proveedor: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
@@ -223,6 +230,17 @@ class SolicitudGestionModel(Base):
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     anticipo_gestionado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    clasificacion_documento_servicio: Mapped[str] = mapped_column(
+        String(40), nullable=False, default=""
+    )
+    gestion_valor_registrada: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    contrato_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("contratos.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    contrato_codigo: Mapped[str] = mapped_column(String(20), nullable=False, default="")
     factura_registrada_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     factura_registrada_por_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True

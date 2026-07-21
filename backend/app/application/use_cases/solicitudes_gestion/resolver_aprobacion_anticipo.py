@@ -95,7 +95,7 @@ class ResolverAprobacionAnticipo:
         motivo_hist = motivo or "Anticipo rechazado"
         if es_flujo_servicios(solicitud.tipo):
             solicitud.estado = EstadoSolicitudGestion.GESTIONANDO_SERVICIO
-            solicitud.requiere_anticipo = False
+            solicitud.requiere_anticipo = True
             solicitud.porcentaje_anticipo = None
             solicitud.monto_anticipo = None
             solicitud.lider_anticipo_id = ""

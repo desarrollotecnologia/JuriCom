@@ -723,6 +723,14 @@ export function badgeEstado(estado, solicitud = null) {
     if (key === "facturada") {
         label = "Facturada";
     }
+    if (key === "gestionando_servicio") {
+        const clasif = labelClasificacionDocumentoServicio(solicitud);
+        if (clasif) {
+            label = `Gestionando… · ${clasif}`;
+        } else {
+            label = "Gestionando…";
+        }
+    }
     return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
@@ -1108,20 +1116,70 @@ export function anticipoServicioGestionado(s) {
     return Boolean(s?.anticipo_gestionado);
 }
 
-export function esGestionServiciosSolicitarAnticipo(s) {
+export function gestionValorServicioRegistrada(s) {
+    return Boolean(s?.gestion_valor_registrada);
+}
+
+export const CLASIFICACION_DOCUMENTO_SERVICIO_LABEL = {
+    orden_servicio: "Orden de Servicio",
+    orden_trabajo: "Orden de Trabajo",
+    contrato: "Contrato",
+};
+
+export const UMBRAL_ORDEN_SERVICIO = 5_000_000;
+export const UMBRAL_CONTRATO = 10_000_000;
+
+export function clasificarDocumentoServicio(valor) {
+    const n = Number(valor);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    if (n < UMBRAL_ORDEN_SERVICIO) return "orden_servicio";
+    if (n <= UMBRAL_CONTRATO) return "orden_trabajo";
+    return "contrato";
+}
+
+export function labelClasificacionDocumentoServicio(keyOrSolicitud) {
+    if (keyOrSolicitud && typeof keyOrSolicitud === "object") {
+        const fromApi = (keyOrSolicitud.clasificacion_documento_servicio_label || "").trim();
+        if (fromApi) return fromApi;
+        const key = keyOrSolicitud.clasificacion_documento_servicio || "";
+        return CLASIFICACION_DOCUMENTO_SERVICIO_LABEL[key] || "";
+    }
+    return CLASIFICACION_DOCUMENTO_SERVICIO_LABEL[keyOrSolicitud] || "";
+}
+
+/** Fase capturar valor o completar anticipo (aún no omitido/gestionado). */
+export function esGestionServiciosCapturaValor(s) {
     return (
         esSolicitudServicios(s) &&
         esGestionServiciosPostAprobacion(s.estado) &&
-        !anticipoServicioGestionado(s)
+        !anticipoServicioGestionado(s) &&
+        !(gestionValorServicioRegistrada(s) && !s.requiere_anticipo)
+    );
+}
+
+export function esGestionServiciosSolicitarAnticipo(s) {
+    return (
+        esGestionServiciosCapturaValor(s) &&
+        gestionValorServicioRegistrada(s) &&
+        Boolean(s.requiere_anticipo)
     );
 }
 
 export function esGestionServiciosContinuacionPostAnticipo(s) {
     const estado = normalizarEstado(s?.estado);
+    if (!esSolicitudServicios(s)) return false;
+    if (estado === "pendiente_evidencia_cierre") return true;
+    if (estado !== "gestionando_servicio") return false;
+    if (anticipoServicioGestionado(s)) return true;
+    return gestionValorServicioRegistrada(s) && !s.requiere_anticipo;
+}
+
+export function puedeRadicarContratoDesdeServicio(s) {
     return (
         esSolicitudServicios(s) &&
-        ((estado === "gestionando_servicio" && anticipoServicioGestionado(s)) ||
-            estado === "pendiente_evidencia_cierre")
+        (s.clasificacion_documento_servicio || "") === "orden_trabajo" &&
+        (gestionValorServicioRegistrada(s) || anticipoServicioGestionado(s)) &&
+        !s.contrato_id
     );
 }
 
@@ -1133,11 +1191,31 @@ export function esGestionServiciosPanelActivo(s) {
     );
 }
 
+export function renderClasificacionDocumentoBadgeHtml(key) {
+    const label = labelClasificacionDocumentoServicio(key);
+    if (!label) return "";
+    return `<span class="badge badge-sg-aprobacion sg-clasificacion-doc-badge">${escapeHtml(label)}</span>`;
+}
+
 export function renderPanelServiciosPostAnticipoGestionadoHtml(s) {
     const esperandoEvidencia =
         normalizarEstado(s.estado) === "pendiente_evidencia_cierre";
     const evidenciaHtml = esperandoEvidencia ? renderEvidenciaSolicitanteCierreHtml(s) : "";
     const conEvidencia = tieneEvidenciaSolicitanteCierre(s);
+    const clasifLabel = labelClasificacionDocumentoServicio(s);
+    const clasifBadge = clasifLabel
+        ? `<p class="sg-clasificacion-doc-live">
+                <span class="muted">Clasificación:</span>
+                ${renderClasificacionDocumentoBadgeHtml(s.clasificacion_documento_servicio)}
+           </p>`
+        : "";
+    const vinculoHtml =
+        s.contrato_codigo || s.contrato_id
+            ? `<p class="sg-clasificacion-doc-live">
+                    <span class="muted">Documento vinculado:</span>
+                    <strong class="codigo-contrato">${escapeHtml(s.contrato_codigo || `ID ${s.contrato_id}`)}</strong>
+               </p>`
+            : "";
 
     let hintHtml;
     if (esperandoEvidencia && conEvidencia) {
@@ -1150,10 +1228,15 @@ export function renderPanelServiciosPostAnticipoGestionadoHtml(s) {
             La solicitud quedará en este estado hasta que responda desde
             <strong>Mis solicitudes</strong>.
         </p>`;
-    } else {
+    } else if (anticipoServicioGestionado(s)) {
         hintHtml = `<p class="muted sg-detail-panel-hint">
             El anticipo ya fue gestionado. Registra tu observación y notifica al solicitante
             para que adjunte evidencia y comentario de cierre.
+        </p>`;
+    } else {
+        hintHtml = `<p class="muted sg-detail-panel-hint">
+            Valor del servicio registrado sin anticipo. Continúa con la observación del gestor
+            y notifica al solicitante para evidencia de cierre.
         </p>`;
     }
 
@@ -1161,6 +1244,8 @@ export function renderPanelServiciosPostAnticipoGestionadoHtml(s) {
         <div class="sg-detail-panel sg-gestion-form-panel sg-servicio-post-anticipo-panel">
             <h3 class="sg-detail-panel-title">Continuar gestión del servicio</h3>
             ${hintHtml}
+            ${clasifBadge}
+            ${vinculoHtml}
             ${evidenciaHtml}
             ${renderAnticipoDetalleHtml(s)}
         </div>`;
@@ -1175,17 +1260,20 @@ export function renderAnticipoServicioGestionHtml(s, lideresOptionsHtml = "") {
         s.porcentaje_anticipo !== null && s.porcentaje_anticipo !== undefined
             ? String(s.porcentaje_anticipo)
             : "";
+    const clasifGuardada = s.clasificacion_documento_servicio || clasificarDocumentoServicio(valor);
+    const labelClasif = labelClasificacionDocumentoServicio(clasifGuardada) || "—";
+    const requiere = Boolean(s.requiere_anticipo);
+
     return `
         <div class="sg-detail-panel sg-gestion-form-panel sg-anticipo-servicio-panel">
-            <h3 class="sg-detail-panel-title">Solicitud de anticipo</h3>
+            <h3 class="sg-detail-panel-title">Gestión del servicio</h3>
             <p class="muted sg-detail-panel-hint">
-                El anticipo se enviará a <strong>Aprobar solicitudes</strong>. Una vez aprobado
-                pasará a <strong>Gestionar anticipo</strong> y, al cerrarse, la solicitud volverá
-                al panel para continuar la gestión del servicio.
+                Registra el <strong>valor total de la cotización</strong>. Según el monto se asigna
+                automáticamente la etiqueta documental. El anticipo es opcional.
             </p>
             <div class="field">
                 <label for="gestion-valor-servicio">
-                    Valor del servicio
+                    Valor total de la cotización
                     <span class="required">*</span>
                 </label>
                 <input
@@ -1194,48 +1282,80 @@ export function renderAnticipoServicioGestionHtml(s, lideresOptionsHtml = "") {
                     class="input-table"
                     min="0.01"
                     step="0.01"
-                    placeholder="Valor acordado del servicio"
+                    placeholder="Valor acordado / cotizado del servicio"
                     value="${escapeHtml(valor)}"
                     autocomplete="off"
                 />
             </div>
-            <div class="row-2">
-                <div class="field">
-                    <label for="gestion-porcentaje-anticipo">
-                        Porcentaje de anticipo (%)
-                        <span class="required">*</span>
-                    </label>
-                    <input
-                        type="number"
-                        id="gestion-porcentaje-anticipo"
-                        class="input-table"
-                        min="0.01"
-                        max="100"
-                        step="0.01"
-                        placeholder="Ej: 30"
-                        value="${escapeHtml(pct)}"
-                        autocomplete="off"
-                    />
-                </div>
-                <div class="field">
-                    <label for="gestion-lider-anticipo">
-                        Líder aprobador del anticipo
-                        <span class="required">*</span>
-                    </label>
-                    <select id="gestion-lider-anticipo" class="input-table">
-                        <option value="">Seleccione líder...</option>
-                        ${lideresOptionsHtml}
-                    </select>
-                </div>
+            <div class="sg-clasificacion-doc-live" id="sg-clasificacion-doc-live">
+                <span class="muted">Clasificación documental:</span>
+                <span id="sg-clasificacion-doc-badge" class="badge badge-sg-aprobacion">
+                    ${escapeHtml(labelClasif)}
+                </span>
             </div>
-            <div class="field">
-                <label for="gestion-observaciones-anticipo">Observaciones del anticipo</label>
-                <textarea
-                    id="gestion-observaciones-anticipo"
-                    rows="3"
-                    class="input-table"
-                    placeholder="Detalle o soporte del anticipo (opcional)"
-                >${escapeHtml(s.observaciones_anticipo || "")}</textarea>
+            <fieldset class="sg-radio-group" id="sg-requiere-anticipo-servicio-group">
+                <legend>
+                    ¿Requiere anticipo?
+                    <span class="required">*</span>
+                </legend>
+                <label class="sg-radio-option">
+                    <input
+                        type="radio"
+                        name="requiere_anticipo_servicio"
+                        value="si"
+                        ${requiere ? "checked" : ""}
+                    />
+                    Sí
+                </label>
+                <label class="sg-radio-option">
+                    <input
+                        type="radio"
+                        name="requiere_anticipo_servicio"
+                        value="no"
+                        ${!requiere ? "checked" : ""}
+                    />
+                    No
+                </label>
+            </fieldset>
+            <div id="gestion-anticipo-servicio-campos" class="sg-anticipo-campos" ${requiere ? "" : "hidden"}>
+                <div class="row-2">
+                    <div class="field">
+                        <label for="gestion-porcentaje-anticipo">
+                            Porcentaje de anticipo (%)
+                            <span class="required">*</span>
+                        </label>
+                        <input
+                            type="number"
+                            id="gestion-porcentaje-anticipo"
+                            class="input-table"
+                            min="0.01"
+                            max="100"
+                            step="0.01"
+                            placeholder="Ej: 30"
+                            value="${escapeHtml(pct)}"
+                            autocomplete="off"
+                        />
+                    </div>
+                    <div class="field">
+                        <label for="gestion-lider-anticipo">
+                            Líder aprobador del anticipo
+                            <span class="required">*</span>
+                        </label>
+                        <select id="gestion-lider-anticipo" class="input-table">
+                            <option value="">Seleccione líder...</option>
+                            ${lideresOptionsHtml}
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="gestion-observaciones-anticipo">Observaciones del anticipo</label>
+                    <textarea
+                        id="gestion-observaciones-anticipo"
+                        rows="3"
+                        class="input-table"
+                        placeholder="Detalle o soporte del anticipo (opcional)"
+                    >${escapeHtml(s.observaciones_anticipo || "")}</textarea>
+                </div>
             </div>
         </div>`;
 }
@@ -1435,6 +1555,33 @@ export function renderInformacionGeneralHtml(s, options = {}) {
                         ? `<div class="sg-detail-field">
                     <dt>Valor del servicio</dt>
                     <dd>${formatValorTramiteOc(s.valor_tramite_oc)}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    showValorServicio &&
+                    mostrarServicios &&
+                    labelClasificacionDocumentoServicio(s)
+                        ? `<div class="sg-detail-field">
+                    <dt>Clasificación documental</dt>
+                    <dd>${renderClasificacionDocumentoBadgeHtml(s.clasificacion_documento_servicio)}</dd>
+                </div>`
+                        : ""
+                }
+                ${
+                    showValorServicio &&
+                    mostrarServicios &&
+                    (s.contrato_codigo || s.contrato_id)
+                        ? `<div class="sg-detail-field">
+                    <dt>Documento vinculado</dt>
+                    <dd>
+                        <a
+                            class="codigo-contrato"
+                            href="/app/compras/mis-solicitudes.html?q=${encodeURIComponent(s.contrato_codigo || "")}"
+                            title="Ver documento radicado"
+                        >${escapeHtml(s.contrato_codigo || `ID ${s.contrato_id}`)}</a>
+                        <span class="muted"> (radicado desde esta SRV)</span>
+                    </dd>
                 </div>`
                         : ""
                 }

@@ -15,6 +15,9 @@ from decimal import Decimal
 
 from app.application.interfaces.contrato_repository import ContratoRepository
 from app.application.interfaces.file_storage import FileStorage
+from app.application.interfaces.solicitud_gestion_repository import (
+    SolicitudGestionRepository,
+)
 from app.domain.entities.contrato import (
     COMPANIA_DEFAULT,
     PLAZO_MAXIMO,
@@ -26,10 +29,12 @@ from app.domain.entities.contrato import (
 )
 from app.domain.entities.user import User
 from app.domain.exceptions import (
+    ContratoNotFoundError,
     MissingRequiredFileError,
     UnauthorizedError,
 )
 from app.domain.value_objects.moneda import Moneda
+from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_servicios
 from app.domain.value_objects.unidad_plazo import UnidadPlazo
 
 
@@ -42,9 +47,15 @@ class ArchivoEntrada:
 
 
 class RadicarSolicitud:
-    def __init__(self, contratos: ContratoRepository, storage: FileStorage) -> None:
+    def __init__(
+        self,
+        contratos: ContratoRepository,
+        storage: FileStorage,
+        solicitudes: SolicitudGestionRepository | None = None,
+    ) -> None:
         self._contratos = contratos
         self._storage = storage
+        self._solicitudes = solicitudes
 
     def execute(
         self,
@@ -68,6 +79,7 @@ class RadicarSolicitud:
         fecha_inicio: date | None = None,
         fecha_fin: date | None = None,
         fecha_proxima_notificacion: date | None = None,
+        solicitud_gestion_id: int | None = None,
     ) -> Contrato:
         if not (actor.is_compras() or actor.is_admin()):
             raise UnauthorizedError(
@@ -87,6 +99,14 @@ class RadicarSolicitud:
             correo_lider_proceso=correo_lider_proceso,
             correo_gerencia=correo_gerencia,
         )
+
+        solicitud_origen = None
+        solicitud_codigo = ""
+        if solicitud_gestion_id is not None:
+            solicitud_origen, solicitud_codigo = self._resolver_solicitud_origen(
+                actor, solicitud_gestion_id
+            )
+
         fecha_fin_calculada = fecha_fin
         if fecha_inicio and fecha_fin_calculada is None:
             fecha_fin_calculada = calcular_fecha_fin(
@@ -120,6 +140,8 @@ class RadicarSolicitud:
             correo_lider_proceso=correo_lider_proceso.strip(),
             correo_gerencia=correo_gerencia.strip(),
             tipo_codigo=normalizar_tipo_codigo(tipo_codigo),
+            solicitud_gestion_id=solicitud_origen.id if solicitud_origen else None,
+            solicitud_gestion_codigo=solicitud_codigo,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin_calculada,
             fecha_proxima_notificacion=fecha_proxima_notificacion,
@@ -142,7 +164,52 @@ class RadicarSolicitud:
                 )
             )
 
-        return self._contratos.create(contrato)
+        creado = self._contratos.create(contrato)
+        if solicitud_origen is not None and self._solicitudes is not None:
+            self._vincular_solicitud(actor, solicitud_origen, creado)
+        return creado
+
+    def _resolver_solicitud_origen(self, actor: User, solicitud_gestion_id: int):
+        if self._solicitudes is None:
+            raise ValueError(
+                "No se puede vincular la solicitud de servicios: repositorio no disponible."
+            )
+        solicitud = self._solicitudes.get_by_id(solicitud_gestion_id)
+        if solicitud is None:
+            raise ContratoNotFoundError(
+                f"No existe la solicitud de gestión {solicitud_gestion_id}."
+            )
+        if not es_flujo_servicios(solicitud.tipo):
+            raise ValueError(
+                "Solo se pueden vincular solicitudes de servicios (SRV) a un contrato/OT."
+            )
+        if solicitud.contrato_id:
+            raise ValueError(
+                f"La solicitud {solicitud.codigo} ya está vinculada al documento "
+                f"{solicitud.contrato_codigo or solicitud.contrato_id}."
+            )
+        if not (
+            actor.is_admin()
+            or actor.is_compras()
+        ):
+            raise UnauthorizedError(
+                "No tienes permiso para vincular esta solicitud de servicios."
+            )
+        return solicitud, solicitud.codigo or ""
+
+    def _vincular_solicitud(self, actor: User, solicitud, contrato: Contrato) -> None:
+        assert self._solicitudes is not None
+        solicitud.contrato_id = contrato.id
+        solicitud.contrato_codigo = contrato.codigo or ""
+        self._solicitudes.update(solicitud)
+        self._solicitudes.registrar_historial(
+            solicitud.id,
+            solicitud.estado,
+            usuario_id=actor.id,
+            comentario=(
+                f"Documento {contrato.codigo} radicado y vinculado a {solicitud.codigo}"
+            ),
+        )
 
     @staticmethod
     def _validar_archivos_obligatorios(archivos: list[ArchivoEntrada]) -> None:

@@ -24,6 +24,9 @@ from fastapi.responses import FileResponse, HTMLResponse
 from app.application.interfaces.contrato_repository import ContratoRepository
 from app.application.interfaces.email_notifier import EmailMessage, EmailNotifier
 from app.application.interfaces.file_storage import FileStorage
+from app.application.interfaces.solicitud_gestion_repository import (
+    SolicitudGestionRepository,
+)
 from app.application.use_cases.contratos import (
     AdjuntarArchivoJuridica,
     AplicarOtrosi,
@@ -58,6 +61,7 @@ from app.presentation.api.v1.dependencies import (
     get_current_user,
     get_email_notifier,
     get_file_storage,
+    get_solicitud_gestion_repository,
 )
 from app.presentation.api.v1.schemas import (
     ArchivoResponse,
@@ -156,6 +160,8 @@ def _to_contrato_response(c) -> ContratoResponse:
         id=c.id,
         codigo=c.codigo,
         tipo_codigo=c.tipo_codigo,
+        solicitud_gestion_id=c.solicitud_gestion_id,
+        solicitud_gestion_codigo=c.solicitud_gestion_codigo or "",
         compania=c.compania,
         proveedor_contratista=c.proveedor_contratista,
         nit_proveedor=c.nit_proveedor,
@@ -195,6 +201,8 @@ def _to_list_item(c) -> ContratoListItem:
         id=c.id,
         codigo=c.codigo,
         tipo_codigo=c.tipo_codigo,
+        solicitud_gestion_id=c.solicitud_gestion_id,
+        solicitud_gestion_codigo=c.solicitud_gestion_codigo or "",
         proveedor_contratista=c.proveedor_contratista,
         nit_proveedor=c.nit_proveedor,
         valor=c.valor,
@@ -285,9 +293,11 @@ def radicar_solicitud(
     cotizacion: UploadFile = File(..., description="PDF/Imagen — obligatorio"),
     cedula_rep_legal: UploadFile = File(..., description="PDF/Imagen — obligatorio"),
     archivo_opcional: Optional[UploadFile] = File(None, description="Cualquier archivo"),
+    solicitud_gestion_id: Optional[int] = Form(None),
     current: User = Depends(get_current_user),
     contratos: ContratoRepository = Depends(get_contrato_repository),
     storage: FileStorage = Depends(get_file_storage),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
     notifier: EmailNotifier = Depends(get_email_notifier),
 ) -> ContratoResponse:
     try:
@@ -319,7 +329,7 @@ def radicar_solicitud(
             archivos.append(entrada)
 
     try:
-        contrato = RadicarSolicitud(contratos, storage).execute(
+        contrato = RadicarSolicitud(contratos, storage, solicitudes).execute(
             actor=current,
             proveedor_contratista=proveedor_contratista,
             nit_proveedor=nit_proveedor,
@@ -340,9 +350,12 @@ def radicar_solicitud(
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
             fecha_proxima_notificacion=fecha_proxima_notificacion,
+            solicitud_gestion_id=solicitud_gestion_id,
         )
     except UnauthorizedError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except MissingRequiredFileError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except ValueError as e:
@@ -429,6 +442,8 @@ def seguimiento_publico_contrato(
     return SeguimientoContratoResponse(
         codigo=contrato.codigo or "",
         tipo_codigo=contrato.tipo_codigo,
+        solicitud_gestion_id=contrato.solicitud_gestion_id,
+        solicitud_gestion_codigo=contrato.solicitud_gestion_codigo or "",
         proveedor_contratista=contrato.proveedor_contratista,
         estado_aprobacion=contrato.estado_aprobacion,
         estado=contrato.estado,
