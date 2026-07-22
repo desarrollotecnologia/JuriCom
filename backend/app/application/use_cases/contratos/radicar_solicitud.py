@@ -1,7 +1,8 @@
-"""Caso de uso: radicar una solicitud de contrato (rol Compras).
+"""Caso de uso: radicar una solicitud de contrato.
 
 Encapsula las reglas de negocio:
-- Sólo Compras o Admin pueden radicar.
+- Compras y Admin pueden radicar contratos u órdenes de trabajo.
+- Jurídica sólo puede radicar contratos.
 - La compañía siempre es Colbeef.
 - Deben adjuntarse los 3 archivos obligatorios.
 - El archivo opcional (1 más) puede o no enviarse.
@@ -24,6 +25,7 @@ from app.domain.entities.contrato import (
     VALOR_MAXIMO,
     ArchivoAdjunto,
     Contrato,
+    TIPO_CODIGO_CONTRATO,
     TipoArchivo,
     normalizar_tipo_codigo,
 )
@@ -44,6 +46,17 @@ class ArchivoEntrada:
     nombre_original: str
     mime_type: str
     contenido: bytes
+
+
+def _validar_actor_y_tipo(actor: User, tipo_codigo: str) -> str:
+    tipo = normalizar_tipo_codigo(tipo_codigo)
+    if not (actor.is_compras() or actor.is_juridica() or actor.is_admin()):
+        raise UnauthorizedError(
+            "Sólo usuarios de Compras, Jurídica o Admin pueden radicar solicitudes."
+        )
+    if actor.is_juridica() and tipo != TIPO_CODIGO_CONTRATO:
+        raise UnauthorizedError("Jurídica sólo puede radicar contratos.")
+    return tipo
 
 
 class RadicarSolicitud:
@@ -81,10 +94,7 @@ class RadicarSolicitud:
         fecha_proxima_notificacion: date | None = None,
         solicitud_gestion_id: int | None = None,
     ) -> Contrato:
-        if not (actor.is_compras() or actor.is_admin()):
-            raise UnauthorizedError(
-                "Sólo usuarios de Compras (o Admin) pueden radicar solicitudes."
-            )
+        tipo_codigo = _validar_actor_y_tipo(actor, tipo_codigo)
 
         self._validar_archivos_obligatorios(archivos)
         self._validar_campos(
@@ -139,7 +149,7 @@ class RadicarSolicitud:
             creado_por_id=actor.id,
             correo_lider_proceso=correo_lider_proceso.strip(),
             correo_gerencia=correo_gerencia.strip(),
-            tipo_codigo=normalizar_tipo_codigo(tipo_codigo),
+            tipo_codigo=tipo_codigo,
             solicitud_gestion_id=solicitud_origen.id if solicitud_origen else None,
             solicitud_gestion_codigo=solicitud_codigo,
             fecha_inicio=fecha_inicio,

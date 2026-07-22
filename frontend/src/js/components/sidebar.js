@@ -14,6 +14,7 @@ const ROLE_LABEL = {
 
 const GESTION_COMPRAS_HREF = "/app/compras/gestion-solicitudes.html";
 const GESTION_JURIDICA_HREF = "/app/juridica/gestion-juridica.html";
+const RADICAR_CONTRATO_HREF = "/app/compras/solicitud-radicar.html";
 const NUEVA_SOLICITUD_HREF = "/app/compras/nueva-solicitud.html";
 const MIS_SOLICITUDES_GESTION_HREF = "/app/compras/gestion-mis-solicitudes.html";
 const GESTION_ANTICIPO_HREF = "/app/compras/gestion-anticipo.html";
@@ -22,7 +23,7 @@ const APROBAR_SOLICITUDES_HREF = "/app/compras/gestion-aprobar-solicitudes.html"
 const GESTION_COMPRAS_PATHS = new Set([
     GESTION_COMPRAS_HREF,
     NUEVA_SOLICITUD_HREF,
-    "/app/compras/solicitud-radicar.html",
+    RADICAR_CONTRATO_HREF,
     "/app/compras/solicitud-compra.html",
     "/app/compras/salidas-almacen.html",
     "/app/compras/solicitud-insumos-servicios.html",
@@ -65,6 +66,7 @@ const NAV_BY_ROLE = {
     ],
     juridica: [
         { href: GESTION_JURIDICA_HREF, label: "Gestión Jurídica" },
+        { href: RADICAR_CONTRATO_HREF, label: "Radicar contrato" },
     ],
     compras: [
         { href: GESTION_COMPRAS_HREF, label: "Gestión de Solicitudes a Compras" },

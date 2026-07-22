@@ -308,14 +308,17 @@ def radicar_solicitud(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El valor del contrato no es un número válido.",
         )
-    if current.is_compras() and (
+    if (current.is_compras() or current.is_juridica()) and (
         fecha_inicio is not None
         or fecha_fin is not None
         or fecha_proxima_notificacion is not None
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Compras no puede asignar fechas de vigencia ni notificación. Eso lo define Jurídica.",
+            detail=(
+                "Las fechas de vigencia y notificación se asignan durante "
+                "la formalización del contrato."
+            ),
         )
 
     archivos: list[ArchivoEntrada] = []

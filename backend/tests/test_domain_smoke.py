@@ -115,6 +115,21 @@ def test_calcular_fecha_fin_con_meses():
     assert calcular_fecha_fin(date(2026, 7, 10), 30, UnidadPlazo.DIAS) == date(2026, 8, 9)
 
 
+def test_juridica_solo_puede_radicar_contratos():
+    from app.application.use_cases.contratos.radicar_solicitud import (
+        _validar_actor_y_tipo,
+    )
+    from app.domain.exceptions import UnauthorizedError
+
+    juridica = User(username="j", password_hash="x", role=Role.JURIDICA)
+    compras = User(username="c", password_hash="x", role=Role.COMPRAS)
+
+    assert _validar_actor_y_tipo(juridica, "C") == "C"
+    assert _validar_actor_y_tipo(compras, "OS") == "OS"
+    with pytest.raises(UnauthorizedError, match="sólo puede radicar contratos"):
+        _validar_actor_y_tipo(juridica, "OS")
+
+
 def test_editar_contrato_preserva_inicio_original():
     from app.application.use_cases.contratos.editar_contrato import EditarContrato
     from app.domain.value_objects.estado_aprobacion import EstadoAprobacion

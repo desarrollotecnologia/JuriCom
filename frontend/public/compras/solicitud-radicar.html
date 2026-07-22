@@ -124,6 +124,7 @@
                     <a
                         href="/app/compras/gestion-solicitudes.html"
                         class="btn btn-secondary"
+                        data-radicar-back
                     >
                         Volver
                     </a>
@@ -449,7 +450,7 @@
                     <div
                         style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px;"
                     >
-                        <a href="/app/compras/gestion-solicitudes.html" class="btn btn-secondary">
+                        <a href="/app/compras/gestion-solicitudes.html" class="btn btn-secondary" data-radicar-back>
                             Cancelar
                         </a>
                         <button type="submit" class="btn btn-primary" id="btn-submit">
@@ -467,17 +468,27 @@
             import { LIDERES_COLBEEF } from "/static/js/catalogos/lideres-colbeef.js";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin"]);
+            session.requireRole(["compras", "juridica", "admin"]);
+            const currentUser = session.getUser();
+            const isJuridica = currentUser?.role === "juridica";
             renderSidebar();
 
             const tipoCodigoSelect = document.querySelector('select[name="tipo_codigo"]');
             const tipoFromQuery = new URLSearchParams(window.location.search).get("tipo_codigo");
-            if (tipoCodigoSelect && (tipoFromQuery === "C" || tipoFromQuery === "OS")) {
+            if (isJuridica && tipoCodigoSelect) {
+                tipoCodigoSelect.innerHTML = '<option value="C">Contrato (C)</option>';
+                tipoCodigoSelect.value = "C";
+                document.querySelectorAll("[data-radicar-back]").forEach((link) => {
+                    link.href = "/app/juridica/gestion-juridica.html";
+                });
+            } else if (tipoCodigoSelect && (tipoFromQuery === "C" || tipoFromQuery === "OS")) {
                 tipoCodigoSelect.value = tipoFromQuery;
             }
 
             const paramsUrl = new URLSearchParams(window.location.search);
-            const solicitudGestionId = paramsUrl.get("solicitud_gestion_id");
+            const solicitudGestionId = isJuridica
+                ? null
+                : paramsUrl.get("solicitud_gestion_id");
             const solicitudGestionCodigo = paramsUrl.get("solicitud_gestion_codigo") || "";
             const inputSolicitudGestion = document.getElementById("solicitud-gestion-id");
             const bannerVinculo = document.getElementById("vinculo-srv-banner");
