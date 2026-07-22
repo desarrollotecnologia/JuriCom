@@ -115,6 +115,77 @@ def test_calcular_fecha_fin_con_meses():
     assert calcular_fecha_fin(date(2026, 7, 10), 30, UnidadPlazo.DIAS) == date(2026, 8, 9)
 
 
+def test_editar_contrato_preserva_inicio_original():
+    from app.application.use_cases.contratos.editar_contrato import EditarContrato
+    from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
+    from app.domain.value_objects.estado_contrato import EstadoContrato
+
+    contrato = Contrato(
+        proveedor_contratista="ACME",
+        nit_proveedor="900",
+        descripcion_servicio="x",
+        obligaciones_colbeef="x",
+        obligaciones_proveedor="x",
+        valor=Decimal("1000.00"),
+        moneda=Moneda.COP,
+        plazo_cantidad=6,
+        plazo_unidad=UnidadPlazo.MESES,
+        renovacion_automatica=False,
+        condiciones_recibido_satisfactorio="x",
+        requiere_poliza=False,
+        creado_por_id=1,
+        correo_lider_proceso="l@e.com",
+        correo_gerencia="g@e.com",
+        id=1,
+        estado=EstadoContrato.ACTIVO,
+        estado_aprobacion=EstadoAprobacion.APROBADO,
+    )
+
+    class FakeRepo:
+        def __init__(self, c):
+            self._c = c
+
+        def get_by_id(self, _cid):
+            return self._c
+
+        def update(self, c):
+            self._c = c
+            return c
+
+    uc = EditarContrato(FakeRepo(contrato))
+    juridica = User(username="j", password_hash="x", role=Role.JURIDICA)
+
+    def editar(fi, ff):
+        return uc.execute(
+            actor=juridica,
+            contrato_id=1,
+            proveedor_contratista="ACME",
+            nit_proveedor="900",
+            descripcion_servicio="x",
+            obligaciones_colbeef="x",
+            obligaciones_proveedor="x",
+            valor=Decimal("1000.00"),
+            moneda=Moneda.COP,
+            plazo_cantidad=6,
+            plazo_unidad=UnidadPlazo.MESES,
+            renovacion_automatica=False,
+            condiciones_recibido_satisfactorio="x",
+            requiere_poliza=False,
+            fecha_inicio=fi,
+            fecha_fin=ff,
+            fecha_proxima_notificacion=None,
+            hora_proxima_notificacion=None,
+        )
+
+    c1 = editar(date(2026, 1, 1), date(2026, 7, 1))
+    assert c1.fecha_inicio_original == date(2026, 1, 1)
+
+    # Una prórroga cambia las fechas, pero el inicio original se conserva.
+    c2 = editar(date(2026, 3, 1), date(2026, 9, 1))
+    assert c2.fecha_inicio == date(2026, 3, 1)
+    assert c2.fecha_inicio_original == date(2026, 1, 1)
+
+
 def test_codigo_solicitud_por_tipo():
     from app.domain.entities.solicitud_gestion import construir_codigo_solicitud
     from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion

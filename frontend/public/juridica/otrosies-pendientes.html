@@ -6,21 +6,11 @@
         <title>Otrosíes pendientes · JURICOM_BEEF</title>
         <link rel="stylesheet" href="/static/styles/theme.css" />
         <style>
-            .otrosi-card {
-                border: 1px solid var(--color-border);
-                border-radius: var(--radius-md);
-                padding: 16px;
-                margin-bottom: 14px;
-                background: white;
+            .otrosi-row {
+                cursor: pointer;
             }
-            .otrosi-card h3 {
-                color: var(--color-primary-dark);
-                margin-bottom: 6px;
-            }
-            .otrosi-form {
-                margin-top: 14px;
-                padding-top: 14px;
-                border-top: 1px solid var(--color-border);
+            .otrosi-row:hover {
+                background: var(--color-surface-2);
             }
         </style>
     </head>
@@ -32,8 +22,8 @@
                     <div>
                         <h1>Otrosíes pendientes</h1>
                         <p class="muted">
-                            Solicitudes aprobadas por líder y gerencia. Jurídica puede editar tiempos,
-                            cargar el firmado y aplicar el cambio.
+                            Solicitudes aprobadas por líder y gerencia. Haz clic en una fila para
+                            abrir la edición del contrato, ver el otrosí, cargar el firmado y ajustar fechas.
                         </p>
                     </div>
                     <a class="btn btn-secondary" href="/app/juridica/gestion-juridica.html">
@@ -51,7 +41,7 @@
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
             import { api } from "/static/js/api/client.js";
-            import { escapeHtml, formatDate, formatMoney, formatPlazo } from "/static/js/utils/format.js";
+            import { escapeHtml, formatDate } from "/static/js/utils/format.js";
 
             session.requireAuth();
             session.requireRole(["juridica", "admin"]);
@@ -82,73 +72,41 @@
                 setTimeout(() => alertSuccess.classList.remove("show"), 5000);
             }
 
-            function extraField(item) {
-                const c = item.contrato;
-                const o = item.otrosi;
-                return `
-                    <div class="field">
-                        <label>Plazo adicional (${c.plazo_unidad})</label>
-                        <input id="plazo-${o.id}" type="number" min="1" value="${o.plazo_adicional_cantidad || ""}" />
-                    </div>
-                    <div class="field">
-                        <label>Valor adicional (${c.moneda})</label>
-                        <input id="valor-${o.id}" type="number" min="0.01" step="0.01" value="${o.valor_adicional || ""}" />
-                    </div>
-                    <div class="field">
-                        <label>Nueva descripción</label>
-                        <textarea id="nueva-desc-${o.id}">${escapeHtml(o.nueva_descripcion_servicio || "")}</textarea>
-                    </div>
-                    <p class="muted">Según el tipo elegido, el sistema usará sólo el campo correspondiente.</p>
-                `;
-            }
-
             function render(items) {
                 if (!items.length) {
                     content.innerHTML = '<p class="muted">No hay otrosíes pendientes para Jurídica.</p>';
                     return;
                 }
-                content.innerHTML = items.map((item) => {
+                const filas = items.map((item) => {
                     const c = item.contrato;
                     const o = item.otrosi;
+                    const url = `/app/juridica/editar-contrato.html?codigo=${encodeURIComponent(c.codigo)}&otrosi=${o.id}`;
                     return `
-                        <div class="otrosi-card" data-id="${o.id}" data-contrato-id="${item.contrato_id}">
-                            <h3>${escapeHtml(c.codigo)} · ${escapeHtml(c.proveedor_contratista)}</h3>
-                            <p class="muted">
-                                NIT ${escapeHtml(c.nit_proveedor)} · Contrato ${formatMoney(c.valor, c.moneda)} · ${formatPlazo(c.plazo_cantidad, c.plazo_unidad)}
-                            </p>
-                            <p><strong>Tipo aprobado:</strong> ${TIPO_LABEL[o.tipo] || o.tipo}</p>
-                            <p><strong>Solicitado:</strong> ${formatDate(o.created_at)}</p>
-                            <div class="otrosi-form">
-                                <div class="row-2">
-                                    <div class="field">
-                                        <label>Tipo de otrosí</label>
-                                        <select id="tipo-${o.id}">
-                                            <option value="prorroga" ${o.tipo === "prorroga" ? "selected" : ""}>Prórroga (modificar tiempos)</option>
-                                            <option value="adicion" ${o.tipo === "adicion" ? "selected" : ""}>Adición</option>
-                                            <option value="modificacion" ${o.tipo === "modificacion" ? "selected" : ""}>Modificación</option>
-                                            <option value="otro" ${o.tipo === "otro" ? "selected" : ""}>Otro</option>
-                                        </select>
-                                    </div>
-                                    <div id="extra-${o.id}">${extraField(item)}</div>
-                                </div>
-                                <div class="field">
-                                    <label>Descripción / motivo</label>
-                                    <textarea id="descripcion-${o.id}">${escapeHtml(o.descripcion)}</textarea>
-                                </div>
-                                <div class="field">
-                                    <label>Otrosí firmado (PDF)</label>
-                                    <input id="archivo-${o.id}" type="file" accept="application/pdf" />
-                                </div>
-                                <button class="btn btn-primary" data-finalizar="${o.id}">
-                                    Cargar firmado y aplicar otrosí
-                                </button>
-                            </div>
-                        </div>
+                        <tr class="otrosi-row" data-url="${url}">
+                            <td><span class="codigo-contrato">${escapeHtml(c.codigo)}</span></td>
+                            <td>${escapeHtml(c.proveedor_contratista)}</td>
+                            <td>${TIPO_LABEL[o.tipo] || o.tipo}</td>
+                            <td>${formatDate(o.created_at)}</td>
+                            <td><a class="btn btn-sm btn-primary" href="${url}">Ver / finalizar</a></td>
+                        </tr>
                     `;
                 }).join("");
-
-                document.querySelectorAll("[data-finalizar]").forEach((btn) => {
-                    btn.addEventListener("click", () => finalizar(btn.dataset.finalizar));
+                content.innerHTML = `
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Código</th><th>Proveedor</th><th>Tipo aprobado</th>
+                                <th>Solicitado</th><th></th>
+                            </tr>
+                        </thead>
+                        <tbody>${filas}</tbody>
+                    </table>
+                `;
+                content.querySelectorAll(".otrosi-row").forEach((row) => {
+                    row.addEventListener("click", (event) => {
+                        if (event.target.closest("a")) return;
+                        window.location.href = row.dataset.url;
+                    });
                 });
             }
 
@@ -158,33 +116,6 @@
                     render(items);
                 } catch (err) {
                     content.innerHTML = "";
-                    showError(err.message);
-                }
-            }
-
-            async function finalizar(otrosiId) {
-                const card = document.querySelector(`[data-id="${otrosiId}"]`);
-                const contratoId = card.dataset.contratoId;
-                const tipo = document.getElementById(`tipo-${otrosiId}`).value;
-                const archivo = document.getElementById(`archivo-${otrosiId}`).files[0];
-                if (!archivo) {
-                    showError("Debes cargar el PDF firmado del otrosí.");
-                    return;
-                }
-
-                const fd = new FormData();
-                fd.append("tipo", tipo);
-                fd.append("descripcion", document.getElementById(`descripcion-${otrosiId}`).value.trim());
-                fd.append("archivo", archivo);
-                if (tipo === "prorroga") fd.append("plazo_adicional_cantidad", document.getElementById(`plazo-${otrosiId}`)?.value || "");
-                if (tipo === "adicion") fd.append("valor_adicional", document.getElementById(`valor-${otrosiId}`)?.value || "");
-                if (tipo === "modificacion") fd.append("nueva_descripcion_servicio", document.getElementById(`nueva-desc-${otrosiId}`)?.value || "");
-
-                try {
-                    await api.postForm(`/contratos/${contratoId}/otrosi/${otrosiId}/finalizar`, fd);
-                    showSuccess("Otrosí firmado cargado y contrato actualizado.");
-                    await load();
-                } catch (err) {
                     showError(err.message);
                 }
             }

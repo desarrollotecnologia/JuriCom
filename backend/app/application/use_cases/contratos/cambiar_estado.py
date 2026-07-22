@@ -50,6 +50,8 @@ class CambiarEstadoContrato:
         contrato.estado = nuevo_estado
         if nuevo_estado == EstadoContrato.ACTIVO:
             self._asegurar_fechas_vigencia(contrato)
+            if contrato.fecha_inicio and contrato.fecha_inicio_original is None:
+                contrato.fecha_inicio_original = contrato.fecha_inicio
         return self._contratos.update(contrato)
 
     @staticmethod

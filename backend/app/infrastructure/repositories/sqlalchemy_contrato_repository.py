@@ -105,6 +105,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             estado_aprobacion=EstadoAprobacion(model.estado_aprobacion),
             estado=EstadoContrato(model.estado),
             fecha_inicio=model.fecha_inicio,
+            fecha_inicio_original=getattr(model, "fecha_inicio_original", None),
             fecha_fin=model.fecha_fin,
             fecha_proxima_notificacion=model.fecha_proxima_notificacion,
             hora_proxima_notificacion=cls._normalizar_hora(
@@ -148,6 +149,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             estado_aprobacion=contrato.estado_aprobacion.value,
             estado=contrato.estado.value,
             fecha_inicio=contrato.fecha_inicio,
+            fecha_inicio_original=contrato.fecha_inicio_original,
             fecha_fin=contrato.fecha_fin,
             fecha_proxima_notificacion=contrato.fecha_proxima_notificacion,
             hora_proxima_notificacion=contrato.hora_proxima_notificacion,
@@ -216,6 +218,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         model.aprobado_lider_at = contrato.aprobado_lider_at
         model.aprobado_gerencia_at = contrato.aprobado_gerencia_at
         model.fecha_inicio = contrato.fecha_inicio
+        model.fecha_inicio_original = contrato.fecha_inicio_original
         model.fecha_fin = contrato.fecha_fin
         model.fecha_proxima_notificacion = contrato.fecha_proxima_notificacion
         model.hora_proxima_notificacion = contrato.hora_proxima_notificacion

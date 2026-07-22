@@ -79,6 +79,7 @@ class ContratoModel(Base):
         String(20), nullable=False, default="en_proceso", index=True
     )
     fecha_inicio: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fecha_inicio_original: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     fecha_proxima_notificacion: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     hora_proxima_notificacion: Mapped[Optional[time]] = mapped_column(Time, nullable=True)

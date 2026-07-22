@@ -116,6 +116,7 @@ class Contrato:
     estado_aprobacion: EstadoAprobacion = EstadoAprobacion.PENDIENTE_LIDER
     estado: EstadoContrato = EstadoContrato.EN_PROCESO
     fecha_inicio: Optional[date] = None
+    fecha_inicio_original: Optional[date] = None
     fecha_fin: Optional[date] = None
     fecha_proxima_notificacion: Optional[date] = None
     hora_proxima_notificacion: Optional[time] = time(0, 10)

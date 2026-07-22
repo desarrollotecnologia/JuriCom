@@ -173,6 +173,7 @@ def _to_contrato_response(c) -> ContratoResponse:
         correo_gerencia=c.correo_gerencia,
         estado_aprobacion=c.estado_aprobacion,
         fecha_inicio=c.fecha_inicio,
+        fecha_inicio_original=c.fecha_inicio_original,
         fecha_fin=c.fecha_fin,
         fecha_proxima_notificacion=c.fecha_proxima_notificacion,
         hora_proxima_notificacion=c.hora_proxima_notificacion,
@@ -1196,6 +1197,15 @@ def _actualizar_datos_otrosi(
         if not nueva_descripcion_servicio or not nueva_descripcion_servicio.strip():
             raise ValueError("Para una modificación debes indicar la nueva descripción.")
         otrosi.nueva_descripcion_servicio = nueva_descripcion_servicio.strip()
+    elif tipo == TipoOtrosi.OTRO:
+        # "Otro" es flexible: Jurídica puede modificar plazo, valor y/o descripción.
+        if plazo_adicional_cantidad and plazo_adicional_cantidad > 0:
+            otrosi.plazo_adicional_cantidad = plazo_adicional_cantidad
+            otrosi.plazo_adicional_unidad = contrato.plazo_unidad
+        if valor_adicional is not None and Decimal(valor_adicional) > 0:
+            otrosi.valor_adicional = Decimal(valor_adicional)
+        if nueva_descripcion_servicio and nueva_descripcion_servicio.strip():
+            otrosi.nueva_descripcion_servicio = nueva_descripcion_servicio.strip()
 
 
 def _aplicar_cambios_otrosi_al_contrato(contrato, otrosi) -> None:

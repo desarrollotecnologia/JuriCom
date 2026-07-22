@@ -82,12 +82,10 @@ class AplicarOtrosi:
                 "Compras no puede adjuntar el otrosí firmado. "
                 "Ese PDF sólo lo carga Jurídica después de aprobación de Líder y Gerencia."
             )
-        if actor.is_compras() and (
-            tipo == TipoOtrosi.PRORROGA or plazo_adicional_cantidad is not None
-        ):
+        if actor.is_compras() and plazo_adicional_cantidad is not None:
             raise UnauthorizedError(
-                "Compras no puede modificar los tiempos del contrato por otrosí. "
-                "Describe la necesidad y Jurídica definirá la prórroga al finalizar."
+                "Compras no puede fijar los tiempos del contrato. "
+                "Solicita la prórroga y Jurídica definirá el plazo al finalizar."
             )
         if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
             raise UnauthorizedError(
@@ -110,12 +108,14 @@ class AplicarOtrosi:
         nueva_desc_aplicar: Optional[str] = None
 
         if tipo == TipoOtrosi.PRORROGA:
-            if not plazo_adicional_cantidad or plazo_adicional_cantidad <= 0:
-                raise ValueError(
-                    "Para una prórroga debes indicar una cantidad de plazo "
-                    "adicional mayor a 0."
-                )
-            plazo_aplicar = plazo_adicional_cantidad
+            # Compras sólo solicita la prórroga; Jurídica define el plazo al finalizar.
+            if not actor.is_compras():
+                if not plazo_adicional_cantidad or plazo_adicional_cantidad <= 0:
+                    raise ValueError(
+                        "Para una prórroga debes indicar una cantidad de plazo "
+                        "adicional mayor a 0."
+                    )
+                plazo_aplicar = plazo_adicional_cantidad
 
         elif tipo == TipoOtrosi.ADICION:
             if valor_adicional is None or Decimal(valor_adicional) <= 0:

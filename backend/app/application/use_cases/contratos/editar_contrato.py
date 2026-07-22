@@ -86,8 +86,15 @@ class EditarContrato:
         contrato.hora_proxima_notificacion = hora_proxima_notificacion or time(0, 10)
         if contrato.estado == EstadoContrato.ACTIVO:
             self._asegurar_fechas_vigencia(contrato)
+        self._preservar_inicio_original(contrato)
 
         return self._contratos.update(contrato)
+
+    @staticmethod
+    def _preservar_inicio_original(contrato: Contrato) -> None:
+        """Fija la fecha de inicio original una sola vez (historial de inicio)."""
+        if contrato.fecha_inicio and contrato.fecha_inicio_original is None:
+            contrato.fecha_inicio_original = contrato.fecha_inicio
 
     @staticmethod
     def _validar_textos(*valores: str) -> None:

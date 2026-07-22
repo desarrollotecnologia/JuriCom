@@ -44,6 +44,7 @@ class ContratoBase(BaseModel):
     correo_gerencia: str
     estado_aprobacion: EstadoAprobacion
     fecha_inicio: Optional[date] = None
+    fecha_inicio_original: Optional[date] = None
     fecha_fin: Optional[date] = None
     fecha_proxima_notificacion: Optional[date] = None
     hora_proxima_notificacion: Optional[time] = time(0, 10)

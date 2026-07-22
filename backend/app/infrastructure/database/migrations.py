@@ -123,6 +123,7 @@ def migrar_aprobacion_y_vigencia_contratos() -> None:
         "correo_gerencia": "ALTER TABLE contratos ADD COLUMN correo_gerencia VARCHAR(255) NOT NULL DEFAULT '' AFTER correo_lider_proceso",
         "estado_aprobacion": "ALTER TABLE contratos ADD COLUMN estado_aprobacion VARCHAR(30) NOT NULL DEFAULT 'aprobado' AFTER correo_gerencia",
         "fecha_inicio": "ALTER TABLE contratos ADD COLUMN fecha_inicio DATE NULL AFTER estado",
+        "fecha_inicio_original": "ALTER TABLE contratos ADD COLUMN fecha_inicio_original DATE NULL AFTER fecha_inicio",
         "fecha_fin": "ALTER TABLE contratos ADD COLUMN fecha_fin DATE NULL AFTER fecha_inicio",
         "fecha_proxima_notificacion": "ALTER TABLE contratos ADD COLUMN fecha_proxima_notificacion DATE NULL AFTER fecha_fin",
         "hora_proxima_notificacion": "ALTER TABLE contratos ADD COLUMN hora_proxima_notificacion TIME NULL DEFAULT '00:10:00' AFTER fecha_proxima_notificacion",

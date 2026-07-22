@@ -73,6 +73,7 @@ CREATE TABLE contratos (
     estado_aprobacion                   VARCHAR(30)    NOT NULL DEFAULT 'pendiente_lider',
     estado                              VARCHAR(20)    NOT NULL DEFAULT 'en_proceso',
     fecha_inicio                        DATE           NULL,
+    fecha_inicio_original               DATE           NULL,
     fecha_fin                           DATE           NULL,
     fecha_proxima_notificacion          DATE           NULL,
     hora_proxima_notificacion           TIME           NULL DEFAULT '00:10:00',

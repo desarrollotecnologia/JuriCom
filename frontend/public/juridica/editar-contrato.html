@@ -53,6 +53,32 @@
                 border-radius: var(--radius-md);
                 padding: 14px;
             }
+            .otrosi-box {
+                border: 2px solid #16a34a;
+                background: #f0fdf4;
+                border-radius: var(--radius-md);
+                padding: 16px;
+            }
+            .otrosi-info {
+                display: grid;
+                gap: 4px;
+                margin: 6px 0 14px;
+                padding: 12px;
+                background: #dcfce7;
+                border-radius: var(--radius-md);
+            }
+            .otrosi-hist-row {
+                cursor: pointer;
+            }
+            .otrosi-hist-row:hover {
+                background: var(--color-surface-2);
+            }
+            .otrosi-detail-row td {
+                background: var(--color-surface-2);
+            }
+            .otrosi-detail-row .otrosi-info {
+                margin: 0;
+            }
             @media (max-width: 720px) {
                 .search-line,
                 .upload-grid {
@@ -181,6 +207,13 @@
                                 <input id="fecha-fin" type="date" />
                             </div>
                         </div>
+                        <div class="field" id="inicio-original-wrap" style="display:none;">
+                            <label>Inicio original del contrato (historial)</label>
+                            <div class="readonly-box" id="inicio-original-display"></div>
+                            <span class="hint">
+                                Se conserva la fecha en que inició el contrato aunque una prórroga cambie las fechas.
+                            </span>
+                        </div>
                         <div class="row-2">
                             <div class="field">
                                 <label>Volver a notificar el</label>
@@ -241,6 +274,16 @@
                         </div>
                     </div>
 
+                    <div class="form-section" id="otrosi-pendiente-section" style="display:none;">
+                        <h3>Otrosí pendiente por finalizar</h3>
+                        <div id="otrosi-pendiente-body"></div>
+                    </div>
+
+                    <div class="form-section" id="otrosi-historial-section" style="display:none;">
+                        <h3>Historial de otrosíes</h3>
+                        <div id="otrosi-historial-body"></div>
+                    </div>
+
                     <div class="form-section">
                         <h3>5. Estado del contrato</h3>
                         <div class="row-2">
@@ -276,13 +319,23 @@
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
             import { api } from "/static/js/api/client.js";
-            import { escapeHtml } from "/static/js/utils/format.js";
+            import { API_BASE } from "/static/js/utils/config.js";
+            import { escapeHtml, formatDate } from "/static/js/utils/format.js";
 
             session.requireAuth();
             session.requireRole(["juridica", "admin"]);
             renderSidebar();
 
             let current = null;
+            let otrosiParam = null;
+
+            const OTROSI_TIPO_LABEL = {
+                prorroga: "Prórroga",
+                adicion: "Adición",
+                modificacion: "Modificación",
+                otro: "Otro",
+            };
+            const UNIDAD_PLAZO_LABEL = { dias: "días", meses: "meses", anios: "años" };
 
             const form = document.getElementById("form-edicion");
             const alertError = document.getElementById("alert-error");
@@ -358,6 +411,288 @@
                 setValue("requiere-poliza", String(Boolean(c.requiere_poliza)));
                 setValue("condiciones", c.condiciones_recibido_satisfactorio);
                 setValue("estado", c.estado);
+
+                const wrap = document.getElementById("inicio-original-wrap");
+                if (c.fecha_inicio_original) {
+                    document.getElementById("inicio-original-display").textContent =
+                        formatDate(c.fecha_inicio_original);
+                    wrap.style.display = "block";
+                } else {
+                    wrap.style.display = "none";
+                }
+                renderOtrosies(c);
+            }
+
+            function describeOtrosiEfecto(o) {
+                const parts = [];
+                if (o.plazo_adicional_cantidad) {
+                    const u = UNIDAD_PLAZO_LABEL[o.plazo_adicional_unidad] || o.plazo_adicional_unidad || "";
+                    parts.push(`+${o.plazo_adicional_cantidad} ${u}`);
+                }
+                if (o.valor_adicional) {
+                    parts.push(`+${Number(o.valor_adicional).toLocaleString("es-CO", { minimumFractionDigits: 2 })}`);
+                }
+                if (o.nueva_descripcion_servicio) parts.push("Cambió descripción");
+                return parts.length ? parts.join(" · ") : "Sin cambio en campos del contrato";
+            }
+
+            function otrosiExtraInfo(o, c) {
+                const parts = [];
+                if (o.plazo_adicional_cantidad) {
+                    const u = UNIDAD_PLAZO_LABEL[o.plazo_adicional_unidad] || o.plazo_adicional_unidad || c.plazo_unidad || "";
+                    parts.push(`<div><strong>Plazo adicional:</strong> +${o.plazo_adicional_cantidad} ${u}</div>`);
+                }
+                if (o.valor_adicional) {
+                    const v = Number(o.valor_adicional).toLocaleString("es-CO", { minimumFractionDigits: 2 });
+                    parts.push(`<div><strong>Valor adicional:</strong> +${v} ${c.moneda}</div>`);
+                }
+                if (o.nueva_descripcion_servicio) {
+                    parts.push(`<div><strong>Nueva descripción del servicio:</strong> ${escapeHtml(o.nueva_descripcion_servicio)}</div>`);
+                }
+                return parts.length ? parts.join("") : `<div class="muted">No modifica plazo ni valor.</div>`;
+            }
+
+            function campoPlazoHtml(o, c) {
+                const u = UNIDAD_PLAZO_LABEL[o.plazo_adicional_unidad] || o.plazo_adicional_unidad || c.plazo_unidad || "";
+                return `
+                    <div class="field">
+                        <label>Plazo adicional (${u})</label>
+                        <input id="otrosi-plazo" type="number" min="1" value="${o.plazo_adicional_cantidad ?? ""}" />
+                    </div>`;
+            }
+
+            function campoValorHtml(o, c) {
+                return `
+                    <div class="field">
+                        <label>Valor adicional (${c.moneda})</label>
+                        <input id="otrosi-valor" type="number" min="0.01" step="0.01" value="${o.valor_adicional ?? ""}" />
+                    </div>`;
+            }
+
+            function campoDescHtml(o) {
+                return `
+                    <div class="field">
+                        <label>Nueva descripción del servicio</label>
+                        <textarea id="otrosi-nueva-desc">${escapeHtml(o.nueva_descripcion_servicio || "")}</textarea>
+                    </div>`;
+            }
+
+            function otrosiEditableField(o, c) {
+                if (o.tipo === "prorroga") return campoPlazoHtml(o, c);
+                if (o.tipo === "adicion") return campoValorHtml(o, c);
+                if (o.tipo === "modificacion") return campoDescHtml(o);
+                // "Otro": puede modificar todo (todos los campos son opcionales).
+                return `
+                    <div class="row-2">${campoPlazoHtml(o, c)}${campoValorHtml(o, c)}</div>
+                    ${campoDescHtml(o)}`;
+            }
+
+            async function downloadArchivo(path, filename) {
+                try {
+                    const response = await fetch(`${API_BASE}${path.replace("/api/v1", "")}`, {
+                        headers: { Authorization: `Bearer ${session.getToken()}` },
+                    });
+                    if (!response.ok) {
+                        throw new Error(`No se pudo descargar el archivo (${response.status}).`);
+                    }
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = filename || "archivo";
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                } catch (err) {
+                    showError(err.message || "No se pudo descargar el archivo.");
+                }
+            }
+
+            function renderOtrosies(c) {
+                renderOtrosiPendiente(c);
+                renderHistorialOtrosies(c);
+            }
+
+            function renderOtrosiPendiente(c) {
+                const section = document.getElementById("otrosi-pendiente-section");
+                const body = document.getElementById("otrosi-pendiente-body");
+                const otrosies = c.otrosies || [];
+                const pendiente = otrosiParam
+                    ? otrosies.find((o) => String(o.id) === String(otrosiParam) && !o.archivo_id)
+                    : null;
+                if (!pendiente) {
+                    section.style.display = "none";
+                    body.innerHTML = "";
+                    return;
+                }
+                const o = pendiente;
+                body.innerHTML = `
+                    <div class="otrosi-box">
+                        <p class="muted">
+                            Aprobado por líder y gerencia. El contenido del otrosí no se modifica:
+                            solo carga el PDF firmado y define las fechas, que se reflejarán en el contrato.
+                        </p>
+                        <div class="otrosi-info">
+                            <div><strong>Tipo:</strong> ${OTROSI_TIPO_LABEL[o.tipo] || o.tipo}</div>
+                            <div><strong>Descripción / motivo:</strong> ${escapeHtml(o.descripcion || "")}</div>
+                        </div>
+                        ${otrosiEditableField(o, c)}
+                        <p class="hint">
+                            ${o.tipo === "otro"
+                                ? 'Tipo "Otro": puedes modificar plazo, valor y/o descripción (todos opcionales). Lo que llenes se aplica al contrato al finalizar.'
+                                : "Puedes ajustar este valor; el cambio se aplica al contrato al finalizar el otrosí."}
+                        </p>
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Fecha de inicio</label>
+                                <input id="otrosi-fecha-inicio" type="date" />
+                            </div>
+                            <div class="field">
+                                <label>Fecha de fin</label>
+                                <input id="otrosi-fecha-fin" type="date" />
+                            </div>
+                        </div>
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Volver a notificar el</label>
+                                <input id="otrosi-fecha-notif" type="date" />
+                            </div>
+                            <div class="field">
+                                <label>Hora de notificación</label>
+                                <input id="otrosi-hora" type="time" value="00:10" />
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label>Otrosí firmado (PDF) <span class="required">*</span></label>
+                            <input id="otrosi-archivo" type="file" accept="application/pdf" />
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btn-finalizar-otrosi">
+                            Cargar firmado y aplicar otrosí
+                        </button>
+                    </div>
+                `;
+                document.getElementById("otrosi-fecha-inicio").value = c.fecha_inicio || "";
+                document.getElementById("otrosi-fecha-fin").value = c.fecha_fin || "";
+                document.getElementById("otrosi-fecha-notif").value = c.fecha_proxima_notificacion || "";
+                document.getElementById("otrosi-hora").value = (c.hora_proxima_notificacion || "00:10").slice(0, 5);
+                section.style.display = "block";
+                document.getElementById("btn-finalizar-otrosi")
+                    .addEventListener("click", () => finalizarOtrosi(o));
+            }
+
+            function renderHistorialOtrosies(c) {
+                const section = document.getElementById("otrosi-historial-section");
+                const body = document.getElementById("otrosi-historial-body");
+                const otrosies = c.otrosies || [];
+                if (!otrosies.length) {
+                    section.style.display = "none";
+                    body.innerHTML = "";
+                    return;
+                }
+                const filas = otrosies.map((o, idx) => {
+                    const pdf = o.archivo_id
+                        ? `<a href="#" data-download="/api/v1/archivos/${c.id}/${o.archivo_id}" data-filename="otrosi-${o.numero}.pdf">Descargar PDF</a>`
+                        : (o.estado_aprobacion === "aprobado" ? "Pendiente firmado" : "—");
+                    const detalle = `
+                        <tr class="otrosi-detail-row" id="otrosi-det-${idx}" style="display:none;">
+                            <td colspan="5">
+                                <div class="otrosi-info">
+                                    <div><strong>Descripción / motivo:</strong> ${escapeHtml(o.descripcion || "")}</div>
+                                    ${otrosiExtraInfo(o, c)}
+                                    <div><strong>Aprobado líder:</strong> ${o.aprobado_lider_at ? formatDate(o.aprobado_lider_at) : "—"} · <strong>Aprobado gerencia:</strong> ${o.aprobado_gerencia_at ? formatDate(o.aprobado_gerencia_at) : "—"}</div>
+                                    <div><strong>Estado:</strong> ${o.estado_aprobacion}</div>
+                                </div>
+                            </td>
+                        </tr>`;
+                    return `
+                        <tr class="otrosi-hist-row" data-idx="${idx}">
+                            <td>#${o.numero}</td>
+                            <td>${OTROSI_TIPO_LABEL[o.tipo] || o.tipo}</td>
+                            <td>${escapeHtml(describeOtrosiEfecto(o))}</td>
+                            <td>${formatDate(o.created_at)}</td>
+                            <td>${pdf}</td>
+                        </tr>
+                        ${detalle}`;
+                }).join("");
+                body.innerHTML = `
+                    <table class="table">
+                        <thead>
+                            <tr><th>#</th><th>Tipo</th><th>Efecto</th><th>Fecha</th><th>PDF</th></tr>
+                        </thead>
+                        <tbody>${filas}</tbody>
+                    </table>
+                    <p class="hint">Haz clic en una fila para ver el detalle del otrosí.</p>
+                `;
+                body.querySelectorAll("a[data-download]").forEach((link) => {
+                    link.addEventListener("click", (event) => {
+                        event.preventDefault();
+                        downloadArchivo(link.dataset.download, link.dataset.filename);
+                    });
+                });
+                body.querySelectorAll(".otrosi-hist-row").forEach((row) => {
+                    row.addEventListener("click", (event) => {
+                        if (event.target.closest("a")) return;
+                        const det = document.getElementById(`otrosi-det-${row.dataset.idx}`);
+                        if (det) det.style.display = det.style.display === "none" ? "table-row" : "none";
+                    });
+                });
+                section.style.display = "block";
+            }
+
+            async function finalizarOtrosi(o) {
+                if (!current) return;
+                const archivo = document.getElementById("otrosi-archivo").files[0];
+                if (!archivo) {
+                    showError("Debes cargar el PDF firmado del otrosí.");
+                    return;
+                }
+                const fi = document.getElementById("otrosi-fecha-inicio").value;
+                const ff = document.getElementById("otrosi-fecha-fin").value;
+                const fn = document.getElementById("otrosi-fecha-notif").value;
+                const fh = document.getElementById("otrosi-hora").value || "00:10";
+                if (fi && ff && ff < fi) {
+                    showError("La fecha fin no puede ser anterior a la fecha inicio.");
+                    return;
+                }
+                const fd = new FormData();
+                fd.append("tipo", o.tipo);
+                fd.append("descripcion", (o.descripcion || "").trim());
+                fd.append("archivo", archivo);
+                const valPlazo = document.getElementById("otrosi-plazo")?.value;
+                const valValor = document.getElementById("otrosi-valor")?.value;
+                const valDesc = document.getElementById("otrosi-nueva-desc")?.value;
+                if (valPlazo) fd.append("plazo_adicional_cantidad", valPlazo);
+                if (valValor) fd.append("valor_adicional", valValor);
+                if (valDesc) fd.append("nueva_descripcion_servicio", valDesc);
+                try {
+                    await api.postForm(`/contratos/${current.id}/otrosi/${o.id}/finalizar`, fd);
+                    otrosiParam = null;
+                    // Recargamos para tomar el plazo/valor ya modificados por el otrosí.
+                    current = await api.get(`/contratos/${current.id}`);
+                    current = await api.put(`/contratos/${current.id}`, {
+                        proveedor_contratista: current.proveedor_contratista,
+                        nit_proveedor: current.nit_proveedor,
+                        descripcion_servicio: current.descripcion_servicio,
+                        obligaciones_colbeef: current.obligaciones_colbeef,
+                        obligaciones_proveedor: current.obligaciones_proveedor,
+                        valor: Number(current.valor),
+                        moneda: current.moneda,
+                        plazo_cantidad: current.plazo_cantidad,
+                        plazo_unidad: current.plazo_unidad,
+                        renovacion_automatica: Boolean(current.renovacion_automatica),
+                        condiciones_recibido_satisfactorio: current.condiciones_recibido_satisfactorio,
+                        requiere_poliza: Boolean(current.requiere_poliza),
+                        fecha_inicio: fi || null,
+                        fecha_fin: ff || null,
+                        fecha_proxima_notificacion: fn || null,
+                        hora_proxima_notificacion: fh,
+                    });
+                    fillForm(current);
+                    showSuccess("Otrosí aplicado y fechas del contrato actualizadas.");
+                } catch (err) {
+                    showError(err.message);
+                }
             }
 
             function buildPayload() {
@@ -451,6 +786,7 @@
             document.getElementById("btn-delete").addEventListener("click", deleteContrato);
 
             const params = new URLSearchParams(window.location.search);
+            otrosiParam = params.get("otrosi");
             const codigoDirecto = params.get("codigo");
             if (codigoDirecto) {
                 codigoInput.value = codigoDirecto;

@@ -885,13 +885,12 @@
                                 <div>
                                     <label>Tipo de otrosí *</label>
                                     <select id="otrosi-tipo">
+                                        <option value="prorroga">Prórroga (más tiempo)</option>
                                         <option value="adicion">Adición</option>
                                         <option value="modificacion">Modificación</option>
-                                        <option value="otro">Otro</option>
                                     </select>
                                     <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">
-                                        Si necesitas cambiar tiempos o plazo, descríbelo en "Otro";
-                                        Jurídica define la prórroga al finalizar.
+                                        En una prórroga, Jurídica definirá el plazo exacto al finalizar.
                                     </span>
                                 </div>
                                 <div id="otrosi-extra-wrap"></div>
@@ -933,13 +932,19 @@
                 if (!wrap) return;
                 if (tipo === "prorroga") {
                     const u = UNIDAD_PLAZO_LABEL[contrato.plazo_unidad] || contrato.plazo_unidad;
-                    wrap.innerHTML = `
-                        <label>Plazo adicional (en ${u}) *</label>
-                        <input type="number" min="1" id="otrosi-plazo" placeholder="Ej: 30" value="${otrosi?.plazo_adicional_cantidad || ""}" />
-                        <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">
-                            Se sumará al plazo actual (${contrato.plazo_cantidad} ${u}).
-                        </span>
-                    `;
+                    if (esJuridica) {
+                        wrap.innerHTML = `
+                            <label>Plazo adicional (en ${u}) *</label>
+                            <input type="number" min="1" id="otrosi-plazo" placeholder="Ej: 30" value="${otrosi?.plazo_adicional_cantidad || ""}" />
+                            <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">
+                                Se sumará al plazo actual (${contrato.plazo_cantidad} ${u}).
+                            </span>
+                        `;
+                    } else {
+                        wrap.innerHTML = `<p class="hint" style="font-size:0.8rem;color:var(--color-text-muted);margin-top:18px;">
+                            Solicitas una prórroga. Jurídica definirá el plazo adicional al finalizar.
+                        </p>`;
+                    }
                 } else if (tipo === "adicion") {
                     wrap.innerHTML = `
                         <label>Valor adicional (${contrato.moneda}) *</label>
@@ -986,12 +991,15 @@
                     fd.append("tipo", tipo);
                     fd.append("descripcion", descripcion);
                     if (tipo === "prorroga") {
-                        const v = document.getElementById("otrosi-plazo")?.value;
-                        if (!v || Number(v) <= 0) {
-                            showError("Debes indicar el plazo adicional (mayor a 0).");
-                            return;
+                        if (esJuridica) {
+                            const v = document.getElementById("otrosi-plazo")?.value;
+                            if (!v || Number(v) <= 0) {
+                                showError("Debes indicar el plazo adicional (mayor a 0).");
+                                return;
+                            }
+                            fd.append("plazo_adicional_cantidad", v);
                         }
-                        fd.append("plazo_adicional_cantidad", v);
+                        // Compras solo solicita; Jurídica define el plazo al finalizar.
                     } else if (tipo === "adicion") {
                         const v = document.getElementById("otrosi-valor")?.value;
                         if (!v || Number(v) <= 0) {
