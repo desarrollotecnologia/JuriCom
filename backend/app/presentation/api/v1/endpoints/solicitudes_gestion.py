@@ -480,11 +480,17 @@ def listar_gestion_anticipo(
 def listar_panel_gestion(
     q: Optional[str] = Query(None, description="Buscar por código, título o solicitante."),
     tipo: Optional[TipoSolicitudGestion] = Query(None),
+    vista: str = Query(
+        "gestion",
+        description="Vista del panel: 'gestion' (aprobadas) o 'en_proceso' (fuera del panel).",
+    ),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
 ) -> list[SolicitudGestionListItem]:
     try:
-        items = ListarSolicitudesPanelGestion(repo).execute(current, tipo=tipo, query=q)
+        items = ListarSolicitudesPanelGestion(repo).execute(
+            current, tipo=tipo, query=q, vista=vista
+        )
     except UnauthorizedError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     return [_to_list_item(s, current) for s in items]

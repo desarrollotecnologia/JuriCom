@@ -131,7 +131,6 @@ ETAPAS_GESTION_ANTICIPO: list[EstadoSolicitudGestion] = [
 ETAPAS_PANEL_GESTION: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.PRIMERA_APROBACION,
     EstadoSolicitudGestion.COTIZACION,
-    EstadoSolicitudGestion.EN_APROBACION,
     EstadoSolicitudGestion.GESTIONANDO_SERVICIO,
     EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE,
     EstadoSolicitudGestion.TRAMITANDO_OC,
@@ -148,6 +147,17 @@ ETAPAS_PANEL_GESTION: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.EN_PROCESO,
     EstadoSolicitudGestion.PENDIENTE,
     EstadoSolicitudGestion.FINALIZADA,
+]
+
+# Solicitudes que salen del panel mientras esperan aprobación o anticipo.
+ETAPAS_PANEL_EN_PROCESO: list[EstadoSolicitudGestion] = [
+    EstadoSolicitudGestion.SOLICITUD,
+    EstadoSolicitudGestion.EN_APROBACION,  # 2.ª aprobación (tras cotización)
+    EstadoSolicitudGestion.APROBACION_ANTICIPO,
+    EstadoSolicitudGestion.GESTION_ANTICIPO,
+    # Legacy equivalentes a solicitud pendiente
+    EstadoSolicitudGestion.REGISTRADA,
+    EstadoSolicitudGestion.APROBACION_LIDER_AREA,
 ]
 
 _LEGACY_MAP: dict[str, EstadoSolicitudGestion] = {

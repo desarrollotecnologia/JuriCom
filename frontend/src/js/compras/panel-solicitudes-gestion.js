@@ -126,6 +126,9 @@ export function initPanelSolicitudesGestion() {
     const searchInput = document.getElementById("panel-search");
     const filterTipo = document.getElementById("panel-filter-tipo");
     const resultCount = document.getElementById("panel-result-count");
+    const btnVistaEnProceso = document.getElementById("btn-panel-vista-en-proceso");
+    const panelCardTitle = document.getElementById("panel-card-title");
+    const panelCardHint = document.getElementById("panel-card-hint");
     const alertError = document.getElementById("alert-error");
     const alertSuccess = document.getElementById("alert-success");
     const modal = document.getElementById("modal-panel-detail");
@@ -208,6 +211,7 @@ export function initPanelSolicitudesGestion() {
     let items = [];
     let selectedSolicitud = null;
     let modoGestion = false;
+    let vistaPanel = "gestion"; // gestion | en_proceso
     let observacionControl = null;
     let facturaObservacionControl = null;
     let selectedFacturaSolicitudId = null;
@@ -401,19 +405,72 @@ export function initPanelSolicitudesGestion() {
         }
     }
 
+    function esVistaEnProceso() {
+        return vistaPanel === "en_proceso";
+    }
+
+    function syncVistaPanelUI() {
+        const enProceso = esVistaEnProceso();
+        if (btnVistaEnProceso) {
+            btnVistaEnProceso.setAttribute("aria-pressed", enProceso ? "true" : "false");
+            btnVistaEnProceso.classList.toggle("btn-primary", enProceso);
+            btnVistaEnProceso.classList.toggle("btn-secondary", !enProceso);
+            btnVistaEnProceso.textContent = enProceso ? "Ver aprobadas" : "En proceso";
+        }
+        if (panelCardTitle) {
+            panelCardTitle.textContent = enProceso
+                ? "Solicitudes en proceso"
+                : "Solicitudes aprobadas";
+        }
+        if (panelCardHint) {
+            if (enProceso) {
+                panelCardHint.hidden = false;
+                panelCardHint.textContent =
+                    "Aquí aparecen solicitudes que aún no están en el listado de gestión: " +
+                    "pendientes de aprobación (1.ª o 2.ª), aprobación de anticipo o gestión de anticipo.";
+            } else {
+                panelCardHint.hidden = true;
+                panelCardHint.textContent = "";
+            }
+        }
+    }
+
+    function hintEstadoEnProceso(estado) {
+        const key = normalizarEstado(estado);
+        if (key === "solicitud") {
+            return "Pendiente de primera aprobación";
+        }
+        if (key === "en_aprobacion") {
+            return "Pendiente de segunda aprobación (cotización)";
+        }
+        if (key === "aprobacion_anticipo") {
+            return "Pendiente de aprobación de anticipo";
+        }
+        if (key === "gestion_anticipo") {
+            return "En Gestionar anticipo";
+        }
+        return "Fuera del panel de gestión";
+    }
+
     function buildQuery() {
         const params = new URLSearchParams();
         const q = searchInput?.value.trim() ?? "";
         const tipo = filterTipo?.value ?? "";
         if (q) params.set("q", q);
         if (tipo) params.set("tipo", tipo);
+        if (esVistaEnProceso()) params.set("vista", "en_proceso");
         const qs = params.toString();
         return `/solicitudes-gestion/panel-gestion${qs ? `?${qs}` : ""}`;
     }
 
     function renderTable() {
         if (!Array.isArray(items) || !items.length) {
-            tbody.innerHTML = `<tr><td colspan="6" class="muted text-center">
+            tbody.innerHTML = esVistaEnProceso()
+                ? `<tr><td colspan="6" class="muted text-center">
+                No hay solicitudes en proceso fuera del panel.
+                <br />Cuando una solicitud esté pendiente de aprobación o de anticipo, aparecerá aquí.
+            </td></tr>`
+                : `<tr><td colspan="6" class="muted text-center">
                 No hay solicitudes aprobadas para gestionar.
                 <br />Las solicitudes aparecen aquí después de ser aprobadas por el administrador o el líder aprobador.
             </td></tr>`;
@@ -423,6 +480,36 @@ export function initPanelSolicitudesGestion() {
 
         tbody.innerHTML = items
             .map((s) => {
+                if (esVistaEnProceso()) {
+                    return `
+            <tr>
+                <td data-label="Consecutivo">
+                    <span class="codigo-solicitud">${escapeHtml(s.codigo)}</span>
+                </td>
+                <td data-label="Solicitante">${escapeHtml(s.creado_por_username || "—")}</td>
+                <td data-label="Tipo">${badgeTipo(s.tipo)}</td>
+                <td data-label="Estado">
+                    ${badgeEstado(s.estado, s)}
+                    <div class="muted" style="font-size:0.8rem;margin-top:0.25rem;">
+                        ${escapeHtml(hintEstadoEnProceso(s.estado))}
+                    </div>
+                </td>
+                <td data-label="Fecha">${formatDate(s.created_at)}</td>
+                <td data-label="Acciones" class="col-actions">
+                    <button
+                        type="button"
+                        class="btn btn-secondary btn-icon-view btn-panel-action"
+                        data-id="${s.id}"
+                        data-action="ver"
+                        title="Ver solicitud"
+                    >
+                        ${EYE_ICON}
+                        <span>Ver</span>
+                    </button>
+                </td>
+            </tr>`;
+                }
+
                 const salidasEntregada = esSalidasAlmacenEntregada(s);
                 const cerrada = esSolicitudFacturaCerrada(s);
                 const rowClasses = [];
@@ -2129,4 +2216,10 @@ export function initPanelSolicitudesGestion() {
         debounce = setTimeout(load, 300);
     });
     filterTipo?.addEventListener("change", load);
+    btnVistaEnProceso?.addEventListener("click", () => {
+        vistaPanel = esVistaEnProceso() ? "gestion" : "en_proceso";
+        syncVistaPanelUI();
+        load();
+    });
+    syncVistaPanelUI();
 }

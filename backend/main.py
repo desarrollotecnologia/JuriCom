@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.infrastructure.config import settings
@@ -103,6 +103,14 @@ def root():
     if FRONTEND_DIR.exists():
         return RedirectResponse(url="/app/login.html")
     return {"message": "Juridica · Colbeef API", "docs": "/docs"}
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    path = FRONTEND_DIR / "assets" / "dm1.ico"
+    if path.exists():
+        return FileResponse(path, media_type="image/x-icon")
+    return RedirectResponse(url="/app/assets/dm1.ico")
 
 
 @app.get("/health", tags=["health"])

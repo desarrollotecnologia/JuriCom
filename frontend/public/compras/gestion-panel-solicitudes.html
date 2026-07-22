@@ -2,6 +2,7 @@
 <html lang="es">
     <head>
         <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Panel de solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
         <link rel="stylesheet" href="/static/styles/theme.css?v=7" />
@@ -19,6 +20,14 @@
                         </p>
                     </div>
                     <div class="page-header-actions">
+                        <button
+                            type="button"
+                            class="btn btn-secondary"
+                            id="btn-panel-vista-en-proceso"
+                            aria-pressed="false"
+                        >
+                            En proceso
+                        </button>
                         <a
                             href="/app/compras/gestion-solicitudes.html"
                             class="btn btn-secondary"
@@ -32,7 +41,8 @@
                 <div class="alert alert-success" id="alert-success"></div>
 
                 <div class="card">
-                    <h2 class="card-title">Solicitudes aprobadas</h2>
+                    <h2 class="card-title" id="panel-card-title">Solicitudes aprobadas</h2>
+                    <p class="muted" id="panel-card-hint" hidden></p>
 
                     <div class="search-bar">
                         <input
@@ -247,7 +257,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=39";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=41";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {
