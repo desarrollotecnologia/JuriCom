@@ -1254,6 +1254,33 @@ table.clickable-rows tbody tr[data-id]:focus {
     cursor: pointer;
 }
 
+.sg-radio-group {
+    border: none;
+    padding: 0;
+    margin: var(--space-3) 0;
+}
+
+.sg-radio-group legend {
+    font-weight: 600;
+    margin-bottom: var(--space-2);
+}
+
+.sg-radio-option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-right: var(--space-4);
+    cursor: pointer;
+}
+
+.sg-clasificacion-doc-live {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-2) 0 var(--space-3);
+    flex-wrap: wrap;
+}
+
 .sg-anticipo-campos {
     margin-top: var(--space-3);
     padding-top: var(--space-3);

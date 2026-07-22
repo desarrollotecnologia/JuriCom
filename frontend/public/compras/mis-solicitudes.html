@@ -2,6 +2,7 @@
 <html lang="es">
     <head>
         <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Contratos · JURICOM_BEEF</title>
         <link rel="stylesheet" href="/static/styles/theme.css" />
@@ -590,6 +591,14 @@
 
                         <h3>Información general</h3>
                         <p><span class="label">Compañía:</span> ${escapeHtml(c.compania)}</p>
+                        ${
+                            c.solicitud_gestion_codigo
+                                ? `<p><span class="label">Origen SRV:</span>
+                                    <strong class="codigo-solicitud">${escapeHtml(c.solicitud_gestion_codigo)}</strong>
+                                    <span class="muted"> (esta OT/contrato nació de esa solicitud de servicios)</span>
+                                   </p>`
+                                : ""
+                        }
                         <p><span class="label">Proveedor:</span> <strong>${escapeHtml(c.proveedor_contratista)}</strong></p>
                         <p><span class="label">NIT:</span> ${escapeHtml(c.nit_proveedor)}</p>
                         <p><span class="label">Valor:</span> ${formatMoney(c.valor, c.moneda)}</p>

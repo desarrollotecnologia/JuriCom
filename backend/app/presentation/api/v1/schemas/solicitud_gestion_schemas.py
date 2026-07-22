@@ -99,6 +99,11 @@ class SolicitudGestionListItem(BaseModel):
     gestor_anticipo_id: Optional[int] = None
     gestor_anticipo_username: str = ""
     anticipo_gestionado: bool = False
+    clasificacion_documento_servicio: str = ""
+    clasificacion_documento_servicio_label: str = ""
+    gestion_valor_registrada: bool = False
+    contrato_id: Optional[int] = None
+    contrato_codigo: str = ""
     factura_registrada: bool = False
     factura_registrada_at: Optional[datetime] = None
     cantidad_facturas: int = 0
@@ -150,6 +155,11 @@ class SolicitudGestionResponse(BaseModel):
     gestor_anticipo_id: Optional[int] = None
     gestor_anticipo_username: str = ""
     anticipo_gestionado: bool = False
+    clasificacion_documento_servicio: str = ""
+    clasificacion_documento_servicio_label: str = ""
+    gestion_valor_registrada: bool = False
+    contrato_id: Optional[int] = None
+    contrato_codigo: str = ""
     factura_registrada: bool = False
     factura_registrada_at: Optional[datetime] = None
     estado: EstadoSolicitudGestion

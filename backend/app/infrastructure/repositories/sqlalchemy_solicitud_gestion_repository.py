@@ -139,6 +139,15 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             gestor_anticipo_id=getattr(model, "gestor_anticipo_id", None),
             gestor_anticipo_username=gestor_anticipo_username,
             anticipo_gestionado=bool(getattr(model, "anticipo_gestionado", False)),
+            clasificacion_documento_servicio=getattr(
+                model, "clasificacion_documento_servicio", ""
+            )
+            or "",
+            gestion_valor_registrada=bool(
+                getattr(model, "gestion_valor_registrada", False)
+            ),
+            contrato_id=getattr(model, "contrato_id", None),
+            contrato_codigo=getattr(model, "contrato_codigo", "") or "",
             factura_registrada_at=getattr(model, "factura_registrada_at", None),
             factura_registrada_por_id=getattr(model, "factura_registrada_por_id", None),
             gestor_id=getattr(model, "gestor_id", None),
@@ -378,6 +387,12 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model.observaciones_anticipo = solicitud.observaciones_anticipo or ""
         model.gestor_anticipo_id = solicitud.gestor_anticipo_id
         model.anticipo_gestionado = bool(solicitud.anticipo_gestionado)
+        model.clasificacion_documento_servicio = (
+            solicitud.clasificacion_documento_servicio or ""
+        )
+        model.gestion_valor_registrada = bool(solicitud.gestion_valor_registrada)
+        model.contrato_id = solicitud.contrato_id
+        model.contrato_codigo = solicitud.contrato_codigo or ""
         model.factura_registrada_at = solicitud.factura_registrada_at
         model.factura_registrada_por_id = solicitud.factura_registrada_por_id
         model.gestor_id = solicitud.gestor_id

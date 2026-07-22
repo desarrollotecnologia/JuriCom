@@ -2,6 +2,7 @@
 <html lang="es">
     <head>
         <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Edición de contrato · JURICOM_BEEF</title>
         <link rel="stylesheet" href="/static/styles/theme.css" />
@@ -135,6 +136,11 @@
                                 <label>Estado</label>
                                 <div class="readonly-box" id="estado-display"></div>
                             </div>
+                        </div>
+
+                        <div class="field" id="origen-srv-field" hidden>
+                            <label>Origen solicitud de servicios (SRV)</label>
+                            <div class="readonly-box" id="origen-srv-display"></div>
                         </div>
 
                         <div class="field">
@@ -394,6 +400,19 @@
                     `<span class="codigo-contrato">${escapeHtml(c.codigo)}</span>`;
                 document.getElementById("estado-display").textContent =
                     ESTADO_LABEL[c.estado] || c.estado;
+                const origenField = document.getElementById("origen-srv-field");
+                const origenDisplay = document.getElementById("origen-srv-display");
+                if (origenField && origenDisplay) {
+                    if (c.solicitud_gestion_codigo) {
+                        origenField.hidden = false;
+                        origenDisplay.innerHTML =
+                            `<strong class="codigo-solicitud">${escapeHtml(c.solicitud_gestion_codigo)}</strong>` +
+                            ` <span class="muted">— esta OT/contrato nació de esa SRV</span>`;
+                    } else {
+                        origenField.hidden = true;
+                        origenDisplay.textContent = "";
+                    }
+                }
                 setValue("proveedor", c.proveedor_contratista);
                 setValue("nit", c.nit_proveedor);
                 setValue("descripcion", c.descripcion_servicio);

@@ -1,13 +1,8 @@
-"""Solicita anticipo para una solicitud de servicios en gestión."""
-
-from decimal import Decimal
+"""Registra el valor cotizado de un servicio y su clasificación documental."""
 
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
-)
-from app.application.services.solicitud_gestion_notificaciones import (
-    NotificadorSolicitudGestion,
 )
 from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
     AgregarObservacionSolicitud,
@@ -16,7 +11,6 @@ from app.application.use_cases.solicitudes_gestion.registrar_solicitud_compra im
     ArchivoEntradaSolicitud,
 )
 from app.application.use_cases.solicitudes_gestion.registrar_tramite_oc_solicitud import (
-    _parse_porcentaje,
     _parse_valor_tramite,
 )
 from app.domain.entities.user import User
@@ -32,16 +26,14 @@ from app.domain.value_objects.estado_solicitud_gestion import (
 from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_servicios
 
 
-class SolicitarAnticipoServiciosSolicitud:
+class RegistrarValorServicioSolicitud:
     def __init__(
         self,
         solicitudes: SolicitudGestionRepository,
-        storage: FileStorage,
-        notificador: NotificadorSolicitudGestion | None = None,
+        storage: FileStorage | None = None,
     ) -> None:
         self._solicitudes = solicitudes
         self._storage = storage
-        self._notificador = notificador
 
     def execute(
         self,
@@ -49,10 +41,7 @@ class SolicitarAnticipoServiciosSolicitud:
         solicitud_id: int,
         *,
         valor_servicio: str = "",
-        porcentaje_anticipo: str = "",
-        lider_anticipo_id: str = "",
-        lider_anticipo_label: str = "",
-        observaciones_anticipo: str = "",
+        requiere_anticipo: bool = False,
         nueva_observacion: str = "",
         nueva_observacion_texto: str = "",
         archivos_observacion: list[ArchivoEntradaSolicitud] | None = None,
@@ -71,32 +60,28 @@ class SolicitarAnticipoServiciosSolicitud:
             raise ValueError("La solicitud debe estar en estado Gestionando servicio.")
 
         if solicitud.anticipo_gestionado:
-            raise ValueError("El anticipo de este servicio ya fue gestionado.")
+            raise ValueError(
+                "El anticipo de este servicio ya fue gestionado; no se puede recalcular el valor."
+            )
 
         if solicitud.gestor_id != actor.id and not actor.is_admin():
-            raise UnauthorizedError("Sólo el gestor asignado puede solicitar el anticipo.")
+            raise UnauthorizedError(
+                "Sólo el gestor asignado puede registrar el valor del servicio."
+            )
 
         valor = _parse_valor_tramite(valor_servicio)
         if valor is None or valor <= 0:
-            raise ValueError("Indica el valor del servicio para calcular el anticipo.")
+            raise ValueError("Indica el valor total de la cotización del servicio.")
 
-        pct_anticipo = _parse_porcentaje(porcentaje_anticipo)
-        if pct_anticipo is None:
-            raise ValueError("Indica el porcentaje de anticipo requerido.")
-
-        lider_id = (lider_anticipo_id or "").strip()
-        lider_label = (lider_anticipo_label or "").strip()
-        if not lider_id or not lider_label:
-            raise ValueError("Selecciona el líder aprobador del anticipo.")
-
-        monto_anticipo = (valor * pct_anticipo / Decimal("100")).quantize(Decimal("0.01"))
         clasificacion = clasificar_documento_servicio(valor)
-        label_doc = label_clasificacion_documento_servicio(clasificacion)
+        label = label_clasificacion_documento_servicio(clasificacion)
 
         nota_texto = (nueva_observacion_texto or "").strip()
         nota_html = (nueva_observacion or "").strip()
         adjuntos_obs = archivos_observacion or []
         if nota_texto or nota_html or adjuntos_obs:
+            if self._storage is None:
+                raise ValueError("No se pueden guardar adjuntos sin almacenamiento.")
             AgregarObservacionSolicitud(self._solicitudes, self._storage).execute(
                 actor,
                 solicitud_id,
@@ -109,22 +94,24 @@ class SolicitarAnticipoServiciosSolicitud:
         solicitud.valor_tramite_oc = valor
         solicitud.clasificacion_documento_servicio = clasificacion.value
         solicitud.gestion_valor_registrada = True
-        solicitud.requiere_anticipo = True
-        solicitud.porcentaje_anticipo = pct_anticipo
-        solicitud.lider_anticipo_id = lider_id
-        solicitud.lider_anticipo_label = lider_label
-        solicitud.monto_anticipo = monto_anticipo
-        solicitud.observaciones_anticipo = (observaciones_anticipo or "").strip()
-        solicitud.estado = EstadoSolicitudGestion.APROBACION_ANTICIPO
+        solicitud.requiere_anticipo = bool(requiere_anticipo)
+
+        if not requiere_anticipo:
+            solicitud.porcentaje_anticipo = None
+            solicitud.lider_anticipo_id = ""
+            solicitud.lider_anticipo_label = ""
+            solicitud.monto_anticipo = None
+            solicitud.observaciones_anticipo = ""
+
         self._solicitudes.update(solicitud)
 
+        anticipo_txt = "con anticipo" if requiere_anticipo else "sin anticipo"
         comentario = (
-            f"Anticipo solicitado: {pct_anticipo}% sobre valor {valor:,.2f} "
-            f"(monto: {monto_anticipo:,.2f}) — {label_doc} — Líder: {lider_label}"
+            f"Valor del servicio registrado: {valor:,.2f} — {label} ({anticipo_txt})"
         )
         self._solicitudes.registrar_historial(
             solicitud_id,
-            EstadoSolicitudGestion.APROBACION_ANTICIPO,
+            EstadoSolicitudGestion.GESTIONANDO_SERVICIO,
             usuario_id=actor.id,
             comentario=comentario,
         )
@@ -132,6 +119,4 @@ class SolicitarAnticipoServiciosSolicitud:
         resultado = self._solicitudes.get_by_id(solicitud_id)
         if resultado is None:
             raise RuntimeError("No se pudo recuperar la solicitud actualizada.")
-        if self._notificador:
-            self._notificador.notificar_anticipo_solicitado(resultado, actor)
         return resultado

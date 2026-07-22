@@ -57,9 +57,13 @@ class NotificarEvidenciaCierreServiciosSolicitud:
                 "La solicitud debe estar en estado Gestionando servicio para notificar evidencia."
             )
 
-        if not solicitud.anticipo_gestionado:
+        if not (
+            solicitud.anticipo_gestionado
+            or (solicitud.gestion_valor_registrada and not solicitud.requiere_anticipo)
+        ):
             raise ValueError(
-                "El anticipo aún no ha sido gestionado. Completa la gestión de anticipo primero."
+                "Debes registrar el valor del servicio sin anticipo, o completar la "
+                "gestión de anticipo, antes de notificar evidencia de cierre."
             )
 
         if solicitud.gestor_id != actor.id and not actor.is_admin():

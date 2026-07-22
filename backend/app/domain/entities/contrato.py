@@ -113,6 +113,8 @@ class Contrato:
     id: Optional[int] = None
     codigo: Optional[str] = None
     tipo_codigo: str = TIPO_CODIGO_CONTRATO
+    solicitud_gestion_id: Optional[int] = None
+    solicitud_gestion_codigo: str = ""
     estado_aprobacion: EstadoAprobacion = EstadoAprobacion.PENDIENTE_LIDER
     estado: EstadoContrato = EstadoContrato.EN_PROCESO
     fecha_inicio: Optional[date] = None

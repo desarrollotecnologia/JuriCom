@@ -188,6 +188,10 @@ class SolicitudGestion:
     gestor_anticipo_id: Optional[int] = None
     gestor_anticipo_username: str = ""
     anticipo_gestionado: bool = False
+    clasificacion_documento_servicio: str = ""
+    gestion_valor_registrada: bool = False
+    contrato_id: Optional[int] = None
+    contrato_codigo: str = ""
     factura_registrada_at: Optional[datetime] = None
     factura_registrada_por_id: Optional[int] = None
     id: Optional[int] = None

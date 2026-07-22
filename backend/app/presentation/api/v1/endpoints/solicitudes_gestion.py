@@ -42,6 +42,7 @@ from app.application.use_cases.solicitudes_gestion import (
     ResolverAprobacionAnticipo,
     ResolverAprobacionSolicitud,
     SolicitarAnticipoServiciosSolicitud,
+    RegistrarValorServicioSolicitud,
     NotificarEvidenciaCierreServiciosSolicitud,
     CerrarServicioSolicitud,
     SolicitarRecotizacionSolicitud,
@@ -56,6 +57,9 @@ from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
 from app.domain.value_objects.estado_aprobacion_producto import LABELS as LABELS_APROB_PRODUCTO
 from app.domain.value_objects.estado_aprobacion_producto import EstadoAprobacionProducto
+from app.domain.value_objects.clasificacion_documento_servicio import (
+    label_clasificacion_documento_servicio,
+)
 from app.domain.value_objects.tipo_solicitud_gestion import (
     TipoSolicitudGestion,
     es_flujo_salidas_almacen,
@@ -269,6 +273,13 @@ def _to_list_item(s: SolicitudGestion, actor: User) -> SolicitudGestionListItem:
         gestor_anticipo_id=s.gestor_anticipo_id,
         gestor_anticipo_username=s.gestor_anticipo_username or "",
         anticipo_gestionado=s.anticipo_gestionado,
+        clasificacion_documento_servicio=s.clasificacion_documento_servicio or "",
+        clasificacion_documento_servicio_label=label_clasificacion_documento_servicio(
+            s.clasificacion_documento_servicio
+        ),
+        gestion_valor_registrada=s.gestion_valor_registrada,
+        contrato_id=s.contrato_id,
+        contrato_codigo=s.contrato_codigo or "",
         factura_registrada=s.factura_registrada if _actor_ve_estado_interno(actor) else False,
         factura_registrada_at=s.factura_registrada_at
         if _actor_ve_estado_interno(actor)
@@ -376,6 +387,13 @@ def _to_response(
         gestor_anticipo_id=s.gestor_anticipo_id,
         gestor_anticipo_username=s.gestor_anticipo_username or "",
         anticipo_gestionado=s.anticipo_gestionado,
+        clasificacion_documento_servicio=s.clasificacion_documento_servicio or "",
+        clasificacion_documento_servicio_label=label_clasificacion_documento_servicio(
+            s.clasificacion_documento_servicio
+        ),
+        gestion_valor_registrada=s.gestion_valor_registrada,
+        contrato_id=s.contrato_id,
+        contrato_codigo=s.contrato_codigo or "",
         factura_registrada=s.factura_registrada if actor and _actor_ve_estado_interno(actor) else False,
         factura_registrada_at=s.factura_registrada_at
         if actor and _actor_ve_estado_interno(actor)
@@ -462,11 +480,17 @@ def listar_gestion_anticipo(
 def listar_panel_gestion(
     q: Optional[str] = Query(None, description="Buscar por código, título o solicitante."),
     tipo: Optional[TipoSolicitudGestion] = Query(None),
+    vista: str = Query(
+        "gestion",
+        description="Vista del panel: 'gestion' (aprobadas) o 'en_proceso' (fuera del panel).",
+    ),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
 ) -> list[SolicitudGestionListItem]:
     try:
-        items = ListarSolicitudesPanelGestion(repo).execute(current, tipo=tipo, query=q)
+        items = ListarSolicitudesPanelGestion(repo).execute(
+            current, tipo=tipo, query=q, vista=vista
+        )
     except UnauthorizedError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     return [_to_list_item(s, current) for s in items]
@@ -936,6 +960,61 @@ async def guardar_gestion_servicios_solicitud(
             nueva_observacion=nueva_observacion,
             nueva_observacion_texto=nueva_observacion_texto,
             visitas_json=visitas_json,
+            archivos_observacion=adjuntos_entradas,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post(
+    "/{solicitud_id}/registrar-valor-servicio",
+    response_model=SolicitudGestionResponse,
+)
+async def registrar_valor_servicio_solicitud(
+    solicitud_id: int,
+    valor_servicio: str = Form(...),
+    requiere_anticipo: str = Form("false"),
+    nueva_observacion: str = Form(""),
+    nueva_observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+) -> SolicitudGestionResponse:
+    adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        adjuntos_entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    requiere = str(requiere_anticipo or "").strip().lower() in ("1", "true", "si", "sí", "yes")
+
+    try:
+        solicitud = RegistrarValorServicioSolicitud(repo, storage).execute(
+            current,
+            solicitud_id,
+            valor_servicio=valor_servicio,
+            requiere_anticipo=requiere,
+            nueva_observacion=nueva_observacion,
+            nueva_observacion_texto=nueva_observacion_texto,
             archivos_observacion=adjuntos_entradas,
         )
         historial = repo.get_historial(solicitud_id)

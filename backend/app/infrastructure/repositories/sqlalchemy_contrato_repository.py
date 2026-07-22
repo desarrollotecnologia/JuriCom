@@ -87,6 +87,8 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             id=model.id,
             codigo=model.codigo,
             tipo_codigo=getattr(model, "tipo_codigo", "") or "C",
+            solicitud_gestion_id=getattr(model, "solicitud_gestion_id", None),
+            solicitud_gestion_codigo=getattr(model, "solicitud_gestion_codigo", "") or "",
             compania=model.compania,
             proveedor_contratista=model.proveedor_contratista,
             nit_proveedor=model.nit_proveedor,
@@ -131,6 +133,8 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         model = ContratoModel(
             codigo="PENDIENTE",  # placeholder; lo asignamos tras conocer el id
             tipo_codigo=tipo_codigo,
+            solicitud_gestion_id=contrato.solicitud_gestion_id,
+            solicitud_gestion_codigo=contrato.solicitud_gestion_codigo or "",
             compania=contrato.compania,
             proveedor_contratista=contrato.proveedor_contratista,
             nit_proveedor=contrato.nit_proveedor,

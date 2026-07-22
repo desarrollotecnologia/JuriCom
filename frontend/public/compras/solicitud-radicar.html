@@ -2,6 +2,7 @@
 <html lang="es">
     <head>
         <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Radicar Solicitud · JURICOM_BEEF</title>
         <link rel="stylesheet" href="/static/styles/theme.css" />
@@ -156,6 +157,9 @@
                                 Define el prefijo del consecutivo: C-0001 u OS-0001.
                             </span>
                         </div>
+
+                        <input type="hidden" name="solicitud_gestion_id" id="solicitud-gestion-id" value="" />
+                        <div class="alert alert-success" id="vinculo-srv-banner" hidden></div>
 
                         <div class="row-3">
                             <div class="field">
@@ -466,6 +470,27 @@
             session.requireRole(["compras", "admin"]);
             renderSidebar();
 
+            const tipoCodigoSelect = document.querySelector('select[name="tipo_codigo"]');
+            const tipoFromQuery = new URLSearchParams(window.location.search).get("tipo_codigo");
+            if (tipoCodigoSelect && (tipoFromQuery === "C" || tipoFromQuery === "OS")) {
+                tipoCodigoSelect.value = tipoFromQuery;
+            }
+
+            const paramsUrl = new URLSearchParams(window.location.search);
+            const solicitudGestionId = paramsUrl.get("solicitud_gestion_id");
+            const solicitudGestionCodigo = paramsUrl.get("solicitud_gestion_codigo") || "";
+            const inputSolicitudGestion = document.getElementById("solicitud-gestion-id");
+            const bannerVinculo = document.getElementById("vinculo-srv-banner");
+            if (solicitudGestionId && inputSolicitudGestion) {
+                inputSolicitudGestion.value = solicitudGestionId;
+                if (bannerVinculo) {
+                    bannerVinculo.hidden = false;
+                    bannerVinculo.classList.add("show");
+                    bannerVinculo.textContent =
+                        `Esta radicación quedará vinculada a la solicitud ${solicitudGestionCodigo || `#${solicitudGestionId}`}.`;
+                }
+            }
+
             const selectLiderJefe = document.getElementById("lider-jefe-colbeef");
             const inputLider = document.getElementById("correo-lider-proceso");
             const inputGerencia = document.getElementById("correo-gerencia");
@@ -543,6 +568,9 @@
                     const formData = new FormData(form);
                     formData.set("correo_lider_proceso", inputLider.value);
                     formData.set("correo_gerencia", inputGerencia.value);
+                    if (solicitudGestionId) {
+                        formData.set("solicitud_gestion_id", solicitudGestionId);
+                    }
 
                     // Si el archivo opcional viene vacío, lo quitamos para que el
                     // backend lo ignore.
@@ -552,8 +580,12 @@
                     }
 
                     const data = await api.postForm("/contratos", formData);
+                    const vinculoTxt =
+                        data.solicitud_gestion_codigo
+                            ? ` Vinculado a ${data.solicitud_gestion_codigo}.`
+                            : "";
                     showSuccess(
-                        `Solicitud radicada con código ${data.codigo}. ` +
+                        `Solicitud radicada con código ${data.codigo}.${vinculoTxt} ` +
                         "Se notificó al Líder y Gerencia por correo; al aprobar, el caso llegará a Gestión Jurídica."
                     );
                     form.reset();
