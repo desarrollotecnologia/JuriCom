@@ -19,11 +19,23 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 
+from app.application.services.aprobacion_gerencia import correo_aprobacion_gerencia
+from app.application.services.trazabilidad_contrato_srv import (
+    etapa_historial_contrato,
+    etiqueta_estado_contrato,
+    registrar_evento_contrato_en_srv,
+    registrar_observacion_contrato_en_srv,
+)
 from app.application.interfaces.contrato_repository import ContratoRepository
-from app.application.interfaces.email_notifier import EmailMessage, EmailNotifier
+from app.application.interfaces.email_notifier import (
+    EmailAttachment,
+    EmailMessage,
+    EmailNotifier,
+)
 from app.application.interfaces.file_storage import FileStorage
+from app.application.interfaces.user_repository import UserRepository
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
@@ -32,15 +44,26 @@ from app.application.use_cases.contratos import (
     AplicarOtrosi,
     AprobarContrato,
     ArchivoEntrada,
+    ArchivoFinalizacion,
     ArchivoJuridicaEntrada,
     ArchivoOtrosi,
     BuscarContratos,
     CambiarEstadoContrato,
+    ConfirmarPagoTesoreria,
+    ConfirmarCierreTesoreria,
+    GestionarCierreContabilidad,
+    ArchivoRespuesta,
+    CargarActaLiquidacion,
     EditarContrato,
+    EnviarAnticipoContabilidad,
+    FinalizarContratoCompras,
+    GestionarAnticipoContabilidad,
     GetContrato,
     RadicarSolicitud,
+    ResponderInformacion,
+    SolicitarInformacion,
 )
-from app.application.use_cases.notifications import NotificarRadicacion
+from app.application.use_cases.contratos.solicitar_informacion import ArchivoSolicitudInfo
 from app.domain.entities.contrato import ArchivoAdjunto, TipoArchivo
 from app.domain.entities.user import User
 from app.domain.exceptions import (
@@ -51,17 +74,21 @@ from app.domain.exceptions import (
     UnauthorizedError,
 )
 from app.domain.value_objects.estado_contrato import EstadoContrato
+from app.domain.value_objects.estado_solicitud_gestion import EstadoSolicitudGestion
 from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
 from app.domain.value_objects.moneda import Moneda
 from app.domain.value_objects.tipo_otrosi import TipoOtrosi
+from app.domain.value_objects.tipo_precio import TipoPrecio
 from app.domain.value_objects.unidad_plazo import UnidadPlazo
 from app.infrastructure.config import settings
+from app.infrastructure.minutas.generator import PLANTILLAS, generar_minuta
 from app.presentation.api.v1.dependencies import (
     get_contrato_repository,
     get_current_user,
     get_email_notifier,
     get_file_storage,
     get_solicitud_gestion_repository,
+    get_user_repository,
 )
 from app.presentation.api.v1.schemas import (
     ArchivoResponse,
@@ -72,6 +99,7 @@ from app.presentation.api.v1.schemas import (
     OtrosiPendienteResponse,
     OtrosiResponse,
     SeguimientoContratoResponse,
+    SolicitudInformacionResponse,
 )
 
 
@@ -124,6 +152,12 @@ def _alerta_vencimiento(c) -> bool:
     return c.estado.value == "activo" and dias is not None and 0 <= dias <= _umbral_vencimiento(c)
 
 
+def _alerta_elaboracion(c) -> bool:
+    """Urgente cuando el plazo de elaboración vence hoy/mañana o ya venció."""
+    dias = c.dias_para_elaborar()
+    return dias is not None and dias <= 1
+
+
 def _to_archivo_response(a) -> ArchivoResponse:
     return ArchivoResponse(
         id=a.id,
@@ -165,6 +199,7 @@ def _to_contrato_response(c) -> ContratoResponse:
         compania=c.compania,
         proveedor_contratista=c.proveedor_contratista,
         nit_proveedor=c.nit_proveedor,
+        proveedor_email=getattr(c, "proveedor_email", "") or "",
         descripcion_servicio=c.descripcion_servicio,
         obligaciones_colbeef=c.obligaciones_colbeef,
         obligaciones_proveedor=c.obligaciones_proveedor,
@@ -175,18 +210,35 @@ def _to_contrato_response(c) -> ContratoResponse:
         renovacion_automatica=c.renovacion_automatica,
         condiciones_recibido_satisfactorio=c.condiciones_recibido_satisfactorio,
         requiere_poliza=c.requiere_poliza,
+        tipo_precio=c.tipo_precio,
+        forma_pago=c.forma_pago or "",
+        centro_costos=c.centro_costos or "",
+        supervisor_id=c.supervisor_id,
+        supervisor_username=c.supervisor_username or "",
+        requiere_anticipo=bool(getattr(c, "requiere_anticipo", False)),
+        porcentaje_anticipo=getattr(c, "porcentaje_anticipo", None),
+        monto_anticipo=getattr(c, "monto_anticipo", None),
+        observaciones_anticipo=getattr(c, "observaciones_anticipo", "") or "",
+        anticipo_pagado=bool(getattr(c, "anticipo_pagado", False)),
         correo_lider_proceso=c.correo_lider_proceso,
         correo_gerencia=c.correo_gerencia,
         estado_aprobacion=c.estado_aprobacion,
         fecha_inicio=c.fecha_inicio,
         fecha_inicio_original=c.fecha_inicio_original,
         fecha_fin=c.fecha_fin,
+        fecha_limite_elaboracion=c.fecha_limite_elaboracion_efectiva(),
+        dias_para_elaborar=c.dias_para_elaborar(),
+        alerta_elaboracion=_alerta_elaboracion(c),
         fecha_proxima_notificacion=c.fecha_proxima_notificacion,
         hora_proxima_notificacion=c.hora_proxima_notificacion,
         estado=c.estado,
         creado_por_id=c.creado_por_id,
         tiene_poliza=c.tiene_poliza(),
         tiene_borrador=c.tiene_borrador(),
+        requiere_acta_liquidacion=c.requiere_acta_liquidacion(_umbral_acta()),
+        tiene_informe_final=c.tiene_informe_final(),
+        tiene_acta_liquidacion=c.tiene_acta_liquidacion(),
+        pendiente_acta_liquidacion=c.esperando_acta_liquidacion(_umbral_acta()),
         eliminado_at=c.eliminado_at,
         eliminado_por_id=c.eliminado_por_id,
         eliminado_observacion=c.eliminado_observacion,
@@ -197,6 +249,10 @@ def _to_contrato_response(c) -> ContratoResponse:
     )
 
 
+def _umbral_acta():
+    return settings.liquidacion_acta_umbral_cop
+
+
 def _to_list_item(c) -> ContratoListItem:
     return ContratoListItem(
         id=c.id,
@@ -204,21 +260,38 @@ def _to_list_item(c) -> ContratoListItem:
         tipo_codigo=c.tipo_codigo,
         solicitud_gestion_id=c.solicitud_gestion_id,
         solicitud_gestion_codigo=c.solicitud_gestion_codigo or "",
+        creado_por_username=c.creado_por_username,
         proveedor_contratista=c.proveedor_contratista,
         nit_proveedor=c.nit_proveedor,
+        proveedor_email=getattr(c, "proveedor_email", "") or "",
+        descripcion_servicio=c.descripcion_servicio,
         valor=c.valor,
         moneda=c.moneda,
         plazo_cantidad=c.plazo_cantidad,
         plazo_unidad=c.plazo_unidad,
         renovacion_automatica=c.renovacion_automatica,
         requiere_poliza=c.requiere_poliza,
+        tipo_precio=c.tipo_precio,
+        forma_pago=c.forma_pago or "",
+        centro_costos=c.centro_costos or "",
+        supervisor_id=c.supervisor_id,
+        supervisor_username=c.supervisor_username or "",
+        requiere_anticipo=bool(getattr(c, "requiere_anticipo", False)),
+        anticipo_pagado=bool(getattr(c, "anticipo_pagado", False)),
         tiene_poliza=c.tiene_poliza(),
         tiene_borrador=c.tiene_borrador(),
+        requiere_acta_liquidacion=c.requiere_acta_liquidacion(_umbral_acta()),
+        tiene_informe_final=c.tiene_informe_final(),
+        tiene_acta_liquidacion=c.tiene_acta_liquidacion(),
+        pendiente_acta_liquidacion=c.esperando_acta_liquidacion(_umbral_acta()),
         cantidad_otrosies=c.cantidad_otrosies(),
         estado_aprobacion=c.estado_aprobacion,
         estado=c.estado,
         fecha_inicio=c.fecha_inicio,
         fecha_fin=c.fecha_fin,
+        fecha_limite_elaboracion=c.fecha_limite_elaboracion_efectiva(),
+        dias_para_elaborar=c.dias_para_elaborar(),
+        alerta_elaboracion=_alerta_elaboracion(c),
         fecha_proxima_notificacion=c.fecha_proxima_notificacion,
         hora_proxima_notificacion=c.hora_proxima_notificacion,
         eliminado_at=c.eliminado_at,
@@ -240,6 +313,16 @@ def _to_otrosi_pendiente_response(contrato, otrosi) -> OtrosiPendienteResponse:
 
 def _emails_desde_cadena(valor: str) -> list[str]:
     return [email.strip() for email in (valor or "").split(",") if email.strip()]
+
+
+def _actor_label(actor: User) -> str:
+    if actor.is_juridica():
+        return "Jurídica"
+    if actor.is_compras():
+        return "Compras"
+    if actor.is_admin():
+        return "Admin"
+    return actor.username or "Alguien"
 
 
 def _validate_and_read(
@@ -275,6 +358,7 @@ def radicar_solicitud(
     proveedor_contratista: str = Form(...),
     tipo_codigo: str = Form("C"),
     nit_proveedor: str = Form(...),
+    proveedor_email: str = Form(""),
     descripcion_servicio: str = Form(...),
     obligaciones_colbeef: str = Form(...),
     obligaciones_proveedor: str = Form(...),
@@ -287,11 +371,16 @@ def radicar_solicitud(
     fecha_proxima_notificacion: Optional[date] = Form(None),
     renovacion_automatica: bool = Form(...),
     condiciones_recibido_satisfactorio: str = Form(...),
-    requiere_poliza: bool = Form(...),
+    tipo_precio: TipoPrecio = Form(TipoPrecio.MAS_IVA),
+    forma_pago: str = Form(...),
+    centro_costos: str = Form(..., description="Centro de costos del proyecto."),
+    supervisor_id: Optional[int] = Form(None, description="Usuario supervisor encargado."),
     correo_lider_proceso: str = Form(...),
     correo_gerencia: str = Form(...),
     camara_comercio: UploadFile = File(..., description="PDF/Imagen — obligatorio"),
-    cotizacion: UploadFile = File(..., description="PDF/Imagen — obligatorio"),
+    cotizacion: Optional[UploadFile] = File(
+        None, description="PDF/Imagen — obligatorio, o se copia la cotización elegida de la SRV"
+    ),
     cedula_rep_legal: UploadFile = File(..., description="PDF/Imagen — obligatorio"),
     archivo_opcional: Optional[UploadFile] = File(None, description="Cualquier archivo"),
     solicitud_gestion_id: Optional[int] = Form(None),
@@ -324,7 +413,7 @@ def radicar_solicitud(
     archivos: list[ArchivoEntrada] = []
     for upload, tipo, requerido in [
         (camara_comercio, TipoArchivo.CAMARA_COMERCIO, True),
-        (cotizacion, TipoArchivo.COTIZACION, True),
+        (cotizacion, TipoArchivo.COTIZACION, False),
         (cedula_rep_legal, TipoArchivo.CEDULA_REP_LEGAL, True),
         (archivo_opcional, TipoArchivo.OPCIONAL, False),
     ]:
@@ -337,6 +426,7 @@ def radicar_solicitud(
             actor=current,
             proveedor_contratista=proveedor_contratista,
             nit_proveedor=nit_proveedor,
+            proveedor_email=proveedor_email,
             descripcion_servicio=descripcion_servicio,
             obligaciones_colbeef=obligaciones_colbeef,
             obligaciones_proveedor=obligaciones_proveedor,
@@ -346,9 +436,13 @@ def radicar_solicitud(
             plazo_unidad=plazo_unidad,
             renovacion_automatica=renovacion_automatica,
             condiciones_recibido_satisfactorio=condiciones_recibido_satisfactorio,
-            requiere_poliza=requiere_poliza,
-            correo_lider_proceso=correo_lider_proceso.strip(),
-            correo_gerencia=correo_gerencia.strip() or settings.GERENCIA_EMAIL.strip(),
+            requiere_poliza=False,
+            tipo_precio=tipo_precio,
+            forma_pago=forma_pago,
+            centro_costos=centro_costos,
+            supervisor_id=supervisor_id,
+            correo_lider_proceso=settings.APROBACION_DIEGO_SERRANO_EMAIL.strip(),
+            correo_gerencia=correo_aprobacion_gerencia(valor_decimal, moneda)[0],
             tipo_codigo=tipo_codigo,
             archivos=archivos,
             fecha_inicio=fecha_inicio,
@@ -365,16 +459,9 @@ def radicar_solicitud(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    # Paso 1: el correo va al líder de proceso para aprobación.
-    destinatarios = [contrato.correo_lider_proceso]
-    if destinatarios:
-        background_tasks.add_task(
-            NotificarRadicacion(notifier).execute,
-            contrato,
-            current.username,
-            destinatarios,
-            _approval_token(contrato.id, "lider"),
-        )
+    # La aprobación Líder→Gerencia ya se hizo en la Solicitud de Servicio:
+    # el contrato nace aprobado y se notifica directamente a Jurídica.
+    background_tasks.add_task(_notificar_juridica_aprobado, contrato, notifier)
 
     return _to_contrato_response(contrato)
 
@@ -416,6 +503,63 @@ def list_otrosies_pendientes(
         for c, o in items
         if o.archivo_id is None and o.aprobado_gerencia_at is not None
     ]
+
+
+def _to_solicitud_info_response(s, contrato=None) -> SolicitudInformacionResponse:
+    return SolicitudInformacionResponse(
+        id=s.id,
+        contrato_id=s.contrato_id,
+        contrato_codigo=(contrato.codigo if contrato else None),
+        proveedor_contratista=(contrato.proveedor_contratista if contrato else None),
+        solicitado_por_id=s.solicitado_por_id,
+        solicitado_por_username=s.solicitado_por_username or "",
+        mensaje=s.mensaje,
+        fecha_limite_respuesta=s.fecha_limite_respuesta,
+        dias_para_responder=s.dias_para_responder(),
+        vencida=s.vencida(),
+        estado=s.estado,
+        respuesta=s.respuesta or "",
+        respondido_por_id=s.respondido_por_id,
+        respondido_por_username=s.respondido_por_username or "",
+        respondido_at=s.respondido_at,
+        created_at=s.created_at,
+        archivos=[
+            ArchivoResponse(
+                id=a.id,
+                tipo=a.tipo,
+                nombre_original=a.nombre_original,
+                mime_type=a.mime_type,
+                tamano_bytes=a.tamano_bytes,
+                subido_por_id=a.subido_por_id,
+                created_at=a.created_at,
+            )
+            for a in s.archivos
+        ],
+    )
+
+
+@router.get(
+    "/solicitudes-informacion/pendientes",
+    response_model=list[SolicitudInformacionResponse],
+)
+def list_solicitudes_informacion_pendientes(
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+) -> list[SolicitudInformacionResponse]:
+    """Avisos in-app: solicitudes de información pendientes.
+
+    - Compras: las de los contratos que radicó.
+    - Jurídica/Admin: todas las pendientes.
+    """
+    pendientes = contratos.list_solicitudes_informacion_pendientes()
+    resultado = []
+    for contrato, solicitud in pendientes:
+        if current.is_compras() and contrato.creado_por_id != current.id:
+            continue
+        if not (current.is_admin() or current.is_juridica() or current.is_compras()):
+            continue
+        resultado.append(_to_solicitud_info_response(solicitud, contrato))
+    return resultado
 
 
 @router.get("/seguimiento/publico", response_model=SeguimientoContratoResponse)
@@ -656,6 +800,53 @@ def descargar_archivo_revision(
     )
 
 
+@router.get("/minutas/plantillas")
+def listar_plantillas_minuta(
+    current: User = Depends(get_current_user),
+) -> list[dict]:
+    if not (current.is_juridica() or current.is_admin()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo Jurídica puede generar minutas.",
+        )
+    return [{"clave": k, "nombre": v["nombre"]} for k, v in PLANTILLAS.items()]
+
+
+@router.get("/{contrato_id}/minuta/{plantilla}")
+def generar_minuta_contrato(
+    contrato_id: int,
+    plantilla: str,
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+) -> Response:
+    if not (current.is_juridica() or current.is_admin()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo Jurídica puede generar minutas.",
+        )
+    if plantilla not in PLANTILLAS:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plantilla de minuta desconocida.",
+        )
+    contrato = contratos.get_by_id(contrato_id)
+    if contrato is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No existe el contrato {contrato_id}.",
+        )
+    datos = generar_minuta(plantilla, contrato)
+    codigo = (getattr(contrato, "codigo", "") or str(contrato_id)).replace("/", "-")
+    nombre = f"Minuta {PLANTILLAS[plantilla]['nombre']} {codigo}.docx"
+    return Response(
+        content=datos,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ),
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
 @router.get("/{contrato_id}/aprobar/{paso}", response_class=HTMLResponse)
 def aprobar_por_correo(
     contrato_id: int,
@@ -663,6 +854,7 @@ def aprobar_por_correo(
     token: str = Query(...),
     contratos: ContratoRepository = Depends(get_contrato_repository),
     notifier: EmailNotifier = Depends(get_email_notifier),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
 ) -> HTMLResponse:
     if paso not in ("lider", "gerencia") or not _validar_token(contrato_id, paso, token):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido.")
@@ -672,6 +864,7 @@ def aprobar_por_correo(
         if paso == "lider":
             contrato = caso.aprobar_lider(contrato_id)
             _notificar_gerencia_aprobacion(contrato, notifier)
+            evento = f"El líder aprobó el contrato {contrato.codigo}."
             mensaje = (
                 "Aprobación del líder registrada. "
                 "Ahora se notificó a Gerencia para la aprobación final."
@@ -680,6 +873,7 @@ def aprobar_por_correo(
             contrato = caso.aprobar_gerencia(contrato_id)
             _notificar_juridica_aprobado(contrato, notifier)
             _notificar_lider_contrato_en_juridica(contrato, notifier)
+            evento = f"Gerencia aprobó el contrato {contrato.codigo}."
             mensaje = (
                 "Aprobación de Gerencia registrada. "
                 "El contrato ya aparece para Jurídica en el módulo Contratos."
@@ -691,6 +885,8 @@ def aprobar_por_correo(
         if contrato is not None:
             return _html_aprobacion_ya_procesada(contrato, paso, str(e))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    registrar_evento_contrato_en_srv(solicitudes, contrato, None, evento)
 
     return HTMLResponse(
         f"""<!DOCTYPE html>
@@ -712,6 +908,7 @@ def rechazar_por_correo(
     paso: str,
     token: str = Query(...),
     contratos: ContratoRepository = Depends(get_contrato_repository),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
 ) -> HTMLResponse:
     if paso not in ("lider", "gerencia") or not _validar_token(contrato_id, paso, token):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido.")
@@ -727,6 +924,14 @@ def rechazar_por_correo(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    quien = "El líder" if paso == "lider" else "Gerencia"
+    registrar_evento_contrato_en_srv(
+        solicitudes,
+        contrato,
+        None,
+        f"{quien} rechazó la solicitud del contrato {contrato.codigo}.",
+    )
 
     return HTMLResponse(
         f"""<!DOCTYPE html>
@@ -832,9 +1037,15 @@ def _notificar_lider_contrato_en_juridica(contrato, notifier: EmailNotifier) -> 
 def cambiar_estado(
     contrato_id: int,
     payload: CambiarEstadoRequest,
+    background_tasks: BackgroundTasks,
     current: User = Depends(get_current_user),
     contratos: ContratoRepository = Depends(get_contrato_repository),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+    users: UserRepository = Depends(get_user_repository),
 ) -> ContratoResponse:
+    previo = contratos.get_by_id(contrato_id)
+    estado_anterior = previo.estado if previo else None
     try:
         contrato = CambiarEstadoContrato(contratos).execute(
             actor=current, contrato_id=contrato_id, nuevo_estado=payload.estado
@@ -845,7 +1056,944 @@ def cambiar_estado(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    observacion = (payload.observacion or "").strip()
+    if estado_anterior != contrato.estado:
+        comentario = (
+            f"Jurídica actualizó el estado de {contrato.codigo}: "
+            f"{etiqueta_estado_contrato(estado_anterior)} → "
+            f"{etiqueta_estado_contrato(contrato.estado)}"
+        )
+        if observacion:
+            comentario = f"{comentario} — Observación: {observacion}"
+        registrar_evento_contrato_en_srv(
+            solicitudes,
+            contrato,
+            current.id,
+            comentario,
+            etapa=etapa_historial_contrato(contrato.estado),
+        )
+        if observacion:
+            registrar_observacion_contrato_en_srv(
+                solicitudes, contrato, current, observacion
+            )
+        background_tasks.add_task(
+            _notificar_cambio_estado_supervisor,
+            contrato,
+            estado_anterior,
+            notifier,
+            users,
+        )
     return _to_contrato_response(contrato)
+
+
+def _guardar_evidencia_srv(uploads, storage: FileStorage, actor_id):
+    """Guarda adjuntos de evidencia y devuelve entidades SolicitudGestionArchivo."""
+    from app.domain.entities.solicitud_gestion import SolicitudGestionArchivo
+
+    entidades = []
+    for upload in uploads or []:
+        if not upload or not upload.filename:
+            continue
+        contenido = upload.file.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        stored = storage.save(
+            contenido=contenido,
+            nombre_original=upload.filename,
+            mime_type=upload.content_type or "application/octet-stream",
+            subcarpeta="solicitudes/anticipo",
+        )
+        entidades.append(
+            SolicitudGestionArchivo(
+                nombre_original=stored.nombre_original,
+                ruta_almacenamiento=stored.ruta,
+                mime_type=stored.mime_type,
+                tamano_bytes=stored.tamano_bytes,
+                categoria="observacion",
+                subido_por_id=actor_id,
+            )
+        )
+    return entidades
+
+
+def _registrar_traza_anticipo(
+    solicitudes,
+    storage,
+    contrato,
+    actor,
+    comentario_flujo,
+    observacion,
+    uploads,
+    contexto,
+    observacion_html: str = "",
+) -> None:
+    registrar_evento_contrato_en_srv(
+        solicitudes,
+        contrato,
+        actor.id,
+        comentario_flujo,
+        etapa=etapa_historial_contrato(contrato.estado),
+    )
+    archivos = _guardar_evidencia_srv(uploads, storage, actor.id)
+    texto = (observacion or "").strip()
+    html = (observacion_html or "").strip()
+    if texto or html or archivos:
+        registrar_observacion_contrato_en_srv(
+            solicitudes,
+            contrato,
+            actor,
+            texto,
+            contexto=contexto,
+            archivos=archivos,
+            contenido_html=html,
+            storage=storage,
+        )
+
+
+def _emails_por_rol(users: UserRepository, rol) -> list[str]:
+    correos = []
+    for u in users.list_all():
+        if getattr(u, "role", None) == rol and getattr(u, "email", "") and u.is_active:
+            correos.append(u.email)
+    return list(dict.fromkeys(correos))
+
+
+def _notificar_anticipo_rol(contrato, notifier, users, rol, titulo, cuerpo) -> None:
+    from app.domain.value_objects.roles import Role
+
+    if not notifier.disponible:
+        return
+    destinatarios = _emails_por_rol(users, rol)
+    if not destinatarios:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    proveedor = escape(contrato.proveedor_contratista or "")
+    html = f"<p>{cuerpo}</p><p>Contrato <b>{codigo}</b> ({proveedor}).</p>"
+    texto = f"{cuerpo} Contrato {contrato.codigo} ({contrato.proveedor_contratista or ''})."
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] {titulo} — {contrato.codigo}",
+            destinatarios=destinatarios,
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+        )
+    )
+
+
+def _notificar_anticipo_pagado(contrato, notifier, users: UserRepository) -> None:
+    """Tras el pago, avisa a Jurídica, Compras y al supervisor."""
+    if not notifier.disponible:
+        return
+    destinatarios = list(settings.juridica_emails_list) + list(settings.compras_emails_list)
+    if contrato.supervisor_id:
+        supervisor = users.get_by_id(contrato.supervisor_id)
+        if supervisor and supervisor.email:
+            destinatarios.append(supervisor.email)
+    destinatarios = list(dict.fromkeys(e for e in destinatarios if e))
+    if not destinatarios:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    proveedor = escape(contrato.proveedor_contratista or "")
+    html = (
+        f"<p>Tesorería confirmó el <b>pago del anticipo</b> del contrato "
+        f"<b>{codigo}</b> ({proveedor}).</p>"
+        f"<p>El contrato quedó en estado <b>Anticipo pagado</b>. "
+        f"Jurídica puede continuar el flujo y activarlo cuando corresponda.</p>"
+    )
+    texto = (
+        f"Tesorería confirmó el pago del anticipo del contrato {contrato.codigo} "
+        f"({contrato.proveedor_contratista or ''}). El contrato quedó en 'Anticipo "
+        f"pagado'; Jurídica puede continuar y activarlo."
+    )
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] Anticipo pagado — {contrato.codigo}",
+            destinatarios=destinatarios,
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+        )
+    )
+
+
+@router.post("/{contrato_id}/anticipo/enviar-contabilidad", response_model=ContratoResponse)
+def anticipo_enviar_contabilidad(
+    contrato_id: int,
+    background_tasks: BackgroundTasks,
+    observacion: str = Form(""),
+    observacion_html: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+    users: UserRepository = Depends(get_user_repository),
+) -> ContratoResponse:
+    from app.domain.value_objects.roles import Role
+
+    try:
+        contrato = EnviarAnticipoContabilidad(contratos).execute(current, contrato_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    _registrar_traza_anticipo(
+        solicitudes,
+        storage,
+        contrato,
+        current,
+        f"Jurídica envió el anticipo de {contrato.codigo} a Contabilidad",
+        observacion,
+        adjuntos,
+        contexto="juridica",
+        observacion_html=observacion_html,
+    )
+    background_tasks.add_task(
+        _notificar_anticipo_rol,
+        contrato,
+        notifier,
+        users,
+        Role.CONTABILIDAD,
+        "Anticipo recibido para gestión",
+        "Jurídica envió un anticipo para que lo gestiones.",
+    )
+    return _to_contrato_response(contrato)
+
+
+@router.post("/{contrato_id}/anticipo/gestionar", response_model=ContratoResponse)
+def anticipo_gestionar_contabilidad(
+    contrato_id: int,
+    background_tasks: BackgroundTasks,
+    observacion: str = Form(""),
+    observacion_html: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+    users: UserRepository = Depends(get_user_repository),
+) -> ContratoResponse:
+    from app.domain.value_objects.roles import Role
+
+    try:
+        contrato = GestionarAnticipoContabilidad(contratos).execute(current, contrato_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    _registrar_traza_anticipo(
+        solicitudes,
+        storage,
+        contrato,
+        current,
+        f"Contabilidad gestionó el anticipo de {contrato.codigo} y lo envió a Tesorería",
+        observacion,
+        adjuntos,
+        contexto="contabilidad",
+        observacion_html=observacion_html,
+    )
+    background_tasks.add_task(
+        _notificar_anticipo_rol,
+        contrato,
+        notifier,
+        users,
+        Role.TESORERIA,
+        "Anticipo listo para pago",
+        "Contabilidad gestionó un anticipo y queda pendiente tu revisión y pago.",
+    )
+    return _to_contrato_response(contrato)
+
+
+@router.post("/{contrato_id}/anticipo/confirmar-pago", response_model=ContratoResponse)
+def anticipo_confirmar_pago(
+    contrato_id: int,
+    background_tasks: BackgroundTasks,
+    observacion: str = Form(""),
+    observacion_html: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+    users: UserRepository = Depends(get_user_repository),
+) -> ContratoResponse:
+    try:
+        contrato = ConfirmarPagoTesoreria(contratos).execute(current, contrato_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    _registrar_traza_anticipo(
+        solicitudes,
+        storage,
+        contrato,
+        current,
+        f"Tesorería confirmó el pago del anticipo de {contrato.codigo}; el contrato quedó en 'Anticipo pagado' y se avisó a Jurídica",
+        observacion,
+        adjuntos,
+        contexto="tesoreria",
+        observacion_html=observacion_html,
+    )
+    background_tasks.add_task(_notificar_anticipo_pagado, contrato, notifier, users)
+    return _to_contrato_response(contrato)
+
+
+def _notificar_contrato_completado(
+    contrato, notifier: EmailNotifier, users: UserRepository
+) -> None:
+    """Tras el pago final de Tesorería, avisa a Jurídica, Compras y al supervisor."""
+    if not notifier.disponible:
+        return
+    destinatarios = list(settings.juridica_emails_list) + list(settings.compras_emails_list)
+    if contrato.supervisor_id:
+        supervisor = users.get_by_id(contrato.supervisor_id)
+        if supervisor and supervisor.email:
+            destinatarios.append(supervisor.email)
+    destinatarios = list(dict.fromkeys(e for e in destinatarios if e))
+    if not destinatarios:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    proveedor = escape(contrato.proveedor_contratista or "")
+    html = (
+        f"<p>Tesorería confirmó el <b>pago final</b> del contrato "
+        f"<b>{codigo}</b> ({proveedor}).</p>"
+        f"<p>El contrato quedó <b>Completado</b>: finaliza el proceso de cierre en "
+        f"Contabilidad y Tesorería. Toda la trazabilidad y los archivos quedan "
+        f"disponibles en la solicitud.</p>"
+    )
+    texto = (
+        f"Tesorería confirmó el pago final del contrato {contrato.codigo} "
+        f"({contrato.proveedor_contratista or ''}). El contrato quedó 'Completado'."
+    )
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] Contrato completado — {contrato.codigo}",
+            destinatarios=destinatarios,
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+        )
+    )
+
+
+@router.post("/{contrato_id}/cierre/gestionar", response_model=ContratoResponse)
+def cierre_gestionar_contabilidad(
+    contrato_id: int,
+    background_tasks: BackgroundTasks,
+    observacion: str = Form(""),
+    observacion_html: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+    users: UserRepository = Depends(get_user_repository),
+) -> ContratoResponse:
+    from app.domain.value_objects.roles import Role
+
+    try:
+        contrato = GestionarCierreContabilidad(contratos).execute(current, contrato_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    _registrar_traza_anticipo(
+        solicitudes,
+        storage,
+        contrato,
+        current,
+        f"Contabilidad gestionó el cierre de {contrato.codigo} y lo envió a Tesorería para el pago final",
+        observacion,
+        adjuntos,
+        contexto="contabilidad",
+        observacion_html=observacion_html,
+    )
+    background_tasks.add_task(
+        _notificar_anticipo_rol,
+        contrato,
+        notifier,
+        users,
+        Role.TESORERIA,
+        "Cierre listo para pago final",
+        "Contabilidad gestionó el cierre de un contrato y queda pendiente tu pago final.",
+    )
+    return _to_contrato_response(contrato)
+
+
+@router.post("/{contrato_id}/cierre/confirmar", response_model=ContratoResponse)
+def cierre_confirmar_tesoreria(
+    contrato_id: int,
+    background_tasks: BackgroundTasks,
+    observacion: str = Form(""),
+    observacion_html: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+    users: UserRepository = Depends(get_user_repository),
+) -> ContratoResponse:
+    try:
+        contrato = ConfirmarCierreTesoreria(contratos).execute(current, contrato_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    registrar_evento_contrato_en_srv(
+        solicitudes,
+        contrato,
+        current.id,
+        f"Tesorería confirmó el pago final de {contrato.codigo}; el contrato quedó 'Completado'",
+        etapa=EstadoSolicitudGestion.CONTRATO_COMPLETADO,
+        nuevo_estado=EstadoSolicitudGestion.CONTRATO_COMPLETADO,
+    )
+    archivos = _guardar_evidencia_srv(adjuntos, storage, current.id)
+    texto = (observacion or "").strip()
+    html = (observacion_html or "").strip()
+    if texto or html or archivos:
+        registrar_observacion_contrato_en_srv(
+            solicitudes,
+            contrato,
+            current,
+            texto,
+            contexto="tesoreria",
+            archivos=archivos,
+            contenido_html=html,
+            storage=storage,
+        )
+    background_tasks.add_task(_notificar_contrato_completado, contrato, notifier, users)
+    return _to_contrato_response(contrato)
+
+
+def _leer_upload_finalizacion(
+    upload: Optional[UploadFile], tipo: TipoArchivo
+) -> Optional[ArchivoFinalizacion]:
+    if upload is None or not upload.filename:
+        return None
+    contenido = upload.file.read()
+    if len(contenido) > settings.max_upload_size_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"El archivo supera el límite de {settings.MAX_UPLOAD_SIZE_MB} MB.",
+        )
+    return ArchivoFinalizacion(
+        tipo=tipo,
+        nombre_original=upload.filename,
+        mime_type=upload.content_type or "application/octet-stream",
+        contenido=contenido,
+    )
+
+
+@router.post("/{contrato_id}/finalizar", response_model=ContratoResponse)
+def finalizar_contrato(
+    contrato_id: int,
+    background_tasks: BackgroundTasks,
+    informe_final: UploadFile = File(..., description="Informe final (obligatorio)."),
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+    users: UserRepository = Depends(get_user_repository),
+) -> ContratoResponse:
+    informe = _leer_upload_finalizacion(informe_final, TipoArchivo.INFORME_FINAL)
+    try:
+        contrato = FinalizarContratoCompras(
+            contratos, storage, umbral_acta=_umbral_acta()
+        ).execute(
+            actor=current,
+            contrato_id=contrato_id,
+            informe_final=informe,
+        )
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    from app.domain.value_objects.roles import Role
+
+    if contrato.estado == EstadoContrato.CIERRE_CONTABILIDAD:
+        registrar_evento_contrato_en_srv(
+            solicitudes,
+            contrato,
+            current.id,
+            f"Supervisor entregó el informe final de {contrato.codigo}; "
+            f"el contrato pasó a Cierre en contabilidad",
+            etapa=EstadoSolicitudGestion.CIERRE_CONTABILIDAD,
+        )
+        background_tasks.add_task(
+            _notificar_anticipo_rol,
+            contrato,
+            notifier,
+            users,
+            Role.CONTABILIDAD,
+            "Cierre de contrato para gestión",
+            "El supervisor finalizó un contrato. Gestiona el cierre y envíalo a Tesorería.",
+        )
+    else:
+        # Contrato > umbral: el informe quedó entregado; Jurídica debe elaborar el acta.
+        registrar_evento_contrato_en_srv(
+            solicitudes,
+            contrato,
+            current.id,
+            f"Supervisor entregó el informe final de {contrato.codigo}; "
+            f"pendiente el acta de liquidación de Jurídica",
+        )
+        # Adjunta el informe final para que Jurídica lo tenga a la mano al elaborar el acta.
+        adjunto_informe = EmailAttachment(
+            nombre=informe.nombre_original,
+            contenido=informe.contenido,
+            mime_type=informe.mime_type,
+        )
+        background_tasks.add_task(
+            _notificar_pendiente_acta_liquidacion, contrato, notifier, adjunto_informe
+        )
+    return _to_contrato_response(contrato)
+
+
+@router.post("/{contrato_id}/acta-liquidacion", response_model=ContratoResponse)
+def cargar_acta_liquidacion(
+    contrato_id: int,
+    background_tasks: BackgroundTasks,
+    acta_liquidacion: UploadFile = File(..., description="Acta de liquidación (obligatoria)."),
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+    users: UserRepository = Depends(get_user_repository),
+) -> ContratoResponse:
+    acta = _leer_upload_finalizacion(acta_liquidacion, TipoArchivo.ACTA_LIQUIDACION)
+    try:
+        contrato = CargarActaLiquidacion(
+            contratos, storage, umbral_acta=_umbral_acta()
+        ).execute(
+            actor=current,
+            contrato_id=contrato_id,
+            acta_liquidacion=acta,
+        )
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    from app.domain.value_objects.roles import Role
+
+    registrar_evento_contrato_en_srv(
+        solicitudes,
+        contrato,
+        current.id,
+        f"Jurídica cargó el acta de liquidación de {contrato.codigo}; "
+        f"el contrato pasó a Cierre en contabilidad",
+        etapa=EstadoSolicitudGestion.CIERRE_CONTABILIDAD,
+    )
+    background_tasks.add_task(
+        _notificar_anticipo_rol,
+        contrato,
+        notifier,
+        users,
+        Role.CONTABILIDAD,
+        "Cierre de contrato para gestión",
+        "Jurídica cargó el acta de liquidación. Gestiona el cierre y envíalo a Tesorería.",
+    )
+    # Devuelve el acta de liquidación al supervisor por correo (adjunta).
+    adjunto_acta = EmailAttachment(
+        nombre=acta.nombre_original,
+        contenido=acta.contenido,
+        mime_type=acta.mime_type,
+    )
+    background_tasks.add_task(
+        _notificar_acta_a_supervisor, contrato, notifier, users, adjunto_acta
+    )
+    return _to_contrato_response(contrato)
+
+
+def _notificar_pendiente_acta_liquidacion(
+    contrato, notifier: EmailNotifier, adjunto: EmailAttachment | None = None
+) -> None:
+    """Avisa a Jurídica que el supervisor entregó el informe final y falta el acta.
+
+    Adjunta el informe final (si se recibe) para que Jurídica elabore el acta.
+    """
+    if not notifier.disponible:
+        return
+    destinatarios = list(dict.fromkeys(e for e in settings.juridica_emails_list if e))
+    if not destinatarios:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    proveedor = escape(contrato.proveedor_contratista or "")
+    supervisor = escape(contrato.supervisor_username or "el supervisor")
+    url = f"{settings.public_url}/app/juridica/editar-contrato.html"
+    if contrato.codigo:
+        url = f"{url}?codigo={contrato.codigo}"
+    adjunto_nota = (
+        "<p>Adjuntamos el informe final entregado por el supervisor.</p>" if adjunto else ""
+    )
+    html = (
+        f"<p><b>{supervisor}</b> entregó el <b>informe final</b> del contrato "
+        f"<b>{codigo}</b> ({proveedor}), cuyo valor supera el umbral para acta de "
+        f"liquidación.</p>"
+        f"{adjunto_nota}"
+        f"<p>Por favor elabora y carga el <b>acta de liquidación</b> para finalizar "
+        f"el contrato.</p>"
+        f'<p><a href="{escape(url)}">Abrir el contrato</a></p>'
+    )
+    texto = (
+        f"{contrato.supervisor_username or 'El supervisor'} entregó el informe final "
+        f"del contrato {contrato.codigo} ({contrato.proveedor_contratista or ''}). "
+        f"Jurídica debe elaborar y cargar el acta de liquidación para finalizarlo. "
+        f"{url}"
+    )
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] Falta acta de liquidación — {contrato.codigo}",
+            destinatarios=destinatarios,
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+            adjuntos=[adjunto] if adjunto else [],
+        )
+    )
+
+
+def _notificar_acta_a_supervisor(
+    contrato, notifier: EmailNotifier, users: UserRepository, adjunto: EmailAttachment | None = None
+) -> None:
+    """Envía el acta de liquidación de vuelta al supervisor del contrato (adjunta)."""
+    if not notifier.disponible or not contrato.supervisor_id:
+        return
+    supervisor = users.get_by_id(contrato.supervisor_id)
+    if not supervisor or not supervisor.email:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    proveedor = escape(contrato.proveedor_contratista or "")
+    adjunto_nota = "<p>Adjuntamos el acta de liquidación.</p>" if adjunto else ""
+    html = (
+        f"<p>Jurídica elaboró el <b>acta de liquidación</b> del contrato "
+        f"<b>{codigo}</b> ({proveedor}).</p>"
+        f"{adjunto_nota}"
+        f"<p>El contrato continúa con el cierre administrativo (Contabilidad → Tesorería).</p>"
+    )
+    texto = (
+        f"Jurídica elaboró el acta de liquidación del contrato {contrato.codigo} "
+        f"({contrato.proveedor_contratista or ''}). Se adjunta el acta."
+    )
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] Acta de liquidación — {contrato.codigo}",
+            destinatarios=[supervisor.email],
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+            adjuntos=[adjunto] if adjunto else [],
+        )
+    )
+
+
+def _notificar_contrato_finalizado(
+    contrato, notifier: EmailNotifier, users: UserRepository
+) -> None:
+    """Avisa a Compras, Jurídica y al supervisor que la operación quedó finalizada."""
+    if not notifier.disponible:
+        return
+    destinatarios = list(settings.compras_emails_list) + list(settings.juridica_emails_list)
+    if contrato.supervisor_id:
+        supervisor = users.get_by_id(contrato.supervisor_id)
+        if supervisor and supervisor.email:
+            destinatarios.append(supervisor.email)
+    destinatarios = list(dict.fromkeys(e for e in destinatarios if e))
+    if not destinatarios:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    proveedor = escape(contrato.proveedor_contratista or "")
+    html = (
+        f"<p>El contrato/servicio <b>{codigo}</b> ({proveedor}) fue "
+        f"<b>finalizado</b> por el supervisor.</p>"
+        f"<p>El informe final y el acta de liquidación quedaron cargados. "
+        f"La operación del servicio queda <b>completada</b> y cerrada.</p>"
+    )
+    texto = (
+        f"El contrato/servicio {contrato.codigo} ({contrato.proveedor_contratista or ''}) "
+        f"fue finalizado por el supervisor. Informe final y acta de liquidación cargados. "
+        f"Operación completada y cerrada."
+    )
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] Contrato finalizado — {contrato.codigo}",
+            destinatarios=destinatarios,
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+        )
+    )
+
+
+def _notificar_cambio_estado_supervisor(
+    contrato, estado_anterior, notifier: EmailNotifier, users: UserRepository
+) -> None:
+    """Avisa al supervisor que Jurídica actualizó el estado del contrato."""
+    if not contrato or not contrato.supervisor_id:
+        return
+    supervisor = users.get_by_id(contrato.supervisor_id)
+    if not notifier.disponible or not supervisor or not supervisor.email:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    anterior = escape(etiqueta_estado_contrato(estado_anterior))
+    actual = escape(etiqueta_estado_contrato(contrato.estado))
+    url = "/app/compras/finalizar-contrato.html"
+    if contrato.codigo:
+        url = f"/app/compras/finalizar-contrato.html?codigo={contrato.codigo}"
+    html = (
+        f"<p>Jurídica actualizó el estado del contrato <b>{codigo}</b> "
+        f"({escape(contrato.proveedor_contratista or '')}).</p>"
+        f"<p><b>Estado anterior:</b> {anterior}<br>"
+        f"<b>Estado actual:</b> {actual}</p>"
+        f"<p>Revisa el contrato y la conversación con Jurídica en "
+        f"<a href=\"{escape(url)}\">Finalizar contrato</a>.</p>"
+    )
+    texto = (
+        f"Jurídica actualizó el estado del contrato {contrato.codigo}: "
+        f"{etiqueta_estado_contrato(estado_anterior)} → "
+        f"{etiqueta_estado_contrato(contrato.estado)}."
+    )
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] Estado actualizado — {contrato.codigo}",
+            destinatarios=[supervisor.email],
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+        )
+    )
+
+
+def _notificar_solicitud_informacion(
+    contrato, solicitud, notifier: EmailNotifier, users: UserRepository
+) -> None:
+    """Avisa al supervisor asignado que Jurídica pidió información faltante."""
+    destinatarios: list[str] = []
+    if contrato.supervisor_id:
+        supervisor = users.get_by_id(contrato.supervisor_id)
+        if supervisor and supervisor.email:
+            destinatarios = [supervisor.email]
+    if not notifier.disponible or not destinatarios:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    limite = solicitud.fecha_limite_respuesta.isoformat() if solicitud.fecha_limite_respuesta else "—"
+    mensaje = escape(solicitud.mensaje)
+    html = (
+        f"<p>Jurídica solicitó información faltante para el contrato <b>{codigo}</b> "
+        f"({escape(contrato.proveedor_contratista)}).</p>"
+        f"<p><b>Información solicitada:</b><br>{mensaje}</p>"
+        f"<p>Tienes hasta el <b>{limite}</b> (2 días hábiles) para responder desde "
+        f"“Finalizar contrato” o desde el detalle de tu solicitud de servicios.</p>"
+    )
+    texto = (
+        f"Jurídica solicitó información para el contrato {contrato.codigo}. "
+        f"Información: {solicitud.mensaje}. Fecha límite: {limite}."
+    )
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] Información faltante — {contrato.codigo}",
+            destinatarios=destinatarios,
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+        )
+    )
+
+
+def _notificar_respuesta_informacion(contrato, solicitud, notifier: EmailNotifier) -> None:
+    """Avisa a Jurídica que Compras respondió con la información."""
+    destinatarios = settings.juridica_emails_list
+    if not notifier.disponible or not destinatarios:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    respuesta = escape(solicitud.respuesta)
+    html = (
+        f"<p>El supervisor respondió la información faltante del contrato <b>{codigo}</b> "
+        f"({escape(contrato.proveedor_contratista)}).</p>"
+        f"<p><b>Respuesta:</b><br>{respuesta}</p>"
+        f"<p>Revisa el contrato en Edición de contratos.</p>"
+    )
+    texto = (
+        f"El supervisor respondió el contrato {contrato.codigo}. Respuesta: {solicitud.respuesta}."
+    )
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] Información recibida — {contrato.codigo}",
+            destinatarios=destinatarios,
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+        )
+    )
+
+
+@router.post(
+    "/{contrato_id}/solicitudes-informacion",
+    response_model=SolicitudInformacionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def solicitar_informacion(
+    contrato_id: int,
+    background_tasks: BackgroundTasks,
+    mensaje: str = Form(..., description="Qué información falta."),
+    archivos: list[UploadFile] = File(default=[], description="Fotos u otros adjuntos (opcional)."),
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+    users: UserRepository = Depends(get_user_repository),
+) -> SolicitudInformacionResponse:
+    entradas: list[ArchivoSolicitudInfo] = []
+    for upload in archivos or []:
+        if upload is None or not upload.filename:
+            continue
+        contenido = upload.file.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo supera el límite de {settings.MAX_UPLOAD_SIZE_MB} MB.",
+            )
+        entradas.append(
+            ArchivoSolicitudInfo(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud = SolicitarInformacion(contratos, storage).execute(
+            actor=current,
+            contrato_id=contrato_id,
+            mensaje=mensaje,
+            archivos=entradas,
+        )
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    contrato = contratos.get_by_id(contrato_id)
+    registrar_evento_contrato_en_srv(
+        solicitudes,
+        contrato,
+        current.id,
+        (
+            f"Jurídica solicitó información al supervisor ({contrato.codigo}): "
+            f"{solicitud.mensaje}"
+        ),
+        etapa=EstadoSolicitudGestion.SOLICITANDO_INFO,
+    )
+    background_tasks.add_task(
+        _notificar_solicitud_informacion, contrato, solicitud, notifier, users
+    )
+    return _to_solicitud_info_response(solicitud, contrato)
+
+
+@router.get(
+    "/{contrato_id}/solicitudes-informacion",
+    response_model=list[SolicitudInformacionResponse],
+)
+def list_solicitudes_informacion(
+    contrato_id: int,
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+) -> list[SolicitudInformacionResponse]:
+    contrato = contratos.get_by_id(contrato_id)
+    if contrato is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No existe el contrato.")
+    if current.is_solicitante() and contrato.supervisor_id != current.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sólo puedes ver solicitudes de contratos donde eres supervisor.",
+        )
+    items = contratos.list_solicitudes_informacion_by_contrato(contrato_id)
+    return [_to_solicitud_info_response(s, contrato) for s in items]
+
+
+@router.post(
+    "/{contrato_id}/solicitudes-informacion/{solicitud_id}/responder",
+    response_model=SolicitudInformacionResponse,
+)
+def responder_informacion(
+    contrato_id: int,
+    solicitud_id: int,
+    background_tasks: BackgroundTasks,
+    respuesta: str = Form(..., description="Información solicitada."),
+    archivos: list[UploadFile] = File(default=[], description="Adjuntos (opcional)."),
+    current: User = Depends(get_current_user),
+    contratos: ContratoRepository = Depends(get_contrato_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notifier: EmailNotifier = Depends(get_email_notifier),
+) -> SolicitudInformacionResponse:
+    entradas: list[ArchivoRespuesta] = []
+    for upload in archivos or []:
+        if upload is None or not upload.filename:
+            continue
+        contenido = upload.file.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo supera el límite de {settings.MAX_UPLOAD_SIZE_MB} MB.",
+            )
+        entradas.append(
+            ArchivoRespuesta(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud = ResponderInformacion(contratos, storage).execute(
+            actor=current,
+            contrato_id=contrato_id,
+            solicitud_id=solicitud_id,
+            respuesta=respuesta,
+            archivos=entradas,
+        )
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    contrato = contratos.get_by_id(contrato_id)
+    registrar_evento_contrato_en_srv(
+        solicitudes,
+        contrato,
+        current.id,
+        (
+            f"Supervisor respondió a Jurídica ({contrato.codigo}): "
+            f"{solicitud.respuesta}"
+        ),
+        etapa=EstadoSolicitudGestion.INFO_RECIBIDA,
+    )
+    background_tasks.add_task(
+        _notificar_respuesta_informacion, contrato, solicitud, notifier
+    )
+    return _to_solicitud_info_response(solicitud, contrato)
 
 
 @router.put("/{contrato_id}", response_model=ContratoResponse)
@@ -854,6 +2002,7 @@ def editar_contrato(
     payload: EditarContratoRequest,
     current: User = Depends(get_current_user),
     contratos: ContratoRepository = Depends(get_contrato_repository),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
 ) -> ContratoResponse:
     try:
         contrato = EditarContrato(contratos).execute(
@@ -861,6 +2010,7 @@ def editar_contrato(
             contrato_id=contrato_id,
             proveedor_contratista=payload.proveedor_contratista,
             nit_proveedor=payload.nit_proveedor,
+            proveedor_email=payload.proveedor_email,
             descripcion_servicio=payload.descripcion_servicio,
             obligaciones_colbeef=payload.obligaciones_colbeef,
             obligaciones_proveedor=payload.obligaciones_proveedor,
@@ -871,10 +2021,15 @@ def editar_contrato(
             renovacion_automatica=payload.renovacion_automatica,
             condiciones_recibido_satisfactorio=payload.condiciones_recibido_satisfactorio,
             requiere_poliza=payload.requiere_poliza,
+            tipo_precio=payload.tipo_precio,
+            forma_pago=payload.forma_pago,
+            centro_costos=payload.centro_costos,
+            supervisor_id=payload.supervisor_id,
             fecha_inicio=payload.fecha_inicio,
             fecha_fin=payload.fecha_fin,
             fecha_proxima_notificacion=payload.fecha_proxima_notificacion,
             hora_proxima_notificacion=payload.hora_proxima_notificacion,
+            fecha_limite_elaboracion=payload.fecha_limite_elaboracion,
         )
     except ContratoNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -882,6 +2037,12 @@ def editar_contrato(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    registrar_evento_contrato_en_srv(
+        solicitudes,
+        contrato,
+        current.id,
+        f"{_actor_label(current)} actualizó los datos del contrato {contrato.codigo}.",
+    )
     return _to_contrato_response(contrato)
 
 
@@ -892,6 +2053,7 @@ def _adjuntar_archivo_juridica(
     current: User,
     contratos: ContratoRepository,
     storage: FileStorage,
+    solicitudes: Optional[SolicitudGestionRepository] = None,
 ) -> ArchivoResponse:
     if upload is None or not upload.filename:
         raise HTTPException(
@@ -923,6 +2085,15 @@ def _adjuntar_archivo_juridica(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except InvalidFileError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    if solicitudes is not None:
+        contrato = contratos.get_by_id(contrato_id)
+        doc = "la póliza" if tipo == TipoArchivo.POLIZA else "el contrato firmado (borrador)"
+        registrar_evento_contrato_en_srv(
+            solicitudes,
+            contrato,
+            current.id,
+            f"{_actor_label(current)} cargó {doc} de {getattr(contrato, 'codigo', '')}.",
+        )
     return _to_archivo_response(archivo)
 
 
@@ -933,9 +2104,10 @@ def subir_poliza(
     current: User = Depends(get_current_user),
     contratos: ContratoRepository = Depends(get_contrato_repository),
     storage: FileStorage = Depends(get_file_storage),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
 ) -> ArchivoResponse:
     return _adjuntar_archivo_juridica(
-        contrato_id, TipoArchivo.POLIZA, archivo, current, contratos, storage
+        contrato_id, TipoArchivo.POLIZA, archivo, current, contratos, storage, solicitudes
     )
 
 
@@ -946,16 +2118,17 @@ def subir_borrador(
     current: User = Depends(get_current_user),
     contratos: ContratoRepository = Depends(get_contrato_repository),
     storage: FileStorage = Depends(get_file_storage),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
 ) -> ArchivoResponse:
     return _adjuntar_archivo_juridica(
-        contrato_id, TipoArchivo.BORRADOR_FIRMADO, archivo, current, contratos, storage
+        contrato_id, TipoArchivo.BORRADOR_FIRMADO, archivo, current, contratos, storage, solicitudes
     )
 
 
 @router.post("/{contrato_id}/otrosi", response_model=ContratoResponse)
 def aplicar_otrosi(
     contrato_id: int,
-    tipo: TipoOtrosi = Form(..., description="prorroga | adicion | modificacion | otro"),
+    tipo: TipoOtrosi = Form(..., description="prorroga | adicion | prorroga_adicion"),
     descripcion: str = Form(..., description="Motivo / descripción del otrosí."),
     plazo_adicional_cantidad: Optional[int] = Form(
         None, description="Sólo para prórroga. Cantidad en la misma unidad del contrato."
@@ -973,6 +2146,7 @@ def aplicar_otrosi(
     contratos: ContratoRepository = Depends(get_contrato_repository),
     storage: FileStorage = Depends(get_file_storage),
     notifier: EmailNotifier = Depends(get_email_notifier),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
 ) -> ContratoResponse:
     archivo_input: Optional[ArchivoOtrosi] = None
     if archivo is not None and archivo.filename:
@@ -1012,6 +2186,13 @@ def aplicar_otrosi(
 
     if current.is_compras():
         _notificar_solicitud_otrosi(resultado.contrato, resultado.otrosi, current, notifier)
+
+    registrar_evento_contrato_en_srv(
+        solicitudes,
+        resultado.contrato,
+        current.id,
+        f"{_actor_label(current)} solicitó un otrosí ({tipo.label}) para {resultado.contrato.codigo}.",
+    )
 
     return _to_contrato_response(resultado.contrato)
 
@@ -1111,6 +2292,7 @@ def finalizar_otrosi_juridica(
     current: User = Depends(get_current_user),
     contratos: ContratoRepository = Depends(get_contrato_repository),
     storage: FileStorage = Depends(get_file_storage),
+    solicitudes: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
 ) -> ContratoResponse:
     if not (current.is_admin() or current.is_juridica()):
         raise HTTPException(
@@ -1179,6 +2361,12 @@ def finalizar_otrosi_juridica(
     contratos.update(contrato)
     contratos.update_otrosi(otrosi)
     final = contratos.get_by_id(contrato_id)
+    registrar_evento_contrato_en_srv(
+        solicitudes,
+        final,
+        current.id,
+        f"{_actor_label(current)} finalizó un otrosí ({tipo.label}) de {getattr(final, 'codigo', '')}.",
+    )
     return _to_contrato_response(final)
 
 
@@ -1202,28 +2390,18 @@ def _actualizar_datos_otrosi(
     otrosi.valor_adicional = None
     otrosi.nueva_descripcion_servicio = None
 
-    if tipo == TipoOtrosi.PRORROGA:
+    if not (tipo.incluye_prorroga or tipo.incluye_adicion):
+        raise ValueError("El otrosí debe incluir al menos una prórroga o una adición.")
+
+    if tipo.incluye_prorroga:
         if not plazo_adicional_cantidad or plazo_adicional_cantidad <= 0:
             raise ValueError("Para una prórroga debes indicar plazo adicional mayor a 0.")
         otrosi.plazo_adicional_cantidad = plazo_adicional_cantidad
         otrosi.plazo_adicional_unidad = contrato.plazo_unidad
-    elif tipo == TipoOtrosi.ADICION:
+    if tipo.incluye_adicion:
         if valor_adicional is None or Decimal(valor_adicional) <= 0:
             raise ValueError("Para una adición debes indicar valor adicional mayor a 0.")
         otrosi.valor_adicional = Decimal(valor_adicional)
-    elif tipo == TipoOtrosi.MODIFICACION:
-        if not nueva_descripcion_servicio or not nueva_descripcion_servicio.strip():
-            raise ValueError("Para una modificación debes indicar la nueva descripción.")
-        otrosi.nueva_descripcion_servicio = nueva_descripcion_servicio.strip()
-    elif tipo == TipoOtrosi.OTRO:
-        # "Otro" es flexible: Jurídica puede modificar plazo, valor y/o descripción.
-        if plazo_adicional_cantidad and plazo_adicional_cantidad > 0:
-            otrosi.plazo_adicional_cantidad = plazo_adicional_cantidad
-            otrosi.plazo_adicional_unidad = contrato.plazo_unidad
-        if valor_adicional is not None and Decimal(valor_adicional) > 0:
-            otrosi.valor_adicional = Decimal(valor_adicional)
-        if nueva_descripcion_servicio and nueva_descripcion_servicio.strip():
-            otrosi.nueva_descripcion_servicio = nueva_descripcion_servicio.strip()
 
 
 def _aplicar_cambios_otrosi_al_contrato(contrato, otrosi) -> None:
@@ -1236,7 +2414,8 @@ def _aplicar_cambios_otrosi_al_contrato(contrato, otrosi) -> None:
 
 
 def _notificar_solicitud_otrosi(contrato, otrosi, current: User, notifier: EmailNotifier) -> None:
-    destinatarios = [contrato.correo_lider_proceso] if contrato.correo_lider_proceso else []
+    email = (settings.APROBACION_DIEGO_SERRANO_EMAIL or "").strip()
+    destinatarios = [email] if email else []
     if not notifier.disponible or not destinatarios:
         return
     from app.infrastructure.email.templates import (

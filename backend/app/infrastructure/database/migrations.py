@@ -68,7 +68,7 @@ def migrar_estado_contratos() -> None:
         conn.execute(
             text(
                 "UPDATE contratos SET estado = 'en_proceso' "
-                "WHERE estado NOT IN ('en_proceso','activo','finalizado')"
+                "WHERE estado NOT IN ('en_proceso','elaborando','activo','finalizado')"
             )
         )
 
@@ -283,6 +283,36 @@ def migrar_aprobacion_otrosies() -> None:
 def _tabla_existe(tabla: str) -> bool:
     inspector = inspect(engine)
     return tabla in inspector.get_table_names()
+
+
+def migrar_seed_proveedores() -> None:
+    """Siembra el catálogo de proveedores desde el Excel empaquetado, una sola
+    vez (si la tabla está vacía). Compras/Admin pueden editarlo después."""
+    if not _tabla_existe("proveedores"):
+        return
+    from pathlib import Path
+
+    from app.infrastructure.catalogos.proveedores_excel import parse_catalogo_proveedores
+    from app.infrastructure.database.models import ProveedorModel
+    from app.infrastructure.database.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        if db.query(ProveedorModel).count() > 0:
+            return
+        ruta = Path(__file__).resolve().parents[3] / "data" / "catalogo_proveedores.xlsx"
+        if not ruta.exists():
+            logger.warning("No hay Excel de proveedores para sembrar en %s", ruta)
+            return
+        provs = parse_catalogo_proveedores(str(ruta))
+        db.add_all(ProveedorModel(**p) for p in provs)
+        db.commit()
+        logger.info("Sembrados %s proveedores en el catálogo.", len(provs))
+    except Exception as e:  # noqa: BLE001 - el arranque no debe caerse por el seed
+        db.rollback()
+        logger.warning("No se pudo sembrar el catálogo de proveedores: %s", e)
+    finally:
+        db.close()
 
 
 def migrar_solicitudes_gestion_legacy() -> None:
@@ -567,9 +597,14 @@ def migrar_campos_solicitud_servicios() -> None:
             "AFTER observaciones_texto",
         ),
         (
+            "requiere_comite_tecnico",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN requiere_comite_tecnico TINYINT(1) NULL "
+            "AFTER requiere_visita",
+        ),
+        (
             "servicio_programado",
             "ALTER TABLE solicitudes_gestion ADD COLUMN servicio_programado TINYINT(1) NULL "
-            "AFTER requiere_visita",
+            "AFTER requiere_comite_tecnico",
         ),
         (
             "fecha_servicio_programado",
@@ -590,6 +625,39 @@ def migrar_campos_solicitud_servicios() -> None:
             "proveedor_sugerido",
             "ALTER TABLE solicitudes_gestion ADD COLUMN proveedor_sugerido VARCHAR(500) NOT NULL "
             "DEFAULT '' AFTER descripcion_servicio_texto",
+        ),
+    ]
+    with engine.begin() as conn:
+        for columna, ddl in columnas:
+            if not _columna_existe("solicitudes_gestion", columna):
+                logger.info("Agregando columna '%s' a solicitudes_gestion...", columna)
+                conn.execute(text(ddl))
+
+
+def migrar_comite_tecnico_srv() -> None:
+    """Campos del flujo de comité técnico (rol Proyectos + aceptación del comité)."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    columnas = [
+        (
+            "proyectista_id",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN proyectista_id INT NULL "
+            "AFTER gestor_id",
+        ),
+        (
+            "comite_supervisor_ok",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN comite_supervisor_ok TINYINT(1) "
+            "NOT NULL DEFAULT 0 AFTER proyectista_id",
+        ),
+        (
+            "comite_proyectos_ok",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN comite_proyectos_ok TINYINT(1) "
+            "NOT NULL DEFAULT 0 AFTER comite_supervisor_ok",
+        ),
+        (
+            "visita_proyectos_hecha",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN visita_proyectos_hecha TINYINT(1) "
+            "NOT NULL DEFAULT 0 AFTER comite_proyectos_ok",
         ),
     ]
     with engine.begin() as conn:
@@ -696,31 +764,43 @@ def migrar_numero_consecutivo_solicitudes() -> None:
 
 def migrar_visitas_programadas_servicios() -> None:
     """Tabla de visitas programadas por el gestor en solicitudes de servicios."""
-    if _tabla_existe("solicitudes_gestion_visitas_programadas"):
-        return
-    with engine.begin() as conn:
-        logger.info("Creando tabla solicitudes_gestion_visitas_programadas...")
-        conn.execute(
-            text(
-                """
-                CREATE TABLE solicitudes_gestion_visitas_programadas (
-                    id                  INT          NOT NULL AUTO_INCREMENT,
-                    solicitud_id        INT          NOT NULL,
-                    programador_visita  VARCHAR(255) NOT NULL DEFAULT '',
-                    proveedor_visita    VARCHAR(500) NOT NULL DEFAULT '',
-                    fecha_visita        DATE         NULL,
-                    hora_visita         TIME         NULL,
-                    created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    PRIMARY KEY (id),
-                    KEY ix_sg_visita_solicitud_id (solicitud_id),
-                    CONSTRAINT fk_sg_visita_solicitud
-                        FOREIGN KEY (solicitud_id)
-                        REFERENCES solicitudes_gestion (id)
-                        ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-                """
+    if not _tabla_existe("solicitudes_gestion_visitas_programadas"):
+        with engine.begin() as conn:
+            logger.info("Creando tabla solicitudes_gestion_visitas_programadas...")
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE solicitudes_gestion_visitas_programadas (
+                        id                  INT          NOT NULL AUTO_INCREMENT,
+                        solicitud_id        INT          NOT NULL,
+                        programador_visita  VARCHAR(255) NOT NULL DEFAULT '',
+                        rol_programador     VARCHAR(30)  NOT NULL DEFAULT '',
+                        proveedor_visita    VARCHAR(500) NOT NULL DEFAULT '',
+                        fecha_visita        DATE         NULL,
+                        hora_visita         TIME         NULL,
+                        created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        PRIMARY KEY (id),
+                        KEY ix_sg_visita_solicitud_id (solicitud_id),
+                        CONSTRAINT fk_sg_visita_solicitud
+                            FOREIGN KEY (solicitud_id)
+                            REFERENCES solicitudes_gestion (id)
+                            ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    """
+                )
             )
-        )
+        return
+    # Tabla ya existe: agrega la columna de rol de forma idempotente.
+    if not _columna_existe("solicitudes_gestion_visitas_programadas", "rol_programador"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'rol_programador' a visitas programadas...")
+            conn.execute(
+                text(
+                    "ALTER TABLE solicitudes_gestion_visitas_programadas "
+                    "ADD COLUMN rol_programador VARCHAR(30) NOT NULL DEFAULT '' "
+                    "AFTER programador_visita"
+                )
+            )
 
 
 def run_all() -> None:
@@ -740,6 +820,7 @@ def run_all() -> None:
     migrar_productos_cantidad()
     migrar_tramite_oc()
     migrar_users_email()
+    migrar_users_nombre()
     migrar_users_lider_catalog_id()
     migrar_solicitudes_creado_por_email()
     migrar_productos_cantidad_entregada()
@@ -754,12 +835,210 @@ def run_all() -> None:
     migrar_tipo_salidas_almacen()
     migrar_area_consumo_producto()
     migrar_campos_solicitud_servicios()
+    migrar_comite_tecnico_srv()
     migrar_numero_consecutivo_solicitudes()
     migrar_visitas_programadas_servicios()
     migrar_anticipo_gestionado_servicios()
     migrar_clasificacion_documento_servicio()
     migrar_vinculo_srv_contrato()
+    migrar_tipo_precio_contratos()
+    migrar_correo_proveedor_contratos()
+    migrar_anticipo_pagado_contratos()
+    migrar_forma_pago_contratos()
+    migrar_centro_costos_contratos()
+    migrar_supervisor_contratos()
+    migrar_anticipo_contratos()
+    migrar_fecha_limite_elaboracion_contratos()
+    migrar_estado_elaborando_contratos()
+    migrar_archivo_solicitud_informacion()
+    migrar_seed_proveedores()
+    migrar_cotizacion_valor_anticipo()
+    migrar_plazo_unidad_varchar()
 
+
+def migrar_correo_proveedor_contratos() -> None:
+    """Correo electrónico del proveedor/contratista."""
+    if not _tabla_existe("contratos"):
+        return
+    if _columna_existe("contratos", "proveedor_email"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columna 'proveedor_email' a contratos...")
+        conn.execute(
+            text(
+                "ALTER TABLE contratos "
+                "ADD COLUMN proveedor_email VARCHAR(255) NOT NULL DEFAULT '' "
+                "AFTER nit_proveedor"
+            )
+        )
+
+
+def migrar_anticipo_pagado_contratos() -> None:
+    """Marca de pago del anticipo confirmado por Tesorería."""
+    if not _tabla_existe("contratos"):
+        return
+    if _columna_existe("contratos", "anticipo_pagado"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columna 'anticipo_pagado' a contratos...")
+        conn.execute(
+            text(
+                "ALTER TABLE contratos "
+                "ADD COLUMN anticipo_pagado TINYINT(1) NOT NULL DEFAULT 0 "
+                "AFTER observaciones_anticipo"
+            )
+        )
+
+
+def migrar_tipo_precio_contratos() -> None:
+    """Formas de pago: indica si el valor es Más IVA, AUI o No aplica."""
+    if not _tabla_existe("contratos"):
+        return
+    if _columna_existe("contratos", "tipo_precio"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columna 'tipo_precio' a contratos...")
+        conn.execute(
+            text(
+                """
+                ALTER TABLE contratos
+                ADD COLUMN tipo_precio VARCHAR(20) NOT NULL DEFAULT 'mas_iva'
+                AFTER requiere_poliza
+                """
+            )
+        )
+
+
+def migrar_forma_pago_contratos() -> None:
+    """Texto libre de forma de pago (anticipo, avance de obra, etc.)."""
+    if not _tabla_existe("contratos"):
+        return
+    if _columna_existe("contratos", "forma_pago"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columna 'forma_pago' a contratos...")
+        conn.execute(
+            text(
+                """
+                ALTER TABLE contratos
+                ADD COLUMN forma_pago VARCHAR(2000) NOT NULL DEFAULT ''
+                AFTER tipo_precio
+                """
+            )
+        )
+
+
+def migrar_centro_costos_contratos() -> None:
+    """Centro de costos al que se carga el proyecto del contrato."""
+    if not _tabla_existe("contratos"):
+        return
+    if _columna_existe("contratos", "centro_costos"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columna 'centro_costos' a contratos...")
+        conn.execute(
+            text(
+                """
+                ALTER TABLE contratos
+                ADD COLUMN centro_costos VARCHAR(255) NOT NULL DEFAULT ''
+                AFTER forma_pago
+                """
+            )
+        )
+
+
+def migrar_supervisor_contratos() -> None:
+    """Supervisor (usuario) encargado de vigilar y finalizar el contrato."""
+    if not _tabla_existe("contratos"):
+        return
+    if _columna_existe("contratos", "supervisor_id"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columna 'supervisor_id' a contratos...")
+        conn.execute(
+            text(
+                """
+                ALTER TABLE contratos
+                ADD COLUMN supervisor_id INT NULL
+                AFTER centro_costos
+                """
+            )
+        )
+
+
+def migrar_anticipo_contratos() -> None:
+    """Snapshot del anticipo (copiado de la SRV al radicar) dentro del contrato."""
+    if not _tabla_existe("contratos"):
+        return
+    if _columna_existe("contratos", "requiere_anticipo"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columnas de anticipo a contratos...")
+        conn.execute(
+            text(
+                """
+                ALTER TABLE contratos
+                ADD COLUMN requiere_anticipo TINYINT(1) NOT NULL DEFAULT 0 AFTER supervisor_id,
+                ADD COLUMN porcentaje_anticipo DECIMAL(5,2) NULL AFTER requiere_anticipo,
+                ADD COLUMN monto_anticipo DECIMAL(18,2) NULL AFTER porcentaje_anticipo,
+                ADD COLUMN observaciones_anticipo TEXT NULL AFTER monto_anticipo
+                """
+            )
+        )
+
+
+def migrar_archivo_solicitud_informacion() -> None:
+    """Vincula archivos de respuesta con la solicitud de información faltante."""
+    if not _tabla_existe("archivos_contrato"):
+        return
+    if _columna_existe("archivos_contrato", "solicitud_informacion_id"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columna 'solicitud_informacion_id' a archivos_contrato...")
+        conn.execute(
+            text(
+                """
+                ALTER TABLE archivos_contrato
+                ADD COLUMN solicitud_informacion_id INT NULL
+                AFTER subido_por_id
+                """
+            )
+        )
+
+
+def migrar_fecha_limite_elaboracion_contratos() -> None:
+    """Fecha tope (editable) para que Jurídica elabore el contrato."""
+    if not _tabla_existe("contratos"):
+        return
+    if _columna_existe("contratos", "fecha_limite_elaboracion"):
+        return
+    with engine.begin() as conn:
+        logger.info("Agregando columna 'fecha_limite_elaboracion' a contratos...")
+        conn.execute(
+            text(
+                """
+                ALTER TABLE contratos
+                ADD COLUMN fecha_limite_elaboracion DATE NULL
+                AFTER fecha_fin
+                """
+            )
+        )
+
+
+def migrar_estado_elaborando_contratos() -> None:
+    """Contratos aprobados que seguían 'en_proceso' pasan a 'elaborando'
+    (nuevo estado en el que Jurídica los elabora)."""
+    if not _tabla_existe("contratos"):
+        return
+    if not _columna_existe("contratos", "estado"):
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE contratos SET estado = 'elaborando' "
+                "WHERE estado = 'en_proceso' AND estado_aprobacion = 'aprobado'"
+            )
+        )
 
 def migrar_vinculo_srv_contrato() -> None:
     """Trazabilidad bidireccional entre solicitud de servicios y contrato/OT."""
@@ -1248,6 +1527,21 @@ def migrar_users_email() -> None:
             )
 
 
+def migrar_users_nombre() -> None:
+    """Nombre visible del usuario (opcional)."""
+    if not _tabla_existe("users"):
+        return
+    if not _columna_existe("users", "nombre"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'nombre' a users...")
+            conn.execute(
+                text(
+                    "ALTER TABLE users "
+                    "ADD COLUMN nombre VARCHAR(150) NOT NULL DEFAULT '' AFTER password_hash"
+                )
+            )
+
+
 def migrar_users_lider_catalog_id() -> None:
     """Identificador del catálogo de líderes para rol Líder Aprobador."""
     if not _tabla_existe("users"):
@@ -1363,3 +1657,61 @@ def migrar_productos_estado_aprobacion() -> None:
                     """
                 )
             )
+
+
+def migrar_cotizacion_valor_anticipo() -> None:
+    """Valor, anticipo y flag 'propuesta' por archivo de cotización."""
+    if not _tabla_existe("solicitudes_gestion_archivos"):
+        return
+    columnas = {
+        "valor_cotizacion": (
+            "ADD COLUMN valor_cotizacion DECIMAL(18,2) NULL AFTER observacion_id"
+        ),
+        "requiere_anticipo": (
+            "ADD COLUMN requiere_anticipo TINYINT(1) NOT NULL DEFAULT 0 "
+            "AFTER valor_cotizacion"
+        ),
+        "porcentaje_anticipo": (
+            "ADD COLUMN porcentaje_anticipo DECIMAL(5,2) NULL AFTER requiere_anticipo"
+        ),
+        "monto_anticipo": (
+            "ADD COLUMN monto_anticipo DECIMAL(18,2) NULL AFTER porcentaje_anticipo"
+        ),
+        "propuesta": (
+            "ADD COLUMN propuesta TINYINT(1) NOT NULL DEFAULT 0 AFTER monto_anticipo"
+        ),
+        "moneda_cotizacion": (
+            "ADD COLUMN moneda_cotizacion VARCHAR(3) NOT NULL DEFAULT 'COP' "
+            "AFTER valor_cotizacion"
+        ),
+    }
+    for col, ddl in columnas.items():
+        if _columna_existe("solicitudes_gestion_archivos", col):
+            continue
+        with engine.begin() as conn:
+            logger.info("Agregando columna '%s' a solicitudes_gestion_archivos...", col)
+            conn.execute(text(f"ALTER TABLE solicitudes_gestion_archivos {ddl}"))
+
+
+def _varchar_length(tabla: str, columna: str) -> int | None:
+    for c in inspect(engine).get_columns(tabla):
+        if c["name"] == columna:
+            return getattr(c["type"], "length", None)
+    return None
+
+
+def migrar_plazo_unidad_varchar() -> None:
+    """`dias_calendario` no cabe en VARCHAR(10)."""
+    cambios = (
+        ("contratos", "plazo_unidad", "VARCHAR(20) NOT NULL"),
+        ("otrosies_contrato", "plazo_adicional_unidad", "VARCHAR(20) NULL"),
+    )
+    for tabla, columna, tipo in cambios:
+        if not _tabla_existe(tabla) or not _columna_existe(tabla, columna):
+            continue
+        length = _varchar_length(tabla, columna)
+        if length is not None and length >= 20:
+            continue
+        with engine.begin() as conn:
+            logger.info("Ampliando %s.%s a VARCHAR(20)...", tabla, columna)
+            conn.execute(text(f"ALTER TABLE {tabla} MODIFY COLUMN {columna} {tipo}"))

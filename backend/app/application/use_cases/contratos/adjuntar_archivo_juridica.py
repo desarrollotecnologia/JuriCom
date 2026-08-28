@@ -12,6 +12,13 @@ from app.domain.exceptions import (
     UnauthorizedError,
 )
 from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
+from app.domain.value_objects.estado_contrato import EstadoContrato
+
+_ESTADOS_POLIZA = (
+    EstadoContrato.EN_PROCESO,
+    EstadoContrato.ELABORANDO,
+    EstadoContrato.ACTIVO,
+)
 
 
 @dataclass
@@ -35,7 +42,7 @@ class AdjuntarArchivoJuridica:
     ) -> ArchivoAdjunto:
         if not (actor.is_admin() or actor.is_juridica()):
             raise UnauthorizedError(
-                "Sólo Jurídica o el Administrador pueden adjuntar póliza o borrador."
+                "Sólo Jurídica o Gerencia pueden adjuntar la póliza o el contrato firmado."
             )
 
         if entrada.tipo not in TipoArchivo.archivos_juridica():
@@ -49,6 +56,13 @@ class AdjuntarArchivoJuridica:
         if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
             raise UnauthorizedError(
                 "Este contrato todavía no tiene aprobación de líder y gerencia."
+            )
+        if (
+            entrada.tipo == TipoArchivo.POLIZA
+            and contrato.estado not in _ESTADOS_POLIZA
+        ):
+            raise UnauthorizedError(
+                "La póliza se adjunta mientras el contrato se está elaborando."
             )
 
         stored = self._storage.save(

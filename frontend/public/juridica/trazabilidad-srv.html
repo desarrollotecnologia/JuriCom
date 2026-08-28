@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Trazabilidad SRV · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .search-line {
+                display: grid;
+                grid-template-columns: minmax(220px, 360px) auto;
+                gap: 10px;
+                align-items: end;
+                margin-bottom: 16px;
+            }
+            .linked-row { cursor: pointer; }
+            .linked-row:hover { background: var(--color-primary-light); }
+            .linked-row.is-active { background: var(--color-primary-light); }
+            .composer textarea { min-height: 80px; resize: vertical; }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Trazabilidad SRV</h1>
+                        <p class="muted">
+                            Historial de Compras y comunicación con el supervisor de la SRV vinculada.
+                            Si falta información, escríbele aquí — no se hace desde Edición de contrato.
+                        </p>
+                    </div>
+                    <div class="page-header-actions">
+                        <a class="btn btn-secondary" href="/app/juridica/gestion-juridica.html">Volver</a>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card">
+                    <div class="search-line">
+                        <div class="field" style="margin:0;">
+                            <label for="q">Buscar</label>
+                            <input id="q" type="text" placeholder="OS-0004, C-0002, SRV-0006 o proveedor" />
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btn-buscar">Buscar</button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Contrato / OT</th>
+                                <th>SRV</th>
+                                <th>Proveedor</th>
+                                <th>Estado</th>
+                                <th>Supervisor</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody">
+                            <tr><td colspan="5" class="muted">Cargando…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card mt-4" id="detail-card" hidden>
+                    <div id="detail-head"></div>
+                    <div id="detail-body" style="margin-top:16px;"></div>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api } from "/static/js/api/client.js";
+            import { escapeHtml, formatMoney } from "/static/js/utils/format.js";
+            import {
+                attachGestionDownloadHandlers,
+                hydrateComunicacionJuridica,
+                renderWorkflowTimelineHtml,
+            } from "/static/js/compras/gestion-solicitudes-common.js?v=46";
+
+            session.requireAuth();
+            session.requireRole(["juridica", "admin"]);
+            renderSidebar();
+
+            const ESTADO = {
+                en_proceso: "Pendiente",
+                elaborando: "Elaborando contrato",
+                revision_polizas: "Revisión de pólizas",
+                solicitud_firmas: "Solicitud de firmas",
+                anticipo_contabilidad: "Anticipo en contabilidad",
+                anticipo_tesoreria: "Anticipo en tesorería",
+                anticipo_pagado: "Anticipo pagado",
+                activo: "Activo",
+                finalizado: "Finalizado",
+            };
+
+            const tbody = document.getElementById("tbody");
+            const qInput = document.getElementById("q");
+            const detailCard = document.getElementById("detail-card");
+            const detailHead = document.getElementById("detail-head");
+            const detailBody = document.getElementById("detail-body");
+            const alertError = document.getElementById("alert-error");
+            const alertSuccess = document.getElementById("alert-success");
+
+            let items = [];
+            let currentContrato = null;
+
+            function showError(msg) {
+                alertSuccess.classList.remove("show");
+                alertError.textContent = msg;
+                alertError.classList.add("show");
+            }
+            function showSuccess(msg) {
+                alertError.classList.remove("show");
+                alertSuccess.textContent = msg;
+                alertSuccess.classList.add("show");
+            }
+
+            async function loadList() {
+                const q = qInput.value.trim();
+                const path = q ? `/contratos?q=${encodeURIComponent(q)}` : "/contratos";
+                try {
+                    const all = await api.get(path);
+                    items = (all || []).filter((c) => c.solicitud_gestion_id);
+                    renderList();
+                } catch (err) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="muted">${escapeHtml(err.message || "No se pudo cargar.")}</td></tr>`;
+                }
+            }
+
+            function renderList() {
+                if (!items.length) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="5" class="muted">No hay contratos u OT vinculados a una SRV.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = items
+                    .map(
+                        (c) => `
+                    <tr class="linked-row" data-id="${c.id}" tabindex="0">
+                        <td><span class="codigo-contrato">${escapeHtml(c.codigo || "—")}</span></td>
+                        <td><strong class="codigo-solicitud">${escapeHtml(c.solicitud_gestion_codigo || "—")}</strong></td>
+                        <td>${escapeHtml(c.proveedor_contratista || "—")}</td>
+                        <td>${escapeHtml(ESTADO[c.estado] || c.estado || "—")}</td>
+                        <td>${escapeHtml(c.supervisor_username || "—")}</td>
+                    </tr>`
+                    )
+                    .join("");
+            }
+
+            async function openItem(contratoId) {
+                const c = items.find((x) => String(x.id) === String(contratoId));
+                if (!c?.solicitud_gestion_id) {
+                    showError("Este documento no está vinculado a una SRV.");
+                    return;
+                }
+                currentContrato = c;
+                tbody.querySelectorAll(".linked-row").forEach((r) => {
+                    r.classList.toggle("is-active", r.dataset.id === String(c.id));
+                });
+                detailCard.hidden = false;
+                detailHead.innerHTML = `
+                    <h2 style="margin:0 0 6px;">
+                        ${escapeHtml(c.solicitud_gestion_codigo)}
+                        <span class="muted">↔</span>
+                        ${escapeHtml(c.codigo)}
+                    </h2>
+                    <p class="muted" style="margin:0;">
+                        ${escapeHtml(c.proveedor_contratista || "")}
+                        ${c.valor != null ? ` · ${formatMoney(c.valor, c.moneda)}` : ""}
+                        ${c.supervisor_username ? ` · Supervisor: ${escapeHtml(c.supervisor_username)}` : ""}
+                    </p>
+                    <p style="margin:10px 0 0;">
+                        <a class="btn btn-secondary" href="/app/juridica/editar-contrato.html?codigo=${encodeURIComponent(c.codigo || "")}">
+                            Abrir edición de contrato
+                        </a>
+                    </p>`;
+                detailBody.innerHTML = '<p class="muted">Cargando trazabilidad…</p>';
+                try {
+                    const solicitud = await api.get(`/solicitudes-gestion/${c.solicitud_gestion_id}`);
+                    detailBody.innerHTML = renderWorkflowTimelineHtml(solicitud);
+                    await hydrateComunicacionJuridica(showError);
+                    attachGestionDownloadHandlers(detailBody, showError);
+                    detailCard.scrollIntoView({ behavior: "smooth", block: "start" });
+                } catch (err) {
+                    detailBody.innerHTML = `<p class="muted">${escapeHtml(err.message || "No se pudo cargar la SRV.")}</p>`;
+                }
+            }
+
+            tbody.addEventListener("click", (e) => {
+                const row = e.target.closest("tr.linked-row");
+                if (row) openItem(row.dataset.id);
+            });
+            tbody.addEventListener("keydown", (e) => {
+                if (e.key !== "Enter") return;
+                const row = e.target.closest("tr.linked-row");
+                if (row) openItem(row.dataset.id);
+            });
+            document.getElementById("btn-buscar").addEventListener("click", loadList);
+            qInput.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") loadList();
+            });
+
+            const params = new URLSearchParams(window.location.search);
+            const codigo = params.get("codigo") || "";
+            if (codigo) qInput.value = codigo;
+            await loadList();
+            if (codigo && items.length === 1) openItem(items[0].id);
+            else if (params.get("contrato_id") && items.some((c) => String(c.id) === params.get("contrato_id"))) {
+                openItem(params.get("contrato_id"));
+            }
+        </script>
+    </body>
+</html>

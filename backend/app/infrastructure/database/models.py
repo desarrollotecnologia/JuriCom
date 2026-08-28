@@ -33,6 +33,7 @@ class UserModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    nombre: Mapped[str] = mapped_column(String(150), nullable=False, default="")
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     lider_catalog_id: Mapped[str] = mapped_column(String(50), nullable=False, default="")
@@ -67,16 +68,28 @@ class ContratoModel(Base):
     compania: Mapped[str] = mapped_column(String(150), nullable=False, default="Colbeef")
     proveedor_contratista: Mapped[str] = mapped_column(String(255), nullable=False)
     nit_proveedor: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    proveedor_email: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     descripcion_servicio: Mapped[str] = mapped_column(Text, nullable=False)
     obligaciones_colbeef: Mapped[str] = mapped_column(Text, nullable=False)
     obligaciones_proveedor: Mapped[str] = mapped_column(Text, nullable=False)
     valor: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     moneda: Mapped[str] = mapped_column(String(3), nullable=False)
     plazo_cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
-    plazo_unidad: Mapped[str] = mapped_column(String(10), nullable=False)
+    plazo_unidad: Mapped[str] = mapped_column(String(20), nullable=False)
     renovacion_automatica: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     condiciones_recibido_satisfactorio: Mapped[str] = mapped_column(Text, nullable=False)
     requiere_poliza: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    tipo_precio: Mapped[str] = mapped_column(String(20), nullable=False, default="mas_iva")
+    forma_pago: Mapped[str] = mapped_column(String(2000), nullable=False, default="")
+    centro_costos: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    supervisor_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    requiere_anticipo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    porcentaje_anticipo: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    monto_anticipo: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
+    observaciones_anticipo: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    anticipo_pagado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     correo_lider_proceso: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     correo_gerencia: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     estado_aprobacion: Mapped[str] = mapped_column(
@@ -88,6 +101,7 @@ class ContratoModel(Base):
     fecha_inicio: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     fecha_inicio_original: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     fecha_fin: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fecha_limite_elaboracion: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     fecha_proxima_notificacion: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     hora_proxima_notificacion: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
     fecha_ultima_notificacion_vencimiento: Mapped[Optional[datetime]] = mapped_column(
@@ -125,6 +139,14 @@ class ContratoModel(Base):
         cascade="all, delete-orphan",
         order_by="OtrosiContratoModel.numero.asc()",
     )
+    creado_por: Mapped["UserModel"] = relationship(
+        "UserModel",
+        foreign_keys=[creado_por_id],
+    )
+    supervisor: Mapped[Optional["UserModel"]] = relationship(
+        "UserModel",
+        foreign_keys=[supervisor_id],
+    )
 
 
 class ArchivoContratoModel(Base):
@@ -142,12 +164,51 @@ class ArchivoContratoModel(Base):
     subido_por_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    solicitud_informacion_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("solicitudes_informacion_contrato.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
 
     contrato: Mapped["ContratoModel"] = relationship(
         "ContratoModel", back_populates="archivos"
+    )
+
+
+class SolicitudInformacionContratoModel(Base):
+    __tablename__ = "solicitudes_informacion_contrato"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    contrato_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("contratos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    solicitado_por_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    mensaje: Mapped[str] = mapped_column(Text, nullable=False)
+    fecha_limite_respuesta: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pendiente", index=True
+    )
+    respuesta: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    respondido_por_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    respondido_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    contrato: Mapped["ContratoModel"] = relationship("ContratoModel")
+    solicitado_por: Mapped["UserModel"] = relationship(
+        "UserModel", foreign_keys=[solicitado_por_id]
+    )
+    respondido_por: Mapped[Optional["UserModel"]] = relationship(
+        "UserModel", foreign_keys=[respondido_por_id]
     )
 
 
@@ -164,7 +225,7 @@ class OtrosiContratoModel(Base):
 
     # Campos específicos del cambio (según tipo)
     plazo_adicional_cantidad: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    plazo_adicional_unidad: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    plazo_adicional_unidad: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     valor_adicional: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
     nueva_descripcion_servicio: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
@@ -205,6 +266,7 @@ class SolicitudGestionModel(Base):
     observaciones: Mapped[str] = mapped_column(Text, nullable=False, default="")
     observaciones_texto: Mapped[str] = mapped_column(Text, nullable=False, default="")
     requiere_visita: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    requiere_comite_tecnico: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     servicio_programado: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     fecha_servicio_programado: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     descripcion_servicio: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -217,6 +279,12 @@ class SolicitudGestionModel(Base):
     gestor_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    proyectista_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    comite_supervisor_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    comite_proyectos_ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    visita_proyectos_hecha: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     lider_segunda_aprobacion_id: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     lider_segunda_aprobacion_label: Mapped[str] = mapped_column(
         String(500), nullable=False, default=""
@@ -374,6 +442,12 @@ class SolicitudGestionArchivoModel(Base):
         nullable=True,
         index=True,
     )
+    valor_cotizacion: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
+    moneda_cotizacion: Mapped[str] = mapped_column(String(3), nullable=False, default="COP")
+    requiere_anticipo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    porcentaje_anticipo: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
+    monto_anticipo: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
+    propuesta: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     subido_por_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -432,6 +506,7 @@ class SolicitudGestionVisitaProgramadaModel(Base):
         index=True,
     )
     programador_visita: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    rol_programador: Mapped[str] = mapped_column(String(30), nullable=False, default="")
     proveedor_visita: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     fecha_visita: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     hora_visita: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
@@ -441,4 +516,31 @@ class SolicitudGestionVisitaProgramadaModel(Base):
 
     solicitud: Mapped["SolicitudGestionModel"] = relationship(
         "SolicitudGestionModel", back_populates="visitas_programadas"
+    )
+
+
+class ProveedorModel(Base):
+    """Catálogo de proveedores (importado del Excel, editable por Compras/Admin)."""
+
+    __tablename__ = "proveedores"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(300), nullable=False, index=True)
+    sector: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    para: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    ciudad: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    telefono: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    correo: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    contacto: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    condiciones_pago: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    calificacion: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    activo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
     )

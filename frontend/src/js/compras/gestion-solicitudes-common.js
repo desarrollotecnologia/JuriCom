@@ -1,8 +1,9 @@
 import { session } from "../auth/session.js";
+import { api } from "../api/client.js";
 import { LIDERES_COLBEEF } from "../catalogos/lideres-colbeef.js";
 import { renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js";
 import { API_BASE } from "../utils/config.js";
-import { escapeHtml, formatCantidad, formatDate, formatDateOnly, formatFileSize, formatValorTramiteOc } from "../utils/format.js";
+import { escapeHtml, formatCantidad, formatDate, formatDateOnly, formatFileSize, formatValorTramiteOc, previewValorCotizacion } from "../utils/format.js?v=2";
 
 export const TIPO_LABEL = {
     compra: "Solicitud de Compra",
@@ -30,10 +31,26 @@ const LEGACY_ESTADO = {
 
 export const ESTADO_LABEL = {
     solicitud: "Solicitud",
+    revision: "En revisión",
     primera_aprobacion: "Primera Aprobación",
+    revision_proyectos: "Revisión de solicitud (Proyectos)",
+    programacion_visita: "Programar visita",
+    cotizacion_proyectos: "Cotización (Proyectos)",
     cotizacion: "Cotización",
+    comite: "Comité técnico",
     en_aprobacion: "En Aprobación",
     gestionando_servicio: "Gestionando servicio",
+    en_juridica: "En Jurídica",
+    solicitando_info: "Solicitando información",
+    info_recibida: "Información recibida",
+    elaborando_contrato: "Elaborando contrato",
+    revision_polizas: "Revisión de pólizas",
+    solicitud_firmas: "Solicitud de firmas",
+    anticipo_contabilidad: "Anticipo en contabilidad",
+    anticipo_tesoreria: "Anticipo en tesorería",
+    anticipo_pagado: "Anticipo pagado",
+    contrato_activo: "Contrato activo",
+    contrato_finalizado: "Contrato finalizado",
     pendiente_evidencia_cierre: "Pendiente evidencia cierre",
     tramitada_oc: "Tramitada OC",
     items_en_camino: "Ítems en camino",
@@ -52,10 +69,29 @@ export const ESTADO_LABEL = {
 
 export const ESTADO_BADGE = {
     solicitud: "badge-sg-pendiente",
+    revision: "badge-sg-rechazado",
     primera_aprobacion: "badge-sg-aprobacion",
+    revision_proyectos: "badge-sg-aprobacion",
+    programacion_visita: "badge-sg-aprobacion",
+    cotizacion_proyectos: "badge-sg-aprobacion",
     cotizacion: "badge-sg-aprobacion",
+    comite: "badge-sg-aprobacion",
     en_aprobacion: "badge-sg-aprobacion",
     gestionando_servicio: "badge-sg-aprobacion",
+    en_juridica: "badge-sg-aprobacion",
+    solicitando_info: "badge-sg-aprobacion",
+    info_recibida: "badge-sg-aprobado",
+    elaborando_contrato: "badge-sg-aprobacion",
+    revision_polizas: "badge-sg-aprobacion",
+    solicitud_firmas: "badge-sg-aprobacion",
+    anticipo_contabilidad: "badge-sg-aprobacion",
+    anticipo_tesoreria: "badge-sg-aprobacion",
+    anticipo_pagado: "badge-sg-aprobado",
+    contrato_activo: "badge-sg-aprobado",
+    contrato_finalizado: "badge-sg-aprobado",
+    cierre_contabilidad: "badge-sg-aprobacion",
+    cierre_tesoreria: "badge-sg-aprobacion",
+    contrato_completado: "badge-sg-aprobado",
     pendiente_evidencia_cierre: "badge-sg-aprobacion",
     tramitada_oc: "badge-sg-aprobado",
     items_en_camino: "badge-sg-aprobacion",
@@ -358,30 +394,49 @@ function archivosSinObservacion(solicitud, categoria = null) {
 }
 
 function renderObservacionArchivosHtml(solicitudId, archivos) {
-    const visibles = (archivos || []).filter((a) => a.categoria !== "observacion_inline");
+    const visibles = (archivos || []).filter(
+        (a) => a.categoria !== "observacion_inline" && a.categoria !== "cotizacion"
+    );
     if (!visibles.length) return "";
     return `
         <ul class="sg-obs-attachment-list">
             ${visibles
-                .map(
-                    (a) => `
+                .map((a) => {
+                    const esImagen = (a.mime_type || "").startsWith("image/");
+                    const downloadAttrs = `
+                        data-download-url="/solicitudes-gestion/${solicitudId}/archivos/${a.id}"
+                        data-filename="${escapeHtml(a.nombre_original)}"
+                        data-mime-type="${escapeHtml(a.mime_type || "")}"`;
+                    // Las imágenes se muestran como miniatura (se hidratan con token);
+                    // al hacer clic se abren completas.
+                    if (esImagen) {
+                        return `
+            <li class="sg-obs-attachment-item sg-obs-attachment-item--image">
+                <a href="#" class="sg-obs-attachment-thumb-link" ${downloadAttrs}>
+                    <img
+                        class="sg-obs-attachment-thumb"
+                        data-sg-archivo-id="${a.id}"
+                        alt="${escapeHtml(a.nombre_original)}"
+                    />
+                </a>
+                <div class="sg-attachment-info">
+                    <strong>${escapeHtml(a.nombre_original)}</strong>
+                    <span class="muted">${formatFileSize(a.tamano_bytes)} · ${escapeHtml(a.mime_type || "imagen")}</span>
+                </div>
+            </li>`;
+                    }
+                    return `
             <li class="sg-obs-attachment-item">
                 <span class="sg-attachment-icon" aria-hidden="true">📎</span>
                 <div class="sg-attachment-info">
                     <strong>${escapeHtml(a.nombre_original)}</strong>
                     <span class="muted">${formatFileSize(a.tamano_bytes)} · ${escapeHtml(a.mime_type || "archivo")}</span>
                 </div>
-                <a
-                    href="#"
-                    class="btn btn-secondary btn-sm"
-                    data-download-url="/solicitudes-gestion/${solicitudId}/archivos/${a.id}"
-                    data-filename="${escapeHtml(a.nombre_original)}"
-                    data-mime-type="${escapeHtml(a.mime_type || "")}"
-                >
+                <a href="#" class="btn btn-secondary btn-sm" ${downloadAttrs}>
                     Ver
                 </a>
-            </li>`
-                )
+            </li>`;
+                })
                 .join("")}
         </ul>`;
 }
@@ -451,8 +506,8 @@ function collectObservacionesTrazabilidad(solicitud) {
         legacy.push({
             id: 0,
             autor_etiqueta: solicitud.creado_por_username
-                ? `${solicitud.creado_por_username} (Usuario Solicitante)`
-                : "Usuario Solicitante",
+                ? `${solicitud.creado_por_username} (Supervisor)`
+                : "Supervisor",
             contenido: solicitud.observaciones || escapeHtml(solicitud.observaciones_texto),
             created_at: solicitud.created_at,
             archivos: archivosSinObservacion(solicitud, "solicitud"),
@@ -505,7 +560,7 @@ export function renderObservacionesTrazabilidadHtml(
             </ul>`
             : `<p class="muted sg-obs-timeline-empty">Sin observaciones registradas.</p>`;
 
-    return `
+    const obsPanel = `
         <div class="sg-detail-panel sg-obs-collapsible" id="${escapeHtml(panelId)}">
             <button
                 type="button"
@@ -532,6 +587,46 @@ export function renderObservacionesTrazabilidadHtml(
                 </svg>
             </button>
             <div class="sg-obs-collapsible-body" id="${escapeHtml(bodyId)}" hidden>
+                ${lista}
+            </div>
+        </div>`;
+
+    return obsPanel + renderProveedoresColapsableHtml(solicitud);
+}
+
+/** Panel desplegable con los proveedores sugeridos, debajo de las observaciones. */
+export function renderProveedoresColapsableHtml(solicitud) {
+    const lineas = String(solicitud?.proveedor_sugerido || "")
+        .split(/\r?\n/)
+        .map((l) => l.replace(/^-\s*/, "").trim())
+        .filter(Boolean);
+    if (!lineas.length) return "";
+
+    const bodyId = "sg-prov-trazabilidad-panel-body";
+    const countLabel =
+        lineas.length === 1 ? "1 proveedor" : `${lineas.length} proveedores`;
+    const lista = `<ul class="sg-prov-lista">${lineas
+        .map((l) => `<li>${escapeHtml(l)}</li>`)
+        .join("")}</ul>`;
+
+    return `
+        <div class="sg-detail-panel sg-obs-collapsible" id="sg-prov-trazabilidad-panel">
+            <button
+                type="button"
+                class="sg-obs-collapsible-toggle"
+                aria-expanded="false"
+                aria-controls="${bodyId}"
+            >
+                <span class="sg-detail-panel-title">Proveedores sugeridos</span>
+                <span class="sg-obs-collapsible-count muted">${escapeHtml(countLabel)}</span>
+                <svg class="sg-obs-collapsible-chevron" xmlns="http://www.w3.org/2000/svg"
+                    width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <div class="sg-obs-collapsible-body" id="${bodyId}" hidden>
                 ${lista}
             </div>
         </div>`;
@@ -630,11 +725,69 @@ export function renderAgregarComentarioHtml({
         </div>`;
 }
 
-function renderCotizacionSlotHtml(index) {
+export function renderCotizacionSlotHtml(index, { conDatosEconomicos = false } = {}) {
     const removable = index >= MIN_COTIZACIONES;
+    const datos = conDatosEconomicos
+        ? `
+            <div class="sg-cotizacion-datos">
+                <div class="row-2">
+                    <div class="field">
+                        <label for="cotizacion-valor-${index}">Valor <span class="required">*</span></label>
+                        <div class="sg-cotizacion-valor-row">
+                            <select class="cotizacion-moneda input-table" id="cotizacion-moneda-${index}" aria-label="Moneda">
+                                <option value="COP" selected>COP — Peso</option>
+                                <option value="USD">USD — Dólar</option>
+                                <option value="EUR">EUR — Euro</option>
+                            </select>
+                            <input
+                                type="number"
+                                class="cotizacion-valor input-table"
+                                id="cotizacion-valor-${index}"
+                                min="0.01"
+                                step="0.01"
+                                placeholder="Ej: 1000000"
+                            />
+                        </div>
+                        <p class="sg-cotizacion-valor-vivo muted" aria-live="polite"></p>
+                    </div>
+                    <div class="field">
+                        <label>¿Anticipo?</label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" class="cotizacion-anticipo-no" name="cotizacion-anticipo-${index}" value="no" checked />
+                                No
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" class="cotizacion-anticipo-si" name="cotizacion-anticipo-${index}" value="si" />
+                                Sí
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="field cotizacion-anticipo-pct-wrap" hidden>
+                    <label for="cotizacion-anticipo-pct-${index}">Anticipo (%) <span class="required">*</span></label>
+                    <input
+                        type="number"
+                        class="cotizacion-anticipo-pct input-table"
+                        id="cotizacion-anticipo-pct-${index}"
+                        min="0.01"
+                        max="100"
+                        step="0.01"
+                        placeholder="Ej: 30"
+                    />
+                </div>
+            </div>`
+        : "";
     return `
         <div class="sg-cotizacion-slot" data-slot="${index}">
-            <span class="sg-cotizacion-slot-label">Cotización ${index + 1}</span>
+            <div class="sg-cotizacion-slot-head">
+                <span class="sg-cotizacion-slot-label">Cotización ${index + 1}</span>
+                ${
+                    removable
+                        ? `<button type="button" class="sg-cotizacion-quitar-x btn-cotizacion-quitar-slot" aria-label="Quitar cotización" title="Quitar cotización">×</button>`
+                        : ""
+                }
+            </div>
             <div class="sg-cotizacion-slot-row">
                 <input
                     type="file"
@@ -646,20 +799,17 @@ function renderCotizacionSlotHtml(index) {
                 <button type="button" class="btn btn-sm btn-secondary btn-cotizacion-clear" hidden>
                     Quitar archivo
                 </button>
-                ${
-                    removable
-                        ? `<button type="button" class="btn btn-sm btn-secondary btn-cotizacion-quitar-slot">
-                    Quitar
-                </button>`
-                        : ""
-                }
             </div>
+            ${datos}
         </div>`;
 }
 
-export function renderCotizacionesUploadHtml(existentesCount = 0) {
-    const principales = Array.from({ length: MIN_COTIZACIONES }, (_, i) =>
-        renderCotizacionSlotHtml(i)
+export function renderCotizacionesUploadHtml(existentesCount = 0, { conDatosEconomicos = false } = {}) {
+    // Las cotizaciones ya registradas (p. ej. las que sube Proyectos) cuentan para
+    // el mínimo: sólo pintamos los slots faltantes y continuamos la numeración.
+    const faltantes = Math.max(0, MIN_COTIZACIONES - existentesCount);
+    const principales = Array.from({ length: faltantes }, (_, i) =>
+        renderCotizacionSlotHtml(existentesCount + i, { conDatosEconomicos })
     ).join("");
 
     return `
@@ -734,12 +884,68 @@ export function badgeEstado(estado, solicitud = null) {
     return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
+function etiquetaPasoHistorial(h) {
+    const key = normalizarEstado(h.etapa);
+    if (ESTADO_LABEL[key] && ETAPAS_TRAZA_JURIDICA.has(key)) {
+        return ESTADO_LABEL[key];
+    }
+    const c = h.comentario || "";
+    if (/solicitó información/i.test(c)) return "Solicitando información";
+    if (/respondió a Jurídica/i.test(c)) return "Información recibida";
+    if (/actualizó el estado/i.test(c)) {
+        const m = c.match(/→\s*(.+)$/);
+        if (m) {
+            const dest = m[1].trim();
+            if (dest === "Pendiente") return "En Jurídica";
+            if (dest === "Activo") return "Contrato activo";
+            if (dest === "Finalizado") return "Contrato finalizado";
+            return dest;
+        }
+        return "En Jurídica";
+    }
+    if (/finalizó/i.test(c) && /contrato|OS-|C-/i.test(c)) return "Contrato finalizado";
+    if (/radicado y vinculado/i.test(c)) return "En Jurídica";
+    return h.etapa_label || ESTADO_LABEL[key] || key;
+}
+
+const ETAPAS_TRAZA_JURIDICA = new Set([
+    "en_juridica",
+    "solicitando_info",
+    "info_recibida",
+    "elaborando_contrato",
+    "revision_polizas",
+    "solicitud_firmas",
+    "anticipo_contabilidad",
+    "anticipo_tesoreria",
+    "anticipo_pagado",
+    "contrato_activo",
+    "contrato_finalizado",
+]);
+
+function esPasoTrazabilidadJuridica(h) {
+    if (!h) return false;
+    if (ETAPAS_TRAZA_JURIDICA.has(normalizarEstado(h.etapa))) return true;
+    const c = h.comentario || "";
+    return (
+        /solicitó información/i.test(c) ||
+        /respondió a Jurídica/i.test(c) ||
+        /actualizó el estado/i.test(c) ||
+        /radicado y vinculado/i.test(c) ||
+        (/finalizó/i.test(c) && /contrato|OS-|C-/i.test(c))
+    );
+}
+
 function buildTimelineItems(solicitud) {
     const historial = [...(solicitud.historial_estados || [])].sort(
         (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)
     );
     const current = normalizarEstado(solicitud.estado);
-    const terminal = ["cancelado", "entregado", "facturada"].includes(current);
+    const finalizadoEnHistorial = (solicitud.historial_estados || []).some(
+        (h) => normalizarEstado(h?.etapa) === "contrato_finalizado"
+    );
+    const terminal =
+        ["cancelado", "entregado", "facturada", "contrato_finalizado"].includes(current) ||
+        finalizadoEnHistorial;
 
     if (!historial.length) {
         return [
@@ -758,6 +964,9 @@ function buildTimelineItems(solicitud) {
         ];
     }
 
+    const lastH = historial[historial.length - 1];
+    const overlayJuridica = esPasoTrazabilidadJuridica(lastH);
+
     return historial.map((h, i) => {
         const key = normalizarEstado(h.etapa);
         const isLast = i === historial.length - 1;
@@ -765,20 +974,22 @@ function buildTimelineItems(solicitud) {
 
         if (isLast) {
             if (key === "cancelado" || current === "cancelado") status = "rejected";
-            else if (terminal) status = "done";
-            else if (key === current) status = "active";
-            else status = "done";
+            else if (terminal || key === "contrato_finalizado") status = "done";
+            else status = "active";
         }
 
         return {
-            label: h.etapa_label || ESTADO_LABEL[key] || key,
+            label: etiquetaPasoHistorial(h),
             fecha: h.created_at,
             usuario: h.usuario_username,
             comentario: h.comentario,
             status,
         };
     }).concat(
-        !terminal && historial.length && normalizarEstado(historial[historial.length - 1].etapa) !== current
+        !terminal &&
+            historial.length &&
+            !overlayJuridica &&
+            normalizarEstado(lastH.etapa) !== current
             ? [
                   {
                       label: ESTADO_LABEL[current] || current,
@@ -828,14 +1039,223 @@ export function renderWorkflowTimelineHtml(solicitud) {
             <ol class="sg-workflow-timeline sg-workflow-timeline--progressive">
                 ${pasos}
             </ol>
+        </div>
+        ${renderComunicacionJuridicaPlaceholderHtml(solicitud)}`;
+}
+
+function esVistaJuridicaComunicacion() {
+    const role = session.getUser()?.role;
+    return role === "juridica" || role === "admin";
+}
+
+const ESTADOS_COMUNICACION_CERRADA = new Set([
+    "contrato_finalizado",
+    "cancelado",
+    "entregado",
+    "facturada",
+]);
+
+function renderComunicacionJuridicaPlaceholderHtml(solicitud) {
+    if (!solicitud?.contrato_id) return "";
+    const codigo = escapeHtml(solicitud.contrato_codigo || "el contrato");
+    const esJuridica = esVistaJuridicaComunicacion();
+    const historialCerrado = (solicitud.historial_estados || []).some((h) =>
+        ESTADOS_COMUNICACION_CERRADA.has(String(h?.etapa || "").toLowerCase())
+    );
+    const cerrada =
+        ESTADOS_COMUNICACION_CERRADA.has(String(solicitud.estado || "").toLowerCase()) ||
+        historialCerrado;
+    const titulo = esJuridica ? "Comunicación con el supervisor" : "Comunicación con Jurídica";
+    const hint = cerrada
+        ? `La operación de ${codigo} quedó finalizada. Este canal queda como historial (ya no se puede escribir).`
+        : esJuridica
+          ? `Este es el canal con el supervisor de ${codigo}. El supervisor recibe aviso y tiene 2 días hábiles. Queda en el historial de esta SRV.`
+          : `Conversación con Jurídica sobre ${codigo}. También queda en el historial de esta solicitud.`;
+    const composer = (esJuridica && !cerrada)
+        ? `<div class="sg-comunicacion-juridica-composer" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--color-border, #e2e8f0);">
+               <div class="field">
+                   <label for="info-mensaje">Escribe al supervisor</label>
+                   <textarea id="info-mensaje" placeholder="Ej.: Falta el RUT actualizado y la certificación bancaria."></textarea>
+               </div>
+               <div class="field">
+                   <label for="info-archivos">Fotos u otros archivos</label>
+                   <input type="file" id="info-archivos" multiple accept="image/*,.pdf,.doc,.docx" />
+                   <span class="hint">Opcional. El supervisor los ve en este hilo.</span>
+               </div>
+               <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+                   <button type="button" class="btn btn-primary" id="btn-enviar-supervisor">Enviar al supervisor</button>
+               </div>
+           </div>`
+        : "";
+    return `
+        <div class="sg-detail-panel" id="sg-comunicacion-juridica" hidden data-contrato-id="${solicitud.contrato_id}">
+            <h3 class="sg-detail-panel-title">${titulo}</h3>
+            <p class="muted sg-detail-panel-hint">${hint}</p>
+            <div id="sg-comunicacion-juridica-hilo"></div>
+            ${composer}
         </div>`;
 }
 
-function renderArchivosHtml(solicitud, { categoria = null, titulo = "Archivos adjuntos" } = {}) {
-    let archivos = (solicitud.archivos || []).filter((a) => !a.observacion_id);
+function puedeResponderComunicacionJuridica() {
+    const role = session.getUser()?.role;
+    return role === "solicitante" || role === "admin";
+}
+
+export async function hydrateComunicacionJuridica(onError) {
+    const root = document.getElementById("sg-comunicacion-juridica");
+    if (!root) return;
+    const contratoId = root.dataset.contratoId;
+    const hilo = document.getElementById("sg-comunicacion-juridica-hilo");
+    if (!contratoId || !hilo) return;
+    let items = [];
+    try {
+        items = await api.get(`/contratos/${contratoId}/solicitudes-informacion`);
+    } catch {
+        return;
+    }
+    root.hidden = false;
+    // La comunicación va al final del detalle (chat abajo), no justo bajo el timeline.
+    const layout = root.parentElement;
+    if (layout && layout.lastElementChild !== root) layout.appendChild(root);
+    const cronologico = [...items].sort((a, b) => (a.id || 0) - (b.id || 0));
+    const puedeResponder = puedeResponderComunicacionJuridica();
+    const vacio = esVistaJuridicaComunicacion()
+        ? "Aún no hay mensajes con el supervisor."
+        : "Aún no hay mensajes con Jurídica.";
+    hilo.innerHTML = cronologico.length
+        ? cronologico.map((s) => renderComunicacionJuridicaItemHtml(s, puedeResponder)).join("")
+        : `<p class="muted" style="margin:0;">${vacio}</p>`;
+    const btnEnviar = document.getElementById("btn-enviar-supervisor");
+    if (btnEnviar && !btnEnviar.dataset.bound) {
+        btnEnviar.dataset.bound = "1";
+        btnEnviar.addEventListener("click", () =>
+            enviarSolicitudInformacionJuridica(contratoId, onError)
+        );
+    }
+
+    if (!puedeResponder) return;
+    cronologico
+        .filter((s) => s.estado !== "respondida")
+        .forEach((s) => {
+            const btn = document.getElementById(`btn-sg-resp-info-${s.id}`);
+            if (!btn) return;
+            btn.addEventListener("click", () =>
+                enviarRespuestaComunicacionJuridica(contratoId, s.id, onError)
+            );
+        });
+}
+
+async function enviarSolicitudInformacionJuridica(contratoId, onError) {
+    const textarea = document.getElementById("info-mensaje");
+    const mensaje = (textarea?.value || "").trim();
+    if (!mensaje) {
+        onError?.("Escribe qué información falta.");
+        return;
+    }
+    const btn = document.getElementById("btn-enviar-supervisor");
+    if (btn) btn.disabled = true;
+    try {
+        const fd = new FormData();
+        fd.append("mensaje", mensaje);
+        const files = document.getElementById("info-archivos")?.files;
+        for (const f of files || []) fd.append("archivos", f);
+        await api.postForm(`/contratos/${contratoId}/solicitudes-informacion`, fd);
+        if (textarea) textarea.value = "";
+        const inputFiles = document.getElementById("info-archivos");
+        if (inputFiles) inputFiles.value = "";
+        await hydrateComunicacionJuridica(onError);
+    } catch (err) {
+        onError?.(err.message || "No se pudo enviar al supervisor.");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function adjuntosHiloHtml(archivos, contratoId) {
+    if (!archivos.length) return "";
+    return `<div style="margin-top:6px;"><strong>Adjuntos:</strong> ${archivos
+        .map(
+            (a) =>
+                `<a href="#" data-download-url="/archivos/${contratoId}/${a.id}" data-filename="${escapeHtml(a.nombre_original)}">${escapeHtml(a.nombre_original)}</a>`
+        )
+        .join(" · ")}</div>`;
+}
+
+function renderComunicacionJuridicaItemHtml(s, puedeResponder) {
+    const respondida = s.estado === "respondida";
+    const borde = respondida ? "#16a34a" : s.vencida ? "#dc2626" : "#f59e0b";
+    const limite = s.fecha_limite_respuesta ? formatDate(s.fecha_limite_respuesta) : "—";
+    const deJuridica = s.solicitado_por_username || "Jurídica";
+    const deSupervisor = s.respondido_por_username || "el supervisor";
+    const estadoTxt = respondida
+        ? `Respondida por el supervisor (${escapeHtml(deSupervisor)})`
+        : s.vencida
+          ? "Pendiente del supervisor — plazo vencido"
+          : `Pendiente del supervisor — ${s.dias_para_responder ?? "?"} día(s) hábiles`;
+    const adjuntosJuridica = (s.archivos || []).filter((a) => a.tipo === "solicitud_informacion");
+    const adjuntosSupervisor = (s.archivos || []).filter((a) => a.tipo !== "solicitud_informacion");
+    const archivosJuridicaHtml = adjuntosHiloHtml(adjuntosJuridica, s.contrato_id);
+    const archivosSupervisorHtml = adjuntosHiloHtml(adjuntosSupervisor, s.contrato_id);
+    const respuestaHtml = respondida
+        ? `<div style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border-radius:6px;">
+               <strong>Supervisor (${escapeHtml(deSupervisor)}):</strong><br>${escapeHtml(s.respuesta || "").replace(/\n/g, "<br>")}
+               ${archivosSupervisorHtml}
+           </div>`
+        : "";
+    const formHtml =
+        !respondida && puedeResponder
+            ? `<div style="margin-top:10px;">
+                   <textarea id="sg-resp-info-${s.id}" rows="3" style="width:100%;" placeholder="Escribe la respuesta para Jurídica..."></textarea>
+                   <input type="file" id="sg-files-info-${s.id}" multiple style="margin-top:6px;" />
+                   <div style="display:flex;justify-content:flex-end;margin-top:6px;">
+                       <button type="button" class="btn btn-sm btn-primary" id="btn-sg-resp-info-${s.id}">Responder a Jurídica</button>
+                   </div>
+               </div>`
+            : "";
+    return `
+        <div style="border-left:4px solid ${borde};background:#f8fafc;border-radius:6px;padding:10px 12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                <strong>${escapeHtml(estadoTxt)}</strong>
+                <span class="muted">Límite: ${limite}</span>
+            </div>
+            <div style="margin-top:6px;"><strong>Jurídica (${escapeHtml(deJuridica)}):</strong> ${escapeHtml(s.mensaje || "").replace(/\n/g, "<br>")}</div>
+            ${archivosJuridicaHtml}
+            ${respuestaHtml}
+            ${formHtml}
+        </div>`;
+}
+
+async function enviarRespuestaComunicacionJuridica(contratoId, solicitudId, onError) {
+    const textarea = document.getElementById(`sg-resp-info-${solicitudId}`);
+    const respuesta = (textarea?.value || "").trim();
+    if (!respuesta) {
+        onError?.("Escribe la respuesta para Jurídica.");
+        return;
+    }
+    const fd = new FormData();
+    fd.append("respuesta", respuesta);
+    const files = document.getElementById(`sg-files-info-${solicitudId}`)?.files;
+    for (const f of files || []) fd.append("archivos", f);
+    const btn = document.getElementById(`btn-sg-resp-info-${solicitudId}`);
+    if (btn) btn.disabled = true;
+    try {
+        await api.postForm(
+            `/contratos/${contratoId}/solicitudes-informacion/${solicitudId}/responder`,
+            fd
+        );
+        await hydrateComunicacionJuridica(onError);
+    } catch (err) {
+        if (btn) btn.disabled = false;
+        onError?.(err.message || "No se pudo enviar la respuesta.");
+    }
+}
+
+export function renderArchivosHtml(solicitud, { categoria = null, titulo = "Archivos adjuntos", seleccionable = false } = {}) {
+    let archivos = solicitud.archivos || [];
     if (categoria) {
         archivos = archivos.filter((a) => (a.categoria || "solicitud") === categoria);
     } else {
+        archivos = archivos.filter((a) => !a.observacion_id);
         archivos = archivos.filter((a) => (a.categoria || "solicitud") !== "cotizacion");
         if (esSolicitudServicios(solicitud)) {
             archivos = archivos.filter(
@@ -850,13 +1270,41 @@ function renderArchivosHtml(solicitud, { categoria = null, titulo = "Archivos ad
         return "";
     }
 
+    const hint = seleccionable
+        ? `<p class="muted sg-detail-panel-hint">
+                Elige la cotización. Su valor define si sigue como orden de servicio,
+                orden de trabajo o contrato. Si ninguna te sirve, solicita recotización.
+           </p>`
+        : "";
+
+    const esCotizacion = categoria === "cotizacion";
+    const lista = esCotizacion
+        ? `<ul class="sg-cotizaciones-principales sg-cotizaciones-vista">
+                ${archivos
+                    .map((a, i) => renderCotizacionVistaCardHtml(solicitud.id, a, i, seleccionable))
+                    .join("")}
+            </ul>`
+        : `<ul class="sg-attachment-list">
+                ${archivos
+                    .map((a) => renderArchivoAdjuntoItemHtml(solicitud.id, a))
+                    .join("")}
+            </ul>`;
+
     return `
         <div class="sg-detail-panel">
             <h3 class="sg-detail-panel-title">${escapeHtml(titulo)} (${archivos.length})</h3>
-            <ul class="sg-attachment-list">
-                ${archivos
-                    .map(
-                        (a) => `
+            ${hint}
+            ${lista}
+            ${
+                seleccionable
+                    ? `<p class="sg-cotizacion-clasif-viva" id="sg-cotizacion-clasif-viva"></p>`
+                    : ""
+            }
+        </div>`;
+}
+
+function renderArchivoAdjuntoItemHtml(solicitudId, a) {
+    return `
                 <li class="sg-attachment-item">
                     <span class="sg-attachment-icon" aria-hidden="true">📎</span>
                     <div class="sg-attachment-info">
@@ -866,17 +1314,79 @@ function renderArchivosHtml(solicitud, { categoria = null, titulo = "Archivos ad
                     <a
                         href="#"
                         class="btn btn-secondary btn-sm"
-                        data-download-url="/solicitudes-gestion/${solicitud.id}/archivos/${a.id}"
+                        data-download-url="/solicitudes-gestion/${solicitudId}/archivos/${a.id}"
                         data-filename="${escapeHtml(a.nombre_original)}"
                         data-mime-type="${escapeHtml(a.mime_type || "")}"
                     >
                         Ver
                     </a>
-                </li>`
-                    )
-                    .join("")}
-            </ul>
-        </div>`;
+                </li>`;
+}
+
+function renderCotizacionVistaCardHtml(solicitudId, a, index, seleccionable) {
+    const clasifKey =
+        (a.moneda_cotizacion || "COP") === "COP" && a.valor_cotizacion
+            ? clasificarDocumentoServicio(a.valor_cotizacion)
+            : "";
+    const clasifLabel = clasifKey ? labelClasificacionDocumentoServicio(clasifKey) : "";
+    const valorTxt = a.valor_cotizacion
+        ? previewValorCotizacion(a.valor_cotizacion, a.moneda_cotizacion || "COP")
+        : "Sin valor";
+    const anticipoTxt = a.requiere_anticipo
+        ? `Sí · ${a.porcentaje_anticipo ?? ""}%`
+        : "No";
+    const radio = seleccionable
+        ? `<label class="sg-cotizacion-elegir">
+                    <input
+                        type="radio"
+                        name="cotizacion-elegida"
+                        value="${a.id}"
+                        data-valor="${escapeHtml(String(a.valor_cotizacion ?? ""))}"
+                        data-moneda="${escapeHtml(a.moneda_cotizacion || "COP")}"
+                        ${index === 0 ? "checked" : ""}
+                    />
+                    <span>Elegir</span>
+                </label>`
+        : a.propuesta
+          ? `<span class="sg-cotizacion-elegida-badge">Elegida</span>`
+          : "";
+
+    return `
+                <li class="sg-cotizacion-slot sg-cotizacion-slot--vista">
+                    <div class="sg-cotizacion-slot-head">
+                        <span class="sg-cotizacion-slot-label">Cotización ${index + 1}</span>
+                        ${radio}
+                    </div>
+                    <div class="sg-cotizacion-slot-row">
+                        <span class="sg-cotizacion-slot-name">${escapeHtml(a.nombre_original)} · ${formatFileSize(a.tamano_bytes)}</span>
+                        <a
+                            href="#"
+                            class="btn btn-secondary btn-sm"
+                            data-download-url="/solicitudes-gestion/${solicitudId}/archivos/${a.id}"
+                            data-filename="${escapeHtml(a.nombre_original)}"
+                            data-mime-type="${escapeHtml(a.mime_type || "")}"
+                        >
+                            Ver
+                        </a>
+                    </div>
+                    <div class="sg-cotizacion-datos">
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Valor</label>
+                                <p class="sg-cotizacion-valor-vivo">${escapeHtml(valorTxt)}</p>
+                            </div>
+                            <div class="field">
+                                <label>¿Anticipo?</label>
+                                <p class="sg-cotizacion-anticipo-vivo">${escapeHtml(anticipoTxt)}</p>
+                            </div>
+                        </div>
+                        ${
+                            clasifLabel
+                                ? `<p class="sg-cotizacion-clasif-tag">${escapeHtml(clasifLabel)}</p>`
+                                : ""
+                        }
+                    </div>
+                </li>`;
 }
 
 export const ESTADO_APROBACION_PRODUCTO_LABEL = {
@@ -1137,6 +1647,49 @@ export function clasificarDocumentoServicio(valor) {
     return "contrato";
 }
 
+export function bindClasifCotizacionElegida() {
+    const vivo = document.getElementById("sg-cotizacion-clasif-viva");
+    if (!vivo) return;
+    const sync = () => {
+        const radio = document.querySelector('input[name="cotizacion-elegida"]:checked');
+        if (!radio) {
+            vivo.textContent = "";
+            return;
+        }
+        const moneda = radio.dataset.moneda || "COP";
+        const valor = radio.dataset.valor;
+        if (moneda !== "COP") {
+            vivo.textContent =
+                "El valor no está en pesos: al aprobar se guarda el monto, pero no se aplica el umbral de orden de trabajo / contrato.";
+            return;
+        }
+        const key = clasificarDocumentoServicio(valor);
+        const label = labelClasificacionDocumentoServicio(key);
+        if (!label) {
+            vivo.textContent = "";
+            return;
+        }
+        const monto = previewValorCotizacion(valor, "COP");
+        if (key === "orden_servicio") {
+            vivo.textContent = `${monto} → Orden de Servicio. Compras cierra el servicio; no se radica en Jurídica.`;
+        } else if (key === "orden_trabajo") {
+            vivo.textContent = `${monto} → Orden de Trabajo. Tras aprobar, Compras la radica en Jurídica.`;
+        } else {
+            vivo.textContent = `${monto} → Contrato. Tras aprobar, Compras lo radica en Jurídica.`;
+        }
+    };
+    document.querySelectorAll('input[name="cotizacion-elegida"]').forEach((radio) => {
+        radio.addEventListener("change", sync);
+        const card = radio.closest(".sg-cotizacion-slot--vista");
+        card?.addEventListener("click", (ev) => {
+            if (ev.target.closest("a, input, label")) return;
+            radio.checked = true;
+            radio.dispatchEvent(new Event("change"));
+        });
+    });
+    sync();
+}
+
 export function labelClasificacionDocumentoServicio(keyOrSolicitud) {
     if (keyOrSolicitud && typeof keyOrSolicitud === "object") {
         const fromApi = (keyOrSolicitud.clasificacion_documento_servicio_label || "").trim();
@@ -1149,20 +1702,11 @@ export function labelClasificacionDocumentoServicio(keyOrSolicitud) {
 
 /** Fase capturar valor o completar anticipo (aún no omitido/gestionado). */
 export function esGestionServiciosCapturaValor(s) {
-    return (
-        esSolicitudServicios(s) &&
-        esGestionServiciosPostAprobacion(s.estado) &&
-        !anticipoServicioGestionado(s) &&
-        !(gestionValorServicioRegistrada(s) && !s.requiere_anticipo)
-    );
+    return false;
 }
 
 export function esGestionServiciosSolicitarAnticipo(s) {
-    return (
-        esGestionServiciosCapturaValor(s) &&
-        gestionValorServicioRegistrada(s) &&
-        Boolean(s.requiere_anticipo)
-    );
+    return false;
 }
 
 export function esGestionServiciosContinuacionPostAnticipo(s) {
@@ -1170,14 +1714,18 @@ export function esGestionServiciosContinuacionPostAnticipo(s) {
     if (!esSolicitudServicios(s)) return false;
     if (estado === "pendiente_evidencia_cierre") return true;
     if (estado !== "gestionando_servicio") return false;
-    if (anticipoServicioGestionado(s)) return true;
-    return gestionValorServicioRegistrada(s) && !s.requiere_anticipo;
+    return (
+        anticipoServicioGestionado(s) ||
+        gestionValorServicioRegistrada(s) ||
+        Boolean(s.valor_tramite_oc)
+    );
 }
 
 export function puedeRadicarContratoDesdeServicio(s) {
+    const clasif = s?.clasificacion_documento_servicio || "";
     return (
         esSolicitudServicios(s) &&
-        (s.clasificacion_documento_servicio || "") === "orden_trabajo" &&
+        (clasif === "orden_trabajo" || clasif === "contrato") &&
         (gestionValorServicioRegistrada(s) || anticipoServicioGestionado(s)) &&
         !s.contrato_id
     );
@@ -1235,8 +1783,7 @@ export function renderPanelServiciosPostAnticipoGestionadoHtml(s) {
         </p>`;
     } else {
         hintHtml = `<p class="muted sg-detail-panel-hint">
-            Valor del servicio registrado sin anticipo. Continúa con la observación del gestor
-            y notifica al solicitante para evidencia de cierre.
+            Continúa con la observación del gestor y notifica al solicitante para evidencia de cierre.
         </p>`;
     }
 
@@ -1508,6 +2055,16 @@ export function renderInformacionGeneralHtml(s, options = {}) {
                     }</dd>
                 </div>
                 <div class="sg-detail-field">
+                    <dt>Necesita comité técnico</dt>
+                    <dd>${
+                        s.requiere_comite_tecnico === null || s.requiere_comite_tecnico === undefined
+                            ? "—"
+                            : s.requiere_comite_tecnico
+                              ? "Sí"
+                              : "No"
+                    }</dd>
+                </div>
+                <div class="sg-detail-field">
                     <dt>Servicio programado</dt>
                     <dd>${
                         s.servicio_programado === null || s.servicio_programado === undefined
@@ -1607,6 +2164,18 @@ export function renderInformacionGeneralHtml(s, options = {}) {
         </div>`;
 }
 
+export function renderProveedorSugeridoListaHtml(texto) {
+    const lineas = String(texto || "")
+        .split(/\r?\n/)
+        .map((l) => l.replace(/^-\s*/, "").trim())
+        .filter(Boolean);
+    if (!lineas.length) return "";
+    if (lineas.length === 1) return escapeHtml(lineas[0]);
+    return `<ul class="sg-prov-lista">${lineas
+        .map((l) => `<li>${escapeHtml(l)}</li>`)
+        .join("")}</ul>`;
+}
+
 export function renderServiciosDetalleHtml(s) {
     if (!esSolicitudServicios(s)) return "";
 
@@ -1620,8 +2189,8 @@ export function renderServiciosDetalleHtml(s) {
                 ${
                     (s.proveedor_sugerido || "").trim()
                         ? `<div class="sg-detail-field sg-detail-field-full">
-                    <dt>Proveedor sugerido</dt>
-                    <dd>${escapeHtml(s.proveedor_sugerido)}</dd>
+                    <dt>Proveedor(es) sugerido(s)</dt>
+                    <dd>${renderProveedorSugeridoListaHtml(s.proveedor_sugerido)}</dd>
                 </div>`
                         : ""
                 }
@@ -1647,6 +2216,13 @@ function formatHoraVisita(hora) {
     return text.length >= 5 ? text.slice(0, 5) : text;
 }
 
+function etiquetaRolVisita(v) {
+    const rol = (v.rol_programador || "").toLowerCase();
+    if (rol === "proyectos") return "Proyectos";
+    if (rol === "compras") return "Compras";
+    return v.programador_visita || "";
+}
+
 export function renderVisitasProgramadasDetalleHtml(s) {
     if (!esSolicitudServicios(s)) return "";
     const visitas = s.visitas_programadas || [];
@@ -1657,10 +2233,17 @@ export function renderVisitasProgramadasDetalleHtml(s) {
             <dd>
                 <ul class="sg-visitas-detalle-list">
                     ${visitas
-                        .map(
-                            (v, i) => `
+                        .map((v, i) => {
+                            const rol = (v.rol_programador || "").toLowerCase();
+                            const etiqueta = etiquetaRolVisita(v);
+                            const badge = etiqueta
+                                ? `<span class="sg-visita-rol-badge sg-visita-rol-${
+                                      rol || "otro"
+                                  }">${escapeHtml(etiqueta)}</span>`
+                                : "";
+                            return `
                         <li>
-                            <strong>Visita ${i + 1}</strong> —
+                            <strong>Visita ${i + 1}</strong> ${badge} —
                             Proveedor: ${escapeHtml(v.proveedor_visita || "—")}
                             ${
                                 v.fecha_visita
@@ -1668,8 +2251,8 @@ export function renderVisitasProgramadasDetalleHtml(s) {
                                     : ""
                             }
                             ${v.hora_visita ? ` · Hora: ${formatHoraVisita(v.hora_visita)}` : ""}
-                        </li>`
-                        )
+                        </li>`;
+                        })
                         .join("")}
                 </ul>
             </dd>
@@ -1721,10 +2304,6 @@ export function renderVisitaProgramadaRowHtml(visita = {}, { removable = true } 
 
 export function renderPanelGestionServiciosHtml(s, lideresOptionsHtml) {
     const cotizaciones = (s.archivos || []).filter((a) => a.categoria === "cotizacion");
-    const requiereVisita = Boolean(s.requiere_visita);
-    const visitas = s.visitas_programadas || [];
-    const programarVisitaInicial = visitas.length > 0 || requiereVisita;
-    const visitasIniciales = visitas.length ? visitas : [{}];
     const adjuntarCotizacionesInicial = cotizaciones.length > 0;
 
     return `
@@ -1752,57 +2331,6 @@ export function renderPanelGestionServiciosHtml(s, lideresOptionsHtml) {
             <div class="sg-detail-panel sg-gestion-form-panel">
                 <h3 class="sg-detail-panel-title">Gestión del servicio</h3>
 
-                <div class="field sg-visitas-programadas-field">
-                    <label>¿Programar visita?</label>
-                    <div class="radio-group" id="sg-programar-visita-group">
-                        <label class="radio-option">
-                            <input
-                                type="radio"
-                                name="programar_visita"
-                                value="si"
-                                ${programarVisitaInicial ? "checked" : ""}
-                            />
-                            Sí
-                        </label>
-                        <label class="radio-option">
-                            <input
-                                type="radio"
-                                name="programar_visita"
-                                value="no"
-                                ${programarVisitaInicial ? "" : "checked"}
-                            />
-                            No
-                        </label>
-                    </div>
-                    <div
-                        id="sg-visitas-programadas-wrap"
-                        class="sg-visitas-programadas-wrap"
-                        ${programarVisitaInicial ? "" : "hidden"}
-                    >
-                        <div class="sg-visitas-programadas-header">
-                            <p class="hint ${requiereVisita ? "" : "muted"}" id="sg-visitas-hint">
-                                ${
-                                    requiereVisita
-                                        ? "El solicitante indicó que requiere visita. Registra proveedor y fecha de cada visita."
-                                        : "Indica proveedor y fecha de cada visita programada."
-                                }
-                            </p>
-                            <button
-                                type="button"
-                                class="btn btn-secondary btn-sm"
-                                id="btn-agregar-visita-programada"
-                            >
-                                + Agregar visita
-                            </button>
-                        </div>
-                        <div id="sg-visitas-programadas-list">
-                            ${visitasIniciales
-                                .map((v) => renderVisitaProgramadaRowHtml(v))
-                                .join("")}
-                        </div>
-                    </div>
-                </div>
-
                 <div class="field sg-adjuntar-cotizaciones-field">
                     <label>¿Adjuntar cotizaciones ahora?</label>
                     <div class="radio-group" id="sg-adjuntar-cotizaciones-group">
@@ -1826,8 +2354,8 @@ export function renderPanelGestionServiciosHtml(s, lideresOptionsHtml) {
                         </label>
                     </div>
                     <p class="hint muted" id="sg-adjuntar-cotizaciones-hint">
-                        Si eliges <strong>No</strong>, guarda la programación de visitas y la solicitud
-                        seguirá en Cotización hasta que adjuntes cotizaciones.
+                        Si eliges <strong>Sí</strong>, adjunta al menos 3 cotizaciones con su valor
+                        y anticipo. Diego Serrano (Financiera) elige cuál aprueba o pide recotización.
                     </p>
                 </div>
 
@@ -1836,7 +2364,7 @@ export function renderPanelGestionServiciosHtml(s, lideresOptionsHtml) {
                     class="sg-cotizaciones-gestion-wrap"
                     ${adjuntarCotizacionesInicial ? "" : "hidden"}
                 >
-                ${renderCotizacionesUploadHtml(cotizaciones.length)}
+                ${renderCotizacionesUploadHtml(cotizaciones.length, { conDatosEconomicos: true })}
 
                 ${
                     cotizaciones.length
@@ -1859,16 +2387,71 @@ export function renderPanelGestionServiciosHtml(s, lideresOptionsHtml) {
                     >${escapeHtml(s.justificacion_cotizaciones || "")}</textarea>
                 </div>
 
-                <div class="field">
-                    <label for="gestion-lider-aprobacion">
-                        Líder Colbeef — segunda aprobación
-                        <span class="required">*</span>
-                    </label>
-                    <select id="gestion-lider-aprobacion">
-                        <option value="">Selecciona un líder</option>
-                        ${lideresOptionsHtml}
-                    </select>
+                <p class="hint" id="sg-segunda-aprobacion-diego">
+                    La segunda aprobación se envía automáticamente a
+                    <strong>Diego Serrano — Dirección Administrativa y Financiera</strong>.
+                    Él elige una cotización o pide recotización si ninguna le sirve.
+                </p>
                 </div>
+            </div>
+        </div>`;
+}
+
+export function renderPanelProgramarVisitaHtml(s) {
+    // El formulario siempre inicia con una fila vacía: cada rol (Compras/Proyectos)
+    // agenda su propia visita. Las visitas previas ya se ven en el detalle de arriba.
+    const visitasIniciales = [{}];
+    return `
+        <div class="sg-detail-layout">
+            ${renderWorkflowTimelineHtml(s)}
+            ${renderInformacionGeneralHtml(s, {
+                showPresupuestado: false,
+                showServiciosCampos: true,
+                showFechaRegistro: true,
+                showCreadoPor: true,
+            })}
+            ${renderServiciosDetalleHtml(s)}
+            ${renderObservacionesTrazabilidadHtml(s)}
+            ${renderArchivosHtml(s)}
+
+            <div class="sg-detail-panel sg-gestion-form-panel">
+                <h3 class="sg-detail-panel-title">Programar visita</h3>
+                <p class="hint">
+                    Antes de cotizar, agenda la visita: datos del proveedor, día y hora.
+                    Al confirmar, la solicitud pasa a cotización.
+                </p>
+                <input type="radio" name="programar_visita" value="si" checked hidden />
+                <div id="sg-visitas-programadas-wrap" class="sg-visitas-programadas-wrap">
+                    <div class="sg-visitas-programadas-header">
+                        <p class="hint muted" id="sg-visitas-hint">
+                            Registra proveedor, fecha y hora de cada visita.
+                        </p>
+                        <button
+                            type="button"
+                            class="btn btn-secondary btn-sm"
+                            id="btn-agregar-visita-programada"
+                        >
+                            + Agregar visita
+                        </button>
+                    </div>
+                    <div id="sg-visitas-programadas-list">
+                        ${visitasIniciales.map((v) => renderVisitaProgramadaRowHtml(v)).join("")}
+                    </div>
+                </div>
+
+                <div class="field" style="margin-top:12px">
+                    <label for="sg-visita-observacion">Observación (opcional)</label>
+                    <textarea id="sg-visita-observacion" rows="2"
+                        placeholder="Notas de la visita / acuerdos..."></textarea>
+                </div>
+                <div class="field">
+                    <label for="sg-visita-adjuntos">Adjuntos (opcional)</label>
+                    <input type="file" id="sg-visita-adjuntos" multiple />
+                </div>
+                <div class="modal-actions" style="margin-top:12px">
+                    <button type="button" class="btn btn-primary" id="btn-confirmar-visita-programada">
+                        Confirmar visita y continuar a cotización
+                    </button>
                 </div>
             </div>
         </div>`;
@@ -2192,7 +2775,11 @@ export function renderProductosTableHtml(productos, options = {}) {
 }
 
 export function renderDetalleSolicitudHtml(s, options = {}) {
-    const { productosOptions = {}, showAprobacionParcialAlert = true } = options;
+    const {
+        productosOptions = {},
+        showAprobacionParcialAlert = true,
+        seleccionarCotizacion = false,
+    } = options;
     const tieneTramiteParcial = (s.productos || []).some((p) =>
         Boolean((p.numero_tramite_oc || "").trim())
     );
@@ -2252,6 +2839,12 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
                         )),
             })
             }
+
+            ${renderArchivosHtml(s, {
+                categoria: "cotizacion",
+                titulo: "Cotizaciones",
+                seleccionable: seleccionarCotizacion,
+            })}
 
             ${renderObservacionesTrazabilidadHtml(s)}
 

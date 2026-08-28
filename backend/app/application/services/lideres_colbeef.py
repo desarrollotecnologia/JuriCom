@@ -27,5 +27,11 @@ EMAILS_LIDERES_COLBEEF: dict[str, str] = {
 }
 
 
+DIEGO_FINANCIERA_ID = "13542263"
+DIEGO_FINANCIERA_LABEL = (
+    "SERRANO ARDILA DIEGO FERNANDO - DIRECTOR ADMINISTRATIVO Y FINANCIERO"
+)
+
+
 def email_lider_catalogo(catalog_id: str) -> str:
     return EMAILS_LIDERES_COLBEEF.get((catalog_id or "").strip(), "")

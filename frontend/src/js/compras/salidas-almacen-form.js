@@ -1,9 +1,9 @@
 import {
     AREAS_CONSUMO,
-    CENTROS_COSTO,
     LIDERES_AREA,
     buildSelectOptions,
 } from "./mock-catalogos.js";
+import { opcionesCentrosCostosHtml } from "../catalogos/centros-costos.js";
 import { api, ApiError } from "../api/client.js";
 import { createObservacionConAdjuntos } from "../components/observacion-editor.js";
 import { createSearchableSelect } from "../components/searchable-select.js";
@@ -28,11 +28,11 @@ export function initSalidasAlmacenForm() {
         name: "observaciones",
         placeholder: "Información adicional relevante para la salida de almacén...",
         minHeight: 180,
+        autosaveKey: "salida-almacen-nueva:observaciones",
     });
     const observacionesEditor = observacionControl.editor;
 
-    selectCentroCosto.innerHTML = buildSelectOptions(
-        CENTROS_COSTO,
+    selectCentroCosto.innerHTML = opcionesCentrosCostosHtml(
         "Selecciona el centro de costo"
     );
 
@@ -105,7 +105,7 @@ export function initSalidasAlmacenForm() {
             </td>
             <td>
                 <select class="input-table" name="centro_costo_${rowId}" required>
-                    ${buildSelectOptions(CENTROS_COSTO, "Centro de costo")}
+                    ${opcionesCentrosCostosHtml("Centro de costo")}
                 </select>
             </td>
             <td class="table-actions cell-accion">

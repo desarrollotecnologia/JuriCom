@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Anticipos y cierres · Tesorería · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css?v=10" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1 id="page-title">Anticipos y cierres por pagar</h1>
+                        <p class="muted">
+                            Anticipos y cierres gestionados por Contabilidad. Revisa, paga y
+                            adjunta el soporte del pago.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card">
+                    <h2 class="card-title">Contratos por pagar</h2>
+                    <div class="search-bar">
+                        <input
+                            type="text"
+                            id="ant-search"
+                            placeholder="Buscar por código o proveedor..."
+                            autocomplete="off"
+                        />
+                        <select id="ant-fase" class="input-select">
+                            <option value="todos">Todos</option>
+                            <option value="anticipo">Anticipos</option>
+                            <option value="cierre">Cierre de contratos</option>
+                        </select>
+                        <span class="info" id="ant-result-count"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table-gestion-solicitudes">
+                            <thead>
+                                <tr>
+                                    <th>Contrato</th>
+                                    <th>Proveedor</th>
+                                    <th>Valor</th>
+                                    <th>SRV</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ant-tbody">
+                                <tr>
+                                    <td colspan="5" class="muted text-center">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div class="modal-overlay" id="modal-detail">
+            <div class="modal modal-wide modal-anticipo">
+                <div class="sg-modal-head">
+                    <h2 id="detail-title">Detalle del anticipo</h2>
+                </div>
+                <div class="sg-modal-detail-body">
+                    <div id="detail-content"></div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="btn-detail-close">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { requireSessionRole } from "/static/js/auth/bootstrap.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { initPanelAnticipos } from "/static/js/anticipos/panel-anticipos.js?v=5";
+
+            const user = await requireSessionRole(["tesoreria", "admin"]);
+            if (user) {
+                renderSidebar();
+                initPanelAnticipos({ user, rol: "tesoreria" });
+            }
+        </script>
+    </body>
+</html>

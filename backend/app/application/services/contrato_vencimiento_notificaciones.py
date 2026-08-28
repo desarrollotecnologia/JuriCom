@@ -8,7 +8,7 @@ from app.application.interfaces.email_notifier import EmailMessage, EmailNotifie
 from app.domain.value_objects.estado_contrato import EstadoContrato
 
 
-HORA_NOTIFICACION_DEFAULT = time(0, 10)
+HORA_NOTIFICACION_DEFAULT = time(7, 30)
 
 
 @dataclass

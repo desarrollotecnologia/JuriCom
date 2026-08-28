@@ -49,6 +49,7 @@ class ResolverAprobacionSolicitud:
         tipo_aprobacion: str = "total",
         productos_aprobados_ids: list[int] | None = None,
         productos_cantidades: dict[int, Decimal] | None = None,
+        cotizacion_elegida_id: int | None = None,
     ) -> SolicitudGestion:
         solicitud = self._get_pendiente(actor, solicitud_id)
         etapa_actual = normalizar_estado(solicitud.estado)
@@ -85,11 +86,33 @@ class ResolverAprobacionSolicitud:
                     productos_aprobados_ids,
                 )
 
+        comite_servicios = es_flujo_servicios(solicitud.tipo) and bool(
+            getattr(solicitud, "requiere_comite_tecnico", False)
+        )
+
         if etapa_actual == EstadoSolicitudGestion.EN_APROBACION:
             if es_flujo_servicios(solicitud.tipo):
+                if not cotizacion_elegida_id:
+                    raise ValueError("Selecciona la cotización que apruebas.")
+                from app.application.use_cases.solicitudes_gestion.enviar_cotizacion_solicitud import (
+                    _copiar_propuesta_a_solicitud,
+                )
+
+                elegida = self._solicitudes.marcar_cotizacion_elegida(
+                    solicitud_id, cotizacion_elegida_id
+                )
+                _copiar_propuesta_a_solicitud(solicitud, elegida)
+                comentario_historial = (
+                    f"Cotización elegida: {elegida.nombre_original}"
+                )
+                # La mesa técnica (comité) ya ocurrió antes de esta 2.ª aprobación,
+                # así que aquí siempre pasa a gestión del servicio.
                 proxima = EstadoSolicitudGestion.GESTIONANDO_SERVICIO
             else:
                 proxima = EstadoSolicitudGestion.TRAMITANDO_OC
+        elif etapa_actual == EstadoSolicitudGestion.SOLICITUD and comite_servicios:
+            # Comité técnico: tras la 1.ª aprobación, Proyectos revisa/reescribe.
+            proxima = EstadoSolicitudGestion.REVISION_PROYECTOS
         else:
             proxima = siguiente_etapa(etapa_actual)
         if proxima is None:

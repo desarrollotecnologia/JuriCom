@@ -2,16 +2,6 @@
 
 import { LIDERES_COLBEEF } from "../catalogos/lideres-colbeef.js";
 
-export const CENTROS_COSTO = [
-    { id: "CC-100", label: "CC-100 · Administración y Finanzas" },
-    { id: "CC-200", label: "CC-200 · Producción y Planta" },
-    { id: "CC-300", label: "CC-300 · Logística y Despachos" },
-    { id: "CC-400", label: "CC-400 · Comercial y Ventas" },
-    { id: "CC-500", label: "CC-500 · Tecnología e Innovación" },
-    { id: "CC-600", label: "CC-600 · Gestión Humana" },
-    { id: "CC-700", label: "CC-700 · Calidad y SST" },
-];
-
 export const AREAS_CONSUMO = [
     { id: "AC-ADM", label: "AC-ADM · Administración" },
     { id: "AC-PROD", label: "AC-PROD · Producción" },

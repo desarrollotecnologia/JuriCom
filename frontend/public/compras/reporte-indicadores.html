@@ -6,6 +6,239 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Reporte e Indicadores · JURICOM_BEEF</title>
         <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .kpi-grid {
+                display: grid;
+                gap: 16px;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+            @media (max-width: 900px) {
+                .kpi-grid {
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }
+            }
+            @media (max-width: 520px) {
+                .kpi-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .kpi-card {
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-lg);
+                overflow: hidden;
+                padding: 18px 18px 18px 22px;
+                position: relative;
+            }
+            .kpi-card::before {
+                background: var(--accent, var(--color-primary));
+                border-radius: 6px;
+                bottom: 14px;
+                content: "";
+                left: 10px;
+                position: absolute;
+                top: 14px;
+                width: 5px;
+            }
+            .kpi-label {
+                color: var(--color-text-muted);
+                font-size: 0.78rem;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                text-transform: uppercase;
+            }
+            .kpi-value {
+                color: var(--color-primary-dark);
+                font-size: 2rem;
+                font-weight: 800;
+                line-height: 1.15;
+                margin-top: 8px;
+            }
+            .kpi-value.money {
+                font-size: 1.55rem;
+            }
+            .kpi-hint {
+                color: var(--color-text-muted);
+                font-size: 0.75rem;
+                margin-top: 6px;
+            }
+            .charts-grid {
+                display: grid;
+                gap: 18px;
+                grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+            }
+            @media (max-width: 960px) {
+                .charts-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .chart-panel {
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-lg);
+                padding: 20px;
+            }
+            .chart-legend-top {
+                color: var(--color-text-muted);
+                display: flex;
+                flex-wrap: wrap;
+                font-size: 0.8rem;
+                gap: 16px;
+                margin-top: 4px;
+            }
+            .chart-legend-top .dot {
+                border-radius: 3px;
+                display: inline-block;
+                height: 10px;
+                margin-right: 6px;
+                width: 10px;
+            }
+            .trend-chart {
+                align-items: end;
+                display: flex;
+                gap: 14px;
+                height: 240px;
+                margin-top: 22px;
+                overflow-x: auto;
+                padding-top: 26px;
+            }
+            .trend-column {
+                align-items: center;
+                display: flex;
+                flex: 1 0 46px;
+                flex-direction: column;
+                height: 100%;
+                justify-content: end;
+                min-width: 46px;
+            }
+            .trend-bars {
+                align-items: end;
+                display: flex;
+                gap: 4px;
+                height: 100%;
+                justify-content: center;
+                width: 100%;
+            }
+            .trend-bar {
+                border-radius: 6px 6px 2px 2px;
+                min-height: 3px;
+                transition: height 0.25s ease;
+                width: 16px;
+            }
+            .trend-bar.recibidas {
+                background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+            }
+            .trend-bar.gestionadas {
+                background: linear-gradient(180deg, #22c55e, #15803d);
+            }
+            .trend-label {
+                color: var(--color-text-muted);
+                font-size: 0.72rem;
+                margin-top: 8px;
+                white-space: nowrap;
+            }
+            .donut-wrap {
+                align-items: center;
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+                margin-top: 20px;
+            }
+            .donut {
+                align-items: center;
+                border-radius: 50%;
+                display: flex;
+                height: 180px;
+                justify-content: center;
+                position: relative;
+                width: 180px;
+            }
+            .donut::after {
+                background: var(--color-surface);
+                border-radius: 50%;
+                content: "";
+                height: 110px;
+                position: absolute;
+                width: 110px;
+            }
+            .donut-total {
+                color: var(--color-primary-dark);
+                font-size: 1.9rem;
+                font-weight: 800;
+                position: relative;
+                text-align: center;
+                z-index: 1;
+            }
+            .donut-total small {
+                color: var(--color-text-muted);
+                display: block;
+                font-size: 0.68rem;
+                font-weight: 600;
+            }
+            .legend {
+                display: grid;
+                gap: 9px;
+                width: 100%;
+            }
+            .legend-row {
+                align-items: center;
+                display: flex;
+                justify-content: space-between;
+            }
+            .legend-dot {
+                border-radius: 50%;
+                display: inline-block;
+                height: 10px;
+                margin-right: 7px;
+                width: 10px;
+            }
+            .hbars {
+                display: grid;
+                gap: 16px;
+                margin-top: 20px;
+            }
+            .hbar-row .hbar-head {
+                display: flex;
+                font-size: 0.85rem;
+                justify-content: space-between;
+                margin-bottom: 6px;
+            }
+            .hbar-track {
+                background: var(--color-bg, #f1f5f9);
+                border-radius: 999px;
+                height: 14px;
+                overflow: hidden;
+            }
+            .hbar-fill {
+                border-radius: 999px;
+                height: 100%;
+                min-width: 4px;
+                transition: width 0.25s ease;
+            }
+            .hbar-detalle {
+                color: var(--color-text-muted);
+                font-size: 0.7rem;
+                margin-top: 5px;
+                margin-left: 30px;
+                word-break: break-word;
+            }
+            .hbar-name {
+                align-items: center;
+                display: inline-flex;
+                gap: 8px;
+            }
+            .rank-num {
+                align-items: center;
+                border-radius: 50%;
+                color: #fff;
+                display: inline-flex;
+                flex: 0 0 auto;
+                font-size: 0.72rem;
+                font-weight: 800;
+                height: 22px;
+                justify-content: center;
+                width: 22px;
+            }
+        </style>
     </head>
     <body>
         <div class="app-shell">
@@ -14,8 +247,8 @@
                 <div class="page-header">
                     <div>
                         <h1>Reporte e Indicadores</h1>
-                        <p class="muted">
-                            Resumen de solicitudes según estado y aprobación.
+                        <p class="muted" id="page-subtitle">
+                            Indicadores del módulo de Compras (solicitudes de gestión).
                         </p>
                     </div>
                     <a
@@ -26,67 +259,117 @@
                     </a>
                 </div>
 
-                <div class="card">
-                    <h2 class="card-title">Por estado del contrato</h2>
-                    <div class="module-stat-grid">
-                        <div class="module-stat">
-                            <div class="label">Total</div>
-                            <div class="value" id="stat-total">—</div>
-                        </div>
-                        <div class="module-stat">
-                            <div class="label">En proceso</div>
-                            <div class="value" id="stat-en_proceso">—</div>
-                        </div>
-                        <div class="module-stat">
-                            <div class="label">Activos</div>
-                            <div class="value" id="stat-activo">—</div>
-                        </div>
-                        <div class="module-stat">
-                            <div class="label">Finalizados</div>
-                            <div class="value" id="stat-finalizado">—</div>
-                        </div>
+                <section class="kpi-grid">
+                    <div class="kpi-card" style="--accent:#3b82f6">
+                        <div class="kpi-label">Recibidas en el mes</div>
+                        <div class="kpi-value" id="ind-recibidas">—</div>
+                        <div class="kpi-hint">Solicitudes creadas este mes</div>
                     </div>
-                </div>
+                    <div class="kpi-card" style="--accent:#22c55e">
+                        <div class="kpi-label">Gestionadas en el mes</div>
+                        <div class="kpi-value" id="ind-gestionadas">—</div>
+                        <div class="kpi-hint">Completadas este mes</div>
+                    </div>
+                    <div class="kpi-card" style="--accent:#f59e0b">
+                        <div class="kpi-label">Tiempo de resolución</div>
+                        <div class="kpi-value" id="ind-tiempo">—</div>
+                        <div class="kpi-hint">Promedio creación → cierre</div>
+                    </div>
+                    <div class="kpi-card" style="--accent:#8b5cf6">
+                        <div class="kpi-label">Valor de servicios del mes</div>
+                        <div class="kpi-value money" id="ind-valor-servicios">—</div>
+                        <div class="kpi-hint">Servicios aprobados por gerencia</div>
+                    </div>
+                </section>
 
-                <div class="card mt-4">
-                    <h2 class="card-title">Por aprobación</h2>
-                    <div class="module-stat-grid">
-                        <div class="module-stat">
-                            <div class="label">Pendiente líder</div>
-                            <div class="value" id="stat-pendiente_lider">—</div>
+                <section class="charts-grid mt-4">
+                    <div class="chart-panel">
+                        <h2 class="card-title">Solicitudes por mes (últimos 6 meses)</h2>
+                        <div class="chart-legend-top">
+                            <span><i class="dot" style="background:#1d4ed8"></i>Recibidas</span>
+                            <span><i class="dot" style="background:#15803d"></i>Gestionadas</span>
                         </div>
-                        <div class="module-stat">
-                            <div class="label">Pendiente gerencia</div>
-                            <div class="value" id="stat-pendiente_gerencia">—</div>
-                        </div>
-                        <div class="module-stat">
-                            <div class="label">Aprobados</div>
-                            <div class="value" id="stat-aprobado">—</div>
-                        </div>
-                        <div class="module-stat">
-                            <div class="label">Rechazados</div>
-                            <div class="value" id="stat-rechazado">—</div>
+                        <div class="trend-chart" id="trend-chart"></div>
+                    </div>
+                    <div class="chart-panel">
+                        <h2 class="card-title">Estado de las solicitudes</h2>
+                        <div class="donut-wrap">
+                            <div class="donut" id="estado-donut">
+                                <div class="donut-total">
+                                    <span id="estado-total">0</span>
+                                    <small>en total</small>
+                                </div>
+                            </div>
+                            <div class="legend">
+                                <div class="legend-row">
+                                    <span><i class="legend-dot" style="background:#f59e0b"></i>En gestión</span>
+                                    <strong id="estado-en_gestion">0</strong>
+                                </div>
+                                <div class="legend-row">
+                                    <span><i class="legend-dot" style="background:#16a34a"></i>Realizadas</span>
+                                    <strong id="estado-realizadas">0</strong>
+                                </div>
+                                <div class="legend-row">
+                                    <span><i class="legend-dot" style="background:#ef4444"></i>Canceladas</span>
+                                    <strong id="estado-canceladas">0</strong>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div class="card mt-4">
-                    <h2 class="card-title">Acciones</h2>
-                    <div style="display: flex; gap: 12px; flex-wrap: wrap">
-                        <a
-                            href="/app/compras/mis-solicitudes.html"
-                            class="btn btn-primary"
-                        >
-                            Panel de solicitudes
-                        </a>
-                        <a
-                            href="/app/compras/solicitud-radicar.html"
-                            class="btn btn-secondary"
-                        >
-                            Nueva solicitud
-                        </a>
+                <section class="charts-grid mt-4">
+                    <div class="chart-panel">
+                        <h2 class="card-title">Áreas que más gastan</h2>
+                        <p class="muted" style="font-size:0.8rem;margin-top:2px;">
+                            Valor por centro de costo / área, solo servicios aprobados por
+                            gerencia financiera (este mes).
+                        </p>
+                        <div class="hbars" id="areas-bars">
+                            <p class="muted" style="margin:0">Sin datos.</p>
+                        </div>
                     </div>
-                </div>
+                    <div class="chart-panel">
+                        <h2 class="card-title">Proveedor más frecuente</h2>
+                        <p class="muted" style="font-size:0.8rem;margin-top:2px;">
+                            Proveedores del catálogo con más solicitudes aprobadas por gerencia
+                            (este mes).
+                        </p>
+                        <div class="hbars" id="proveedores-bars">
+                            <p class="muted" style="margin:0">Sin datos.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="charts-grid mt-4">
+                    <div class="chart-panel">
+                        <h2 class="card-title">Solicitudes por tipo</h2>
+                        <div class="hbars" id="tipo-bars"></div>
+                    </div>
+                    <div class="chart-panel">
+                        <h2 class="card-title">Acciones</h2>
+                        <div style="display:flex;flex-direction:column;gap:12px;margin-top:16px;">
+                            <a
+                                href="/app/compras/gestion-panel-solicitudes.html"
+                                class="btn btn-primary"
+                            >
+                                Panel de solicitudes
+                            </a>
+                            <a
+                                href="/app/compras/gestion-panel-solicitudes.html?vista=realizadas"
+                                class="btn btn-secondary"
+                            >
+                                Solicitudes realizadas
+                            </a>
+                            <a
+                                href="/app/compras/solicitud-radicar.html"
+                                class="btn btn-secondary"
+                            >
+                                Nueva solicitud
+                            </a>
+                        </div>
+                    </div>
+                </section>
             </main>
         </div>
 
@@ -94,56 +377,181 @@
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
             import { api } from "/static/js/api/client.js";
+            import { formatMoney } from "/static/js/utils/format.js";
 
             session.requireAuth();
             session.requireRole(["compras", "admin"]);
             renderSidebar();
 
-            function countBy(items, key, value) {
-                return items.filter((item) => item[key] === value).length;
+            const MESES_CORTO = [
+                "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+                "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+            ];
+            const MESES_LARGO = [
+                "enero", "febrero", "marzo", "abril", "mayo", "junio",
+                "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+            ];
+
+            function labelMesCorto(clave) {
+                const [, m] = String(clave || "").split("-");
+                return MESES_CORTO[Number(m) - 1] || clave;
+            }
+
+            function etiquetaMesLargo(clave) {
+                const [y, m] = String(clave || "").split("-");
+                const idx = Number(m) - 1;
+                if (!y || idx < 0 || idx > 11) return "";
+                return `${MESES_LARGO[idx]} de ${y}`;
+            }
+
+            function etiquetaTiempo(dias) {
+                if (dias == null) return "—";
+                const n = Number(dias);
+                if (Number.isNaN(n)) return "—";
+                if (n < 1) return `${Math.round(n * 24)} h`;
+                return `${n} día${n === 1 ? "" : "s"}`;
+            }
+
+            function renderTendencia(serie) {
+                const cont = document.getElementById("trend-chart");
+                const maximo = Math.max(
+                    1,
+                    ...serie.map((p) => Math.max(p.recibidas, p.gestionadas))
+                );
+                const alto = 190;
+                cont.innerHTML = serie
+                    .map((p) => {
+                        const hR = Math.max((p.recibidas / maximo) * alto, p.recibidas ? 4 : 0);
+                        const hG = Math.max((p.gestionadas / maximo) * alto, p.gestionadas ? 4 : 0);
+                        return `
+                            <div class="trend-column" title="${etiquetaMesLargo(p.mes)} — Recibidas: ${p.recibidas} · Gestionadas: ${p.gestionadas}">
+                                <div class="trend-bars">
+                                    <div class="trend-bar recibidas" style="height:${hR}px"></div>
+                                    <div class="trend-bar gestionadas" style="height:${hG}px"></div>
+                                </div>
+                                <span class="trend-label">${labelMesCorto(p.mes)}</span>
+                            </div>`;
+                    })
+                    .join("");
+            }
+
+            function renderDonutEstado(porEstado) {
+                const en = porEstado.en_gestion || 0;
+                const re = porEstado.realizadas || 0;
+                const ca = porEstado.canceladas || 0;
+                const total = en + re + ca;
+                const donut = document.getElementById("estado-donut");
+                if (total) {
+                    const a = (en / total) * 360;
+                    const b = a + (re / total) * 360;
+                    donut.style.background = `conic-gradient(#f59e0b 0deg ${a}deg, #16a34a ${a}deg ${b}deg, #ef4444 ${b}deg 360deg)`;
+                } else {
+                    donut.style.background = "#e5e7eb";
+                }
+                document.getElementById("estado-total").textContent = total;
+                document.getElementById("estado-en_gestion").textContent = en;
+                document.getElementById("estado-realizadas").textContent = re;
+                document.getElementById("estado-canceladas").textContent = ca;
+            }
+
+            function renderTipos(porTipo) {
+                const filas = [
+                    { key: "compra", label: "Compras", color: "#3b82f6" },
+                    { key: "servicios", label: "Servicios", color: "#8b5cf6" },
+                    { key: "salidas_almacen", label: "Salidas de almacén", color: "#0ea5e9" },
+                ];
+                const maximo = Math.max(1, ...filas.map((f) => porTipo[f.key] || 0));
+                document.getElementById("tipo-bars").innerHTML = filas
+                    .map((f) => {
+                        const v = porTipo[f.key] || 0;
+                        const pct = Math.round((v / maximo) * 100);
+                        return `
+                            <div class="hbar-row">
+                                <div class="hbar-head">
+                                    <span>${f.label}</span>
+                                    <strong>${v}</strong>
+                                </div>
+                                <div class="hbar-track">
+                                    <div class="hbar-fill" style="width:${pct}%;background:${f.color}"></div>
+                                </div>
+                            </div>`;
+                    })
+                    .join("");
+            }
+
+            function escapeHtml(s) {
+                return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+                    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+                }[c]));
+            }
+
+            function renderRanking(elId, items, color, formatoValor) {
+                const cont = document.getElementById(elId);
+                if (!items || !items.length) {
+                    cont.innerHTML = `<p class="muted" style="margin:0">Sin datos.</p>`;
+                    return;
+                }
+                const maximo = Math.max(1, ...items.map((it) => Number(it.valor) || 0));
+                cont.innerHTML = items
+                    .map((it, i) => {
+                        const v = Number(it.valor) || 0;
+                        const pct = Math.round((v / maximo) * 100);
+                        const detalles = (it.detalles || []).filter(Boolean);
+                        const detalleHtml = detalles.length
+                            ? `<div class="hbar-detalle">${detalles
+                                  .map((c) => escapeHtml(c))
+                                  .join(" · ")}</div>`
+                            : "";
+                        return `
+                            <div class="hbar-row">
+                                <div class="hbar-head">
+                                    <span class="hbar-name">
+                                        <span class="rank-num" style="background:${color}">${i + 1}</span>
+                                        ${escapeHtml(it.etiqueta)}
+                                    </span>
+                                    <strong>${formatoValor(v)}</strong>
+                                </div>
+                                <div class="hbar-track">
+                                    <div class="hbar-fill" style="width:${pct}%;background:${color}"></div>
+                                </div>
+                                ${detalleHtml}
+                            </div>`;
+                    })
+                    .join("");
             }
 
             (async () => {
                 try {
-                    const items = await api.get("/contratos");
-                    document.getElementById("stat-total").textContent = items.length;
-                    document.getElementById("stat-en_proceso").textContent = countBy(
-                        items,
-                        "estado",
-                        "en_proceso"
+                    const d = await api.get("/solicitudes-gestion/indicadores");
+                    document.getElementById("page-subtitle").textContent =
+                        `Indicadores del módulo de Compras · ${etiquetaMesLargo(d.mes)}`;
+                    document.getElementById("ind-recibidas").textContent = d.recibidas_mes ?? 0;
+                    document.getElementById("ind-gestionadas").textContent = d.gestionadas_mes ?? 0;
+                    document.getElementById("ind-tiempo").textContent = etiquetaTiempo(
+                        d.tiempo_resolucion_dias
                     );
-                    document.getElementById("stat-activo").textContent = countBy(
-                        items,
-                        "estado",
-                        "activo"
+                    document.getElementById("ind-valor-servicios").textContent = formatMoney(
+                        Number(d.valor_servicios || 0),
+                        "COP"
                     );
-                    document.getElementById("stat-finalizado").textContent = countBy(
-                        items,
-                        "estado",
-                        "finalizado"
+                    renderTendencia(d.serie || []);
+                    renderDonutEstado(d.por_estado || {});
+                    renderTipos(d.por_tipo || {});
+                    renderRanking(
+                        "areas-bars",
+                        d.areas_gasto || [],
+                        "#8b5cf6",
+                        (v) => formatMoney(v, "COP")
                     );
-                    document.getElementById("stat-pendiente_lider").textContent = countBy(
-                        items,
-                        "estado_aprobacion",
-                        "pendiente_lider"
+                    renderRanking(
+                        "proveedores-bars",
+                        d.proveedores_frecuentes || [],
+                        "#0ea5e9",
+                        (v) => `${v} solicitud${v === 1 ? "" : "es"}`
                     );
-                    document.getElementById("stat-pendiente_gerencia").textContent = countBy(
-                        items,
-                        "estado_aprobacion",
-                        "pendiente_gerencia"
-                    );
-                    document.getElementById("stat-aprobado").textContent = countBy(
-                        items,
-                        "estado_aprobacion",
-                        "aprobado"
-                    );
-                    document.getElementById("stat-rechazado").textContent = countBy(
-                        items,
-                        "estado_aprobacion",
-                        "rechazado"
-                    );
-                } catch {
-                    /* ignorar */
+                } catch (err) {
+                    document.getElementById("page-subtitle").textContent =
+                        "No se pudieron cargar los indicadores.";
                 }
             })();
         </script>

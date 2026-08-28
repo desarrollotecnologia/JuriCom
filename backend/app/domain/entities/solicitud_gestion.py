@@ -28,6 +28,8 @@ class SolicitudGestionVisitaProgramada:
     solicitud_id: Optional[int] = None
     fecha_visita: Optional[date] = None
     hora_visita: Optional[time] = None
+    # Rol de quien ordenó la visita: "compras" o "proyectos".
+    rol_programador: str = ""
 
 
 @dataclass
@@ -150,6 +152,12 @@ class SolicitudGestionArchivo:
     observacion_id: Optional[int] = None
     subido_por_id: Optional[int] = None
     created_at: Optional[datetime] = None
+    valor_cotizacion: Optional[Decimal] = None
+    moneda_cotizacion: str = "COP"
+    requiere_anticipo: bool = False
+    porcentaje_anticipo: Optional[Decimal] = None
+    monto_anticipo: Optional[Decimal] = None
+    propuesta: bool = False
 
 
 @dataclass
@@ -166,6 +174,7 @@ class SolicitudGestion:
     observaciones: str = ""
     observaciones_texto: str = ""
     requiere_visita: Optional[bool] = None
+    requiere_comite_tecnico: Optional[bool] = None
     servicio_programado: Optional[bool] = None
     fecha_servicio_programado: Optional[date] = None
     descripcion_servicio: str = ""
@@ -177,6 +186,14 @@ class SolicitudGestion:
     valor_tramite_oc: Optional[Decimal] = None
     gestor_id: Optional[int] = None
     gestor_username: str = ""
+    # Comité técnico (solo SRV que lo requieren)
+    proyectista_id: Optional[int] = None
+    proyectista_username: str = ""
+    comite_supervisor_ok: bool = False
+    comite_proyectos_ok: bool = False
+    # Comité técnico: True cuando Proyectos ya programó su visita (para que la
+    # siguiente etapa de "Programar visita" la agende Compras, no Proyectos).
+    visita_proyectos_hecha: bool = False
     lider_segunda_aprobacion_id: str = ""
     lider_segunda_aprobacion_label: str = ""
     requiere_anticipo: bool = False

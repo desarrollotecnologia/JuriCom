@@ -77,7 +77,22 @@ class SmtpEmailNotifier(EmailNotifier):
             logger.warning("No hay destinatarios para '%s'; se omite envío", message.asunto)
             return
 
+        # Modo prueba: redirige TODOS los correos a un único destinatario.
+        override = (settings.EMAIL_OVERRIDE_TO or "").strip()
+        destinos_reales = ""
+        if override:
+            destinos_reales = ", ".join(message.destinatarios)
+            logger.warning(
+                "EMAIL_OVERRIDE_TO activo: redirigiendo correo (destinos reales: %s) a %s",
+                destinos_reales,
+                override,
+            )
+            message.destinatarios = [override]
+            message.asunto = f"[PRUEBA → {destinos_reales}] {message.asunto}"
+
         mime = self._build_mime(message)
+        if destinos_reales:
+            mime["X-Original-To"] = destinos_reales
 
         # Estrategia con fallback
         errors: list[str] = []
@@ -122,6 +137,18 @@ class SmtpEmailNotifier(EmailNotifier):
                 "Este correo requiere cliente con soporte HTML."
             )
         mime.add_alternative(message.cuerpo_html, subtype="html")
+
+        # Adjuntos opcionales (p. ej. el informe final o el acta de liquidación).
+        for adj in getattr(message, "adjuntos", None) or []:
+            maintype, _, subtype = (adj.mime_type or "application/octet-stream").partition("/")
+            if not maintype or not subtype:
+                maintype, subtype = "application", "octet-stream"
+            mime.add_attachment(
+                adj.contenido,
+                maintype=maintype,
+                subtype=subtype,
+                filename=adj.nombre or "adjunto",
+            )
         return mime
 
     def _domain_from_email(self) -> str:

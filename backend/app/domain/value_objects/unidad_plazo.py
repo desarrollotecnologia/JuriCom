@@ -9,6 +9,7 @@ from enum import Enum
 
 class UnidadPlazo(str, Enum):
     DIAS = "dias"
+    DIAS_CALENDARIO = "dias_calendario"
     MESES = "meses"
     ANIOS = "anios"
 

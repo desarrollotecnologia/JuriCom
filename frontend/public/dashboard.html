@@ -56,6 +56,10 @@
                             <div class="value" id="stat-en_proceso">—</div>
                         </div>
                         <div class="stat">
+                            <div class="label">Elaborando</div>
+                            <div class="value" id="stat-elaborando">—</div>
+                        </div>
+                        <div class="stat">
                             <div class="label">Activos</div>
                             <div class="value" id="stat-activo">—</div>
                         </div>
@@ -64,6 +68,16 @@
                             <div class="value" id="stat-finalizado">—</div>
                         </div>
                     </div>
+                </div>
+
+                <div class="card mt-4" id="card-elaboracion" hidden
+                     style="border-left: 4px solid #b45309;">
+                    <h2 class="card-title">Contratos por elaborar</h2>
+                    <p class="muted" style="margin-bottom: 8px" id="elaboracion-resumen"></p>
+                    <ul id="elaboracion-lista" style="margin: 0 0 12px 18px; font-size: 0.9rem;"></ul>
+                    <a href="/app/juridica/pendientes.html" class="btn btn-primary">
+                        Ver pendientes de Jurídica
+                    </a>
                 </div>
 
                 <div class="card mt-4" id="card-buzon" hidden>
@@ -97,7 +111,7 @@
                     : user.role === "juridica"
                     ? "Equipo de Jurídica"
                     : user.role === "solicitante"
-                    ? "Usuario Solicitante"
+                    ? "Supervisor"
                     : user.role === "anticipos"
                     ? "Equipo de Anticipos"
                     : user.role === "lider_aprobador"
@@ -134,6 +148,11 @@
                 actions.push({
                     href: "/app/compras/gestion-mis-solicitudes.html",
                     label: "Mis solicitudes",
+                    cls: "btn-secondary",
+                });
+                actions.push({
+                    href: "/app/compras/finalizar-contrato.html",
+                    label: "Finalizar contrato",
                     cls: "btn-secondary",
                 });
             }
@@ -192,10 +211,33 @@
                     document.getElementById("stat-total").textContent = items.length;
                     document.getElementById("stat-en_proceso").textContent =
                         items.filter((c) => c.estado === "en_proceso").length;
+                    document.getElementById("stat-elaborando").textContent =
+                        items.filter((c) => c.estado === "elaborando").length;
                     document.getElementById("stat-activo").textContent =
                         items.filter((c) => c.estado === "activo").length;
                     document.getElementById("stat-finalizado").textContent =
                         items.filter((c) => c.estado === "finalizado").length;
+
+                    if (user.role === "juridica" || user.role === "admin") {
+                        const porElaborar = items
+                            .filter((c) => c.dias_para_elaborar !== null && c.dias_para_elaborar !== undefined)
+                            .sort((a, b) => a.dias_para_elaborar - b.dias_para_elaborar);
+                        if (porElaborar.length) {
+                            const urgentes = porElaborar.filter((c) => c.alerta_elaboracion).length;
+                            document.getElementById("elaboracion-resumen").textContent =
+                                `${porElaborar.length} contrato${porElaborar.length === 1 ? "" : "s"} en elaboración` +
+                                (urgentes ? ` — ${urgentes} requiere${urgentes === 1 ? "" : "n"} atención inmediata.` : ".");
+                            const fmt = (d) =>
+                                d < 0 ? `Vencido ${Math.abs(d)} Día${Math.abs(d) === 1 ? "" : "s"}`
+                                : d === 0 ? "Hoy"
+                                : d === 1 ? "1 Día" : `${d} Días`;
+                            document.getElementById("elaboracion-lista").innerHTML = porElaborar
+                                .slice(0, 5)
+                                .map((c) => `<li><strong>${c.codigo || "—"}</strong> · ${c.proveedor_contratista} — <em>${fmt(c.dias_para_elaborar)}</em></li>`)
+                                .join("");
+                            document.getElementById("card-elaboracion").hidden = false;
+                        }
+                    }
 
                     if (buzon.total > 0) {
                         const card = document.getElementById("card-buzon");

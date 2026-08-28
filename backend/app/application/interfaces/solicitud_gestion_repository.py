@@ -61,6 +61,12 @@ class SolicitudGestionRepository(ABC):
         ...
 
     @abstractmethod
+    def marcar_cotizacion_elegida(
+        self, solicitud_id: int, archivo_id: int
+    ) -> SolicitudGestionArchivo:
+        ...
+
+    @abstractmethod
     def link_archivos_observacion(self, observacion_id: int, archivo_ids: list[int]) -> None:
         ...
 

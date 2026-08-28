@@ -2,6 +2,7 @@
 
 import json
 from datetime import date, time
+from decimal import Decimal
 
 from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
@@ -9,6 +10,10 @@ from app.application.interfaces.solicitud_gestion_repository import (
 )
 from app.application.services.solicitud_gestion_notificaciones import (
     NotificadorSolicitudGestion,
+)
+from app.application.services.lideres_colbeef import (
+    DIEGO_FINANCIERA_ID,
+    DIEGO_FINANCIERA_LABEL,
 )
 from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
     AgregarObservacionSolicitud,
@@ -23,6 +28,9 @@ from app.domain.entities.solicitud_gestion import (
 )
 from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
+from app.domain.value_objects.clasificacion_documento_servicio import (
+    clasificar_documento_servicio,
+)
 from app.domain.value_objects.estado_solicitud_gestion import (
     EstadoSolicitudGestion,
     normalizar_estado,
@@ -135,11 +143,10 @@ class EnviarCotizacionSolicitud:
         nueva_observacion: str = "",
         nueva_observacion_texto: str = "",
         justificacion: str = "",
-        lider_segunda_aprobacion_id: str,
-        lider_segunda_aprobacion_label: str,
+        lider_segunda_aprobacion_id: str = "",
+        lider_segunda_aprobacion_label: str = "",
         cotizaciones: list[ArchivoEntradaSolicitud],
         archivos_observacion: list[ArchivoEntradaSolicitud] | None = None,
-        visitas_json: str = "",
     ) -> SolicitudGestion:
         if not (actor.is_admin() or actor.is_compras()):
             raise UnauthorizedError("Sólo Compras o Admin pueden enviar cotizaciones.")
@@ -148,7 +155,10 @@ class EnviarCotizacionSolicitud:
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
 
-        from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
+        from app.domain.value_objects.tipo_solicitud_gestion import (
+            es_flujo_salidas_almacen,
+            es_flujo_servicios,
+        )
 
         if es_flujo_salidas_almacen(solicitud.tipo):
             raise ValueError("Las salidas de almacén no requieren cotización.")
@@ -159,11 +169,18 @@ class EnviarCotizacionSolicitud:
         if solicitud.gestor_id != actor.id and not actor.is_admin():
             raise UnauthorizedError("Sólo el gestor asignado puede enviar la cotización.")
 
-        visitas = _parse_visitas_programadas(visitas_json)
-        _validar_visitas_servicios(solicitud, visitas)
-
-        if not lider_segunda_aprobacion_id.strip():
-            raise ValueError("Debes seleccionar un líder Colbeef para la segunda aprobación.")
+        es_srv = es_flujo_servicios(solicitud.tipo)
+        if es_srv:
+            lider_id = DIEGO_FINANCIERA_ID
+            lider_label = DIEGO_FINANCIERA_LABEL
+            _aplicar_datos_economicos_srv(cotizaciones)
+        else:
+            lider_id = (lider_segunda_aprobacion_id or "").strip()
+            lider_label = (lider_segunda_aprobacion_label or "").strip()
+            if not lider_id:
+                raise ValueError(
+                    "Debes seleccionar un líder Colbeef para la segunda aprobación."
+                )
 
         nuevos_ids: list[int] = []
         archivos_nuevos: list[SolicitudGestionArchivo] = []
@@ -182,6 +199,12 @@ class EnviarCotizacionSolicitud:
                     tamano_bytes=stored.tamano_bytes,
                     categoria="cotizacion",
                     subido_por_id=actor.id,
+                    valor_cotizacion=entrada.valor_cotizacion,
+                    moneda_cotizacion=entrada.moneda_cotizacion or "COP",
+                    requiere_anticipo=entrada.requiere_anticipo,
+                    porcentaje_anticipo=entrada.porcentaje_anticipo,
+                    monto_anticipo=entrada.monto_anticipo,
+                    propuesta=entrada.propuesta,
                 )
             )
 
@@ -222,25 +245,86 @@ class EnviarCotizacionSolicitud:
             if nuevos_ids:
                 self._solicitudes.link_archivos_observacion(obs.id, nuevos_ids)
 
-        solicitud.lider_segunda_aprobacion_id = lider_segunda_aprobacion_id.strip()
-        solicitud.lider_segunda_aprobacion_label = (lider_segunda_aprobacion_label or "").strip()
-        self._solicitudes.replace_visitas_programadas(solicitud_id, visitas)
-        solicitud.estado = EstadoSolicitudGestion.EN_APROBACION
+        solicitud.lider_segunda_aprobacion_id = lider_id
+        solicitud.lider_segunda_aprobacion_label = lider_label
+
+        # Comité técnico (servicios): antes de la 2.ª aprobación va a la mesa técnica,
+        # donde supervisor y Proyectos deben estar de acuerdo. Luego pasa a Diego.
+        comite_servicios = es_srv and bool(
+            getattr(solicitud, "requiere_comite_tecnico", False)
+        )
+        proxima = (
+            EstadoSolicitudGestion.COMITE
+            if comite_servicios
+            else EstadoSolicitudGestion.EN_APROBACION
+        )
+        if comite_servicios:
+            solicitud.comite_supervisor_ok = False
+            solicitud.comite_proyectos_ok = False
+        solicitud.estado = proxima
         actualizada = self._solicitudes.update(solicitud)
 
-        comentario = (
-            f"Enviada a segunda aprobación — Líder: {solicitud.lider_segunda_aprobacion_label}"
-        )
+        if comite_servicios:
+            comentario = "Enviada a mesa técnica (comité) tras completar cotizaciones"
+        else:
+            comentario = (
+                f"Enviada a segunda aprobación — Líder: {solicitud.lider_segunda_aprobacion_label}"
+            )
         if total_cotizaciones < MIN_COTIZACIONES:
             comentario += f" (Justificación: {solicitud.justificacion_cotizaciones})"
 
         self._solicitudes.registrar_historial(
             solicitud_id,
-            EstadoSolicitudGestion.EN_APROBACION,
+            proxima,
             usuario_id=actor.id,
             comentario=comentario,
         )
         resultado = self._solicitudes.get_by_id(solicitud_id) or actualizada
         if self._notificador:
-            self._notificador.notificar_cotizacion_enviada(resultado, actor)
+            if comite_servicios:
+                self._notificador.notificar_comite_iniciado(resultado, actor)
+            else:
+                self._notificador.notificar_cotizacion_enviada(resultado, actor)
         return resultado
+
+
+def _aplicar_datos_economicos_srv(cotizaciones: list[ArchivoEntradaSolicitud]) -> None:
+    """Valida valor/anticipo por cotización. El líder elige cuál aprueba."""
+    if not cotizaciones:
+        return
+    for i, entrada in enumerate(cotizaciones, start=1):
+        valor = entrada.valor_cotizacion
+        if valor is None or valor <= 0:
+            raise ValueError(f"Cotización {i}: indica el valor.")
+        if entrada.requiere_anticipo:
+            if entrada.porcentaje_anticipo is None:
+                raise ValueError(f"Cotización {i}: indica el porcentaje de anticipo.")
+            entrada.monto_anticipo = (
+                valor * entrada.porcentaje_anticipo / Decimal("100")
+            ).quantize(Decimal("0.01"))
+        else:
+            entrada.porcentaje_anticipo = None
+            entrada.monto_anticipo = None
+        entrada.propuesta = False
+
+
+def _copiar_propuesta_a_solicitud(solicitud: SolicitudGestion, propuesta) -> None:
+    valor = propuesta.valor_cotizacion
+    if valor is None:
+        return
+    moneda = (propuesta.moneda_cotizacion or "COP").upper()
+    solicitud.valor_tramite_oc = valor
+    solicitud.gestion_valor_registrada = True
+    if moneda == "COP":
+        solicitud.clasificacion_documento_servicio = clasificar_documento_servicio(valor).value
+    solicitud.requiere_anticipo = bool(propuesta.requiere_anticipo)
+    if propuesta.requiere_anticipo:
+        solicitud.porcentaje_anticipo = propuesta.porcentaje_anticipo
+        solicitud.monto_anticipo = propuesta.monto_anticipo
+    else:
+        solicitud.porcentaje_anticipo = None
+        solicitud.monto_anticipo = None
+        solicitud.lider_anticipo_id = ""
+        solicitud.lider_anticipo_label = ""
+        solicitud.observaciones_anticipo = ""
+

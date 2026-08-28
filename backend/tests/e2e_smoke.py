@@ -184,7 +184,7 @@ def main() -> None:
     ok(f"Contrato radicado con código {codigo} (id={contrato_id})")
     assert codigo.startswith(("C-", "OS-")), "Código no tiene formato C-NNNN u OS-NNNN"
     assert contrato["estado"] == "en_proceso", "Estado inicial debe ser en_proceso"
-    assert contrato["requiere_poliza"] is True
+    assert contrato["requiere_poliza"] is False
     assert contrato["tiene_poliza"] is False
     ok(f"Estado inicial: {contrato['estado']} (correcto)")
     ok("Validaciones OK: código C-/OS-, estado en_proceso, póliza pendiente.")
@@ -220,7 +220,7 @@ def main() -> None:
     t_juridica = login(JURIDICA_USER, JURIDICA_PASS)
     ok("Jurídica autenticado.")
 
-    section("7. JURÍDICA INTENTA PASAR A ACTIVO SIN PÓLIZA → debe fallar")
+    section("7. JURÍDICA INTENTA PASAR A ACTIVO SIN CONTRATO FIRMADO → debe fallar")
     r = requests.put(
         f"{API}/contratos/{contrato_id}/estado",
         json={"estado": "activo"},
@@ -228,7 +228,7 @@ def main() -> None:
         timeout=10,
     )
     if r.status_code == 400:
-        ok("Bloqueo correcto: no se puede activar sin póliza.")
+        ok("Bloqueo correcto: no se puede activar sin el contrato firmado.")
     else:
         warn(f"Se esperaba 400 y devolvió {r.status_code}: {r.text}")
 

@@ -38,6 +38,7 @@ class RegistrarSolicitudServicios:
         actor: User,
         titulo: str,
         requiere_visita: bool,
+        requiere_comite_tecnico: bool,
         servicio_programado: bool,
         fecha_servicio_programado: date | None,
         descripcion_servicio: str,
@@ -84,6 +85,7 @@ class RegistrarSolicitudServicios:
             lider_area_id=str(lider_area_id).strip(),
             lider_area_label=(lider_area_label or "").strip(),
             requiere_visita=requiere_visita,
+            requiere_comite_tecnico=requiere_comite_tecnico,
             servicio_programado=servicio_programado,
             fecha_servicio_programado=fecha_servicio_programado
             if servicio_programado

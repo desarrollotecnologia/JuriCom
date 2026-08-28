@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Panel de Cotizaciones · Proyectos · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css?v=14" />
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1 id="page-title">Panel de Cotizaciones</h1>
+                        <p class="muted" id="page-subtitle">
+                            Servicios con comité técnico: cotiza y participa en el comité.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card">
+                    <h2 class="card-title">Solicitudes asignadas a Proyectos</h2>
+                    <div class="search-bar">
+                        <input
+                            type="text"
+                            id="proy-search"
+                            placeholder="Buscar por consecutivo o título..."
+                            autocomplete="off"
+                        />
+                        <span class="info" id="proy-result-count"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table-gestion-solicitudes">
+                            <thead>
+                                <tr>
+                                    <th>Consecutivo</th>
+                                    <th>Título</th>
+                                    <th>Área</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="proy-tbody">
+                                <tr>
+                                    <td colspan="5" class="muted text-center">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <div class="modal-overlay" id="modal-proy-detail">
+            <div class="modal modal-wide modal-proyectos">
+                <div class="sg-modal-head">
+                    <h2 id="proy-detail-title">Detalle de la solicitud</h2>
+                </div>
+                <div class="sg-modal-detail-body">
+                    <div id="proy-detail-content"></div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="btn-proy-detail-close">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <script type="module">
+            import { requireSessionRole } from "/static/js/auth/bootstrap.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { initPanelProyectos } from "/static/js/proyectos/panel-cotizaciones.js?v=8";
+
+            const user = await requireSessionRole(["proyectos", "admin"]);
+            if (user) {
+                renderSidebar();
+                initPanelProyectos({ user });
+            } else {
+                const tbody = document.getElementById("proy-tbody");
+                if (tbody && !window.location.pathname.endsWith("/login.html")) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="5" class="muted text-center">Redirigiendo...</td></tr>';
+                }
+            }
+        </script>
+    </body>
+</html>

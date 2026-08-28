@@ -5,7 +5,7 @@
         <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Aprobar solicitudes · Gestión de Solicitudes a Compras · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=6" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=13" />
     </head>
     <body>
         <div class="app-shell">
@@ -120,14 +120,6 @@
                         </div>
                     </div>
 
-                    <div class="field">
-                        <label for="motivo-rechazo">Motivo de cancelación (obligatorio para cancelar)</label>
-                        <textarea
-                            id="motivo-rechazo"
-                            rows="3"
-                            placeholder="Describe el motivo si vas a cancelar la solicitud..."
-                        ></textarea>
-                    </div>
                 </div>
 
                 <div class="modal-actions">
@@ -145,6 +137,14 @@
                     >
                         Solicitar recotización
                     </button>
+                    <button
+                        type="button"
+                        class="btn btn-secondary sg-btn-recotizar"
+                        id="btn-solicitar-revision"
+                        hidden
+                    >
+                        Solicitar ajustes
+                    </button>
                     <button type="button" class="btn btn-primary" id="btn-aprobar-solicitud">
                         Aprobar
                     </button>
@@ -155,7 +155,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=8";
+            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=20";
 
             session.requireAuth();
             session.requireRole(["admin", "lider_aprobador"]);
@@ -165,7 +165,16 @@
             if (volver && role === "lider_aprobador") {
                 volver.href = "/app/dashboard.html";
             }
-            initAprobarSolicitudesGestion();
+            try {
+                initAprobarSolicitudesGestion();
+            } catch (err) {
+                const tbody = document.getElementById("aprobacion-tbody");
+                if (tbody) {
+                    tbody.innerHTML =
+                        `<tr><td colspan="7" class="muted text-center">${err?.message || "No se pudo iniciar la pantalla."}</td></tr>`;
+                }
+                console.error(err);
+            }
         </script>
     </body>
 </html>

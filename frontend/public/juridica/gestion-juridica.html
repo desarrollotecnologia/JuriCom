@@ -94,6 +94,16 @@
                             </span>
                         </a>
                         <a
+                            href="/app/juridica/dashboard-radicaciones.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">Indicadores</span>
+                            <span class="module-access-title">Dashboard de radicaciones</span>
+                            <span class="module-access-desc">
+                                Consulta cuántos contratos se radicaron hoy, esta semana, este mes y este año.
+                            </span>
+                        </a>
+                        <a
                             href="/app/juridica/pendientes.html"
                             class="module-access-card"
                         >
@@ -111,6 +121,16 @@
                             <span class="module-access-title">Otrosíes pendientes</span>
                             <span class="module-access-desc">
                                 Finaliza otrosíes aprobados: adjunta PDF firmado y aplica cambios al contrato.
+                            </span>
+                        </a>
+                        <a
+                            href="/app/juridica/trazabilidad-srv.html"
+                            class="module-access-card"
+                        >
+                            <span class="module-access-label">SRV</span>
+                            <span class="module-access-title">Trazabilidad SRV</span>
+                            <span class="module-access-desc">
+                                Ahí está la comunicación con el supervisor: historial de Compras y mensajes (con fotos) si falta información.
                             </span>
                         </a>
                         <a
@@ -156,8 +176,11 @@
 
             (async () => {
                 try {
-                    const items = await api.get("/contratos?estado=en_proceso");
-                    const n = items.length;
+                    const [inbox, elaborando] = await Promise.all([
+                        api.get("/contratos?estado=en_proceso"),
+                        api.get("/contratos?estado=elaborando"),
+                    ]);
+                    const n = inbox.length + elaborando.length;
                     if (n > 0) {
                         document.getElementById("pendientes-count").textContent =
                             ` (${n} en bandeja)`;

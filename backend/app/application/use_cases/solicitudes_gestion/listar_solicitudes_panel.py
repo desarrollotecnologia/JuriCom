@@ -11,13 +11,18 @@ from app.domain.exceptions import UnauthorizedError
 from app.domain.value_objects.estado_solicitud_gestion import (
     ETAPAS_PANEL_EN_PROCESO,
     ETAPAS_PANEL_GESTION,
+    ETAPAS_PANEL_REALIZADAS,
     EstadoSolicitudGestion,
     normalizar_estado,
 )
-from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
+from app.domain.value_objects.tipo_solicitud_gestion import (
+    TipoSolicitudGestion,
+    es_flujo_servicios,
+)
 
 VISTA_PANEL_GESTION = "gestion"
 VISTA_PANEL_EN_PROCESO = "en_proceso"
+VISTA_PANEL_REALIZADAS = "realizadas"
 
 
 class ListarSolicitudesPanelGestion:
@@ -40,6 +45,8 @@ class ListarSolicitudesPanelGestion:
         vista_norm = (vista or VISTA_PANEL_GESTION).strip().lower()
         if vista_norm == VISTA_PANEL_EN_PROCESO:
             estados = ETAPAS_PANEL_EN_PROCESO
+        elif vista_norm == VISTA_PANEL_REALIZADAS:
+            estados = ETAPAS_PANEL_REALIZADAS
         else:
             estados = ETAPAS_PANEL_GESTION
 
@@ -49,7 +56,25 @@ class ListarSolicitudesPanelGestion:
             query=query,
         )
 
-        if vista_norm == VISTA_PANEL_EN_PROCESO:
+        # Comité técnico: mientras Proyectos revisa o programa su propia visita, no
+        # debe aparecer en el panel de Compras. La 2.ª visita (visita_proyectos_hecha)
+        # sí la agenda Compras, así que esa sí se muestra.
+        def _oculto_para_compras(s) -> bool:
+            if not (
+                es_flujo_servicios(s.tipo)
+                and bool(getattr(s, "requiere_comite_tecnico", False))
+            ):
+                return False
+            estado = normalizar_estado(s.estado)
+            if estado == EstadoSolicitudGestion.REVISION_PROYECTOS:
+                return True
+            if estado == EstadoSolicitudGestion.PROGRAMACION_VISITA:
+                return not bool(getattr(s, "visita_proyectos_hecha", False))
+            return False
+
+        items = [s for s in items if not _oculto_para_compras(s)]
+
+        if vista_norm in (VISTA_PANEL_EN_PROCESO, VISTA_PANEL_REALIZADAS):
             return sorted(items, key=lambda s: -(s.id or 0))
 
         return sorted(

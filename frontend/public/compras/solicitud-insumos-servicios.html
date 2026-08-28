@@ -5,7 +5,7 @@
         <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Solicitud de Servicios · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=11" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=13" />
     </head>
     <body>
         <div class="app-shell">
@@ -22,6 +22,9 @@
                         <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
                             Volver
                         </a>
+                        <button type="button" class="btn btn-secondary" id="btn-cargar-borrador">
+                            Cargar borrador
+                        </button>
                     </div>
                 </div>
 
@@ -35,7 +38,6 @@
                         <div class="field">
                             <label for="titulo">
                                 Título o Asunto del Servicio
-                                <span class="required">*</span>
                             </label>
                             <input
                                 type="text"
@@ -48,7 +50,7 @@
 
                         <div class="row-2">
                             <div class="field">
-                                <label>Requiere visita <span class="required">*</span></label>
+                                <label>Requiere visita </label>
                                 <div class="radio-group">
                                     <label class="radio-option">
                                         <input
@@ -67,8 +69,7 @@
                             </div>
                             <div class="field field-programado">
                                 <label>
-                                    Servicio programado <span class="required">*</span>
-                                </label>
+                                    Servicio programado                                 </label>
                                 <div class="programado-row">
                                     <div class="radio-group">
                                         <label class="radio-option">
@@ -95,7 +96,6 @@
                                             for="fecha-servicio-programado"
                                         >
                                             Fecha
-                                            <span class="required">*</span>
                                         </label>
                                         <input
                                             type="date"
@@ -111,20 +111,42 @@
 
                         <div class="row-2">
                             <div class="field">
-                                <label for="centro-costo-area">
+                                <label>¿Necesita comité técnico?</label>
+                                <div class="radio-group">
+                                    <label class="radio-option">
+                                        <input
+                                            type="radio"
+                                            name="requiere_comite_tecnico"
+                                            value="si"
+                                        />
+                                        Sí
+                                    </label>
+                                    <label class="radio-option">
+                                        <input
+                                            type="radio"
+                                            name="requiere_comite_tecnico"
+                                            value="no"
+                                            checked
+                                        />
+                                        No
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label for="centro-costo-area-select-input">
                                     Centro de Costo (Área Solicitante)
-                                    <span class="required">*</span>
                                 </label>
-                                <select
-                                    id="centro-costo-area"
-                                    name="centro_costo_area"
-                                    required
-                                ></select>
+                                <div id="centro-costo-area-select"></div>
+                                <span class="hint">
+                                    Busca por número (ej. 212 o 212-3) o por nombre (ej. compras).
+                                </span>
                             </div>
                             <div class="field">
                                 <label for="lider-area-input">
                                     Líder de Área (Aprobador)
-                                    <span class="required">*</span>
                                 </label>
                                 <div id="lider-area-select"></div>
                                 <span class="hint">
@@ -140,7 +162,6 @@
                         <div class="field sg-observacion-field">
                             <label for="descripcion-servicio-editor">
                                 Descripción del servicio
-                                <span class="required">*</span>
                             </label>
                             <div id="descripcion-servicio-editor"></div>
                             <input
@@ -177,13 +198,12 @@
                         </div>
 
                         <div class="field">
-                            <label for="proveedor-sugerido">Proveedor sugerido</label>
-                            <textarea
-                                id="proveedor-sugerido"
-                                name="proveedor_sugerido"
-                                rows="3"
-                                placeholder="Nombre, contacto o referencia del proveedor sugerido (opcional)"
-                            ></textarea>
+                            <label>Proveedor sugerido</label>
+                            <span class="hint">
+                                Busca en el catálogo, elige uno de los sugeridos o agrégalo
+                                manualmente. Puedes elegir varios (opcional).
+                            </span>
+                            <div id="proveedor-picker" style="margin-top:8px;"></div>
                         </div>
                     </div>
 
@@ -203,6 +223,9 @@
                         <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
                             Cancelar
                         </a>
+                        <button type="button" class="btn btn-secondary" id="btn-guardar-borrador">
+                            Guardar borrador
+                        </button>
                         <button type="submit" class="btn btn-primary" id="btn-submit">
                             Enviar Solicitud
                         </button>
@@ -214,7 +237,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSolicitudServiciosForm } from "/static/js/compras/solicitud-servicios-form.js?v=1";
+            import { initSolicitudServiciosForm } from "/static/js/compras/solicitud-servicios-form.js?v=10";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante"]);

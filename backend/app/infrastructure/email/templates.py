@@ -345,7 +345,7 @@ def render_solicitud_otrosi_html(
         </div>
         <div class="row">
             <div class="label">Tipo de otrosí</div>
-            <div class="value">{escape(otrosi.tipo.value)}</div>
+            <div class="value">{escape(otrosi.tipo.label)}</div>
         </div>
         <div class="row">
             <div class="label">Descripción / motivo</div>
@@ -381,7 +381,7 @@ def render_solicitud_otrosi_texto(
         f"Contrato: {contrato.codigo}\n"
         f"Proveedor: {contrato.proveedor_contratista}\n"
         f"Solicitado por: {solicitado_por}\n"
-        f"Tipo: {otrosi.tipo.value}\n"
+        f"Tipo: {otrosi.tipo.label}\n"
         f"Descripción: {otrosi.descripcion}\n"
         f"Plazo adicional: {otrosi.plazo_adicional_cantidad or '—'} "
         f"{otrosi.plazo_adicional_unidad.value if otrosi.plazo_adicional_unidad else ''}\n"
@@ -400,7 +400,7 @@ def render_aprobacion_gerencia_otrosi_html(contrato: Contrato, otrosi, token: st
         <p>El líder de proceso aprobó esta solicitud de otrosí.</p>
         <p>Contrato: <span class="codigo">{escape(contrato.codigo or '')}</span></p>
         <div class="row"><div class="label">Proveedor</div><div class="value">{escape(contrato.proveedor_contratista)}</div></div>
-        <div class="row"><div class="label">Tipo</div><div class="value">{escape(otrosi.tipo.value)}</div></div>
+        <div class="row"><div class="label">Tipo</div><div class="value">{escape(otrosi.tipo.label)}</div></div>
         <div class="row"><div class="label">Descripción</div><div class="value">{escape(otrosi.descripcion)}</div></div>
         <p>
             <a class="btn" href="{escape(aprobar)}">Aprobar otrosí</a>
@@ -415,7 +415,7 @@ def render_aprobacion_gerencia_otrosi_texto(contrato: Contrato, otrosi, token: s
         "JURICOM_BEEF — Aprobación Gerencia de otrosí\n\n"
         f"Contrato: {contrato.codigo}\n"
         f"Proveedor: {contrato.proveedor_contratista}\n"
-        f"Tipo: {otrosi.tipo.value}\n"
+        f"Tipo: {otrosi.tipo.label}\n"
         f"Descripción: {otrosi.descripcion}\n\n"
         f"Aprobar: {_link_aprobar_otrosi(contrato.id, otrosi.id, 'gerencia', token)}\n"
         f"Rechazar: {_link_rechazar_otrosi(contrato.id, otrosi.id, 'gerencia', token)}\n"
@@ -428,7 +428,7 @@ def render_otrosi_pendiente_juridica_html(contrato: Contrato, otrosi) -> str:
         <p>Líder de proceso y Gerencia aprobaron esta solicitud de otrosí.</p>
         <p>Contrato: <span class="codigo">{escape(contrato.codigo or '')}</span></p>
         <div class="row"><div class="label">Proveedor</div><div class="value">{escape(contrato.proveedor_contratista)}</div></div>
-        <div class="row"><div class="label">Tipo</div><div class="value">{escape(otrosi.tipo.value)}</div></div>
+        <div class="row"><div class="label">Tipo</div><div class="value">{escape(otrosi.tipo.label)}</div></div>
         <div class="row"><div class="label">Descripción</div><div class="value">{escape(otrosi.descripcion)}</div></div>
         <div class="warn">Jurídica puede editar el otrosí, cargar el PDF firmado y aplicar la actualización sin reenviar a líder ni Gerencia.</div>
         <p><a class="btn" href="{escape(_link_otrosies_pendientes())}">Ver otrosíes pendientes</a></p>
@@ -441,7 +441,7 @@ def render_otrosi_pendiente_juridica_texto(contrato: Contrato, otrosi) -> str:
         "JURICOM_BEEF — Otrosí pendiente para Jurídica\n\n"
         f"Contrato: {contrato.codigo}\n"
         f"Proveedor: {contrato.proveedor_contratista}\n"
-        f"Tipo: {otrosi.tipo.value}\n"
+        f"Tipo: {otrosi.tipo.label}\n"
         f"Descripción: {otrosi.descripcion}\n\n"
         "Jurídica puede editarlo, cargar el PDF firmado y aplicar la actualización.\n"
         f"Abrir pendientes: {_link_otrosies_pendientes()}\n"

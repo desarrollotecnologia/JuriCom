@@ -76,16 +76,18 @@
                         <thead>
                             <tr>
                                 <th>Código</th>
+                                <th>SRV</th>
                                 <th>Proveedor</th>
                                 <th>NIT</th>
                                 <th>Valor</th>
                                 <th>Plazo</th>
                                 <th>Póliza</th>
+                                <th>Elaborar</th>
                                 <th>Radicado</th>
                             </tr>
                         </thead>
                         <tbody id="tbody">
-                            <tr><td colspan="7" class="muted">Cargando pendientes...</td></tr>
+                            <tr><td colspan="9" class="muted">Cargando pendientes...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -132,26 +134,51 @@
                 setTimeout(() => alertSuccess.classList.remove("show"), 5000);
             }
 
+            function badgeElaboracion(dias) {
+                if (dias === null || dias === undefined) return '<span class="muted">—</span>';
+                let bg, fg, texto;
+                if (dias > 1) { bg = "#dcfce7"; fg = "#166534"; texto = `${dias} Días`; }
+                else if (dias === 1) { bg = "#fef3c7"; fg = "#b45309"; texto = "1 Día"; }
+                else if (dias === 0) { bg = "#fef3c7"; fg = "#b45309"; texto = "Hoy"; }
+                else { bg = "#fee2e2"; fg = "#991b1b"; texto = `Vencido ${Math.abs(dias)} Día${Math.abs(dias) === 1 ? "" : "s"}`; }
+                return `<span style="background:${bg};color:${fg};padding:2px 8px;border-radius:999px;font-weight:600;font-size:0.8rem;white-space:nowrap;">${texto}</span>`;
+            }
+
             async function load() {
                 try {
-                    const items = await api.get("/contratos?estado=en_proceso");
+                    const [inbox, elaborando] = await Promise.all([
+                        api.get("/contratos?estado=en_proceso"),
+                        api.get("/contratos?estado=elaborando"),
+                    ]);
+                    const seen = new Set();
+                    const items = [...inbox, ...elaborando].filter((c) => {
+                        if (seen.has(c.id)) return false;
+                        seen.add(c.id);
+                        return true;
+                    });
                     if (!items.length) {
-                        tbody.innerHTML = '<tr><td colspan="7" class="muted">No hay contratos pendientes para Jurídica.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="9" class="muted">No hay contratos pendientes para Jurídica.</td></tr>';
                         return;
                     }
                     tbody.innerHTML = items.map((c) => `
                         <tr class="pending-row" data-id="${c.id}" tabindex="0">
                             <td><span class="codigo-contrato">${escapeHtml(c.codigo)}</span></td>
+                            <td>${
+                                c.solicitud_gestion_codigo
+                                    ? `<a class="codigo-solicitud" href="/app/juridica/trazabilidad-srv.html?codigo=${encodeURIComponent(c.solicitud_gestion_codigo)}" onclick="event.stopPropagation()">${escapeHtml(c.solicitud_gestion_codigo)}</a>`
+                                    : "—"
+                            }</td>
                             <td><strong>${escapeHtml(c.proveedor_contratista)}</strong></td>
                             <td>${escapeHtml(c.nit_proveedor)}</td>
                             <td>${formatMoney(c.valor, c.moneda)}</td>
                             <td>${formatPlazo(c.plazo_cantidad, c.plazo_unidad)}</td>
                             <td>${c.requiere_poliza ? (c.tiene_poliza ? "Adjuntada" : "Pendiente") : "No requiere"}</td>
+                            <td>${badgeElaboracion(c.dias_para_elaborar)}</td>
                             <td>${formatDate(c.created_at)}</td>
                         </tr>
                     `).join("");
                 } catch (err) {
-                    tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${escapeHtml(err.message)}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="9" class="muted">Error: ${escapeHtml(err.message)}</td></tr>`;
                 }
             }
 
@@ -170,8 +197,19 @@
                 modalBody.innerHTML = `
                     <p>
                         <span class="codigo-contrato">${escapeHtml(c.codigo)}</span>
-                        <span class="badge badge-en_proceso">Pendiente</span>
+                        <span class="badge badge-en_proceso">${c.estado === "elaborando" ? "Elaborando" : "Pendiente"}</span>
+                        ${
+                            c.solicitud_gestion_codigo
+                                ? `<span class="codigo-solicitud">${escapeHtml(c.solicitud_gestion_codigo)}</span>`
+                                : ""
+                        }
                     </p>
+                    ${
+                        c.solicitud_gestion_codigo
+                            ? `<p class="muted">Vinculado a la solicitud de servicios. Los datos y la cotización elegida ya vienen de Compras.</p>
+                               <p><a class="btn btn-secondary" href="/app/juridica/trazabilidad-srv.html?codigo=${encodeURIComponent(c.solicitud_gestion_codigo)}">Ver trazabilidad SRV</a></p>`
+                            : ""
+                    }
                     <div class="form-block">
                         <h3>Edición de contrato</h3>
                         <p class="muted">
@@ -216,7 +254,8 @@
                             <div class="field">
                                 <label>Unidad</label>
                                 <select id="plazo-unidad">
-                                    <option value="dias" ${c.plazo_unidad === "dias" ? "selected" : ""}>Días</option>
+                                    <option value="dias" ${c.plazo_unidad === "dias" ? "selected" : ""}>Días (hábiles)</option>
+                                    <option value="dias_calendario" ${c.plazo_unidad === "dias_calendario" ? "selected" : ""}>Días calendario</option>
                                     <option value="meses" ${c.plazo_unidad === "meses" ? "selected" : ""}>Meses</option>
                                     <option value="anios" ${c.plazo_unidad === "anios" ? "selected" : ""}>Años</option>
                                 </select>
@@ -246,6 +285,7 @@
                                     <option value="false" ${!c.requiere_poliza ? "selected" : ""}>No</option>
                                     <option value="true" ${c.requiere_poliza ? "selected" : ""}>Sí</option>
                                 </select>
+                                <span class="hint">Lo define Jurídica al elaborar el contrato.</span>
                             </div>
                         </div>
                         <div class="field">
@@ -271,16 +311,17 @@
 
                     <div class="form-block">
                         <h3>Cargar archivos de Jurídica</h3>
+                        <p class="muted">En elaboración se sube el contrato firmado y la póliza (solo Jurídica y Gerencia).</p>
                         <div class="upload-grid">
-                            <div class="upload-card">
-                                <label>Póliza ${c.requiere_poliza ? "(obligatoria)" : ""}</label>
-                                <input type="file" id="file-poliza" accept="application/pdf,image/*" />
-                                <button class="btn btn-sm btn-primary mt-2" id="btn-poliza">Subir póliza</button>
-                            </div>
                             <div class="upload-card">
                                 <label>Contrato firmado</label>
                                 <input type="file" id="file-borrador" accept="application/pdf" />
                                 <button class="btn btn-sm btn-primary mt-2" id="btn-borrador">Subir contrato firmado</button>
+                            </div>
+                            <div class="upload-card">
+                                <label>Póliza</label>
+                                <input type="file" id="file-poliza" accept="application/pdf,image/*" />
+                                <button class="btn btn-sm btn-primary mt-2" id="btn-poliza">Subir póliza</button>
                             </div>
                         </div>
                     </div>
@@ -329,8 +370,8 @@
                     }
                 });
 
-                document.getElementById("btn-poliza").addEventListener("click", async () => upload(c.id, "poliza", "file-poliza"));
                 document.getElementById("btn-borrador").addEventListener("click", async () => upload(c.id, "borrador", "file-borrador"));
+                document.getElementById("btn-poliza").addEventListener("click", async () => upload(c.id, "poliza", "file-poliza"));
                 document.getElementById("btn-activo").addEventListener("click", async () => changeState(c.id, "activo"));
                 document.getElementById("btn-finalizado").addEventListener("click", async () => changeState(c.id, "finalizado"));
                 document.getElementById("btn-delete").addEventListener("click", async () => deleteContract(c));

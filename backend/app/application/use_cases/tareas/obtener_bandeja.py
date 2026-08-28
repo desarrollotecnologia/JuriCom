@@ -113,6 +113,11 @@ def _destino_modulo(clave: str, actor: User) -> tuple[str, str, str]:
             "Solicitudes del sistema en aprobación o rechazadas.",
             "/app/compras/mis-solicitudes.html",
         ),
+        "info_faltante_supervisor": (
+            "Información solicitada",
+            "Jurídica pidió información faltante. Tienes 2 días para responder.",
+            "/app/compras/finalizar-contrato.html",
+        ),
     }
 
     titulo, descripcion, url = mapa[clave]
@@ -195,6 +200,12 @@ def _url_mis_solicitudes(contrato_id: int) -> str:
     return f"/app/compras/mis-solicitudes.html?contrato={contrato_id}"
 
 
+def _url_finalizar(contrato: Contrato) -> str:
+    if contrato.codigo:
+        return f"/app/compras/finalizar-contrato.html?codigo={contrato.codigo}"
+    return "/app/compras/finalizar-contrato.html"
+
+
 def _ordenar_tareas(tareas: list[Tarea]) -> list[Tarea]:
     return sorted(
         tareas,
@@ -226,6 +237,10 @@ class ObtenerBuzon:
                     incluir_vencimientos=not (actor.is_admin() or actor.is_juridica()),
                 )
             )
+
+        # La información faltante ahora la responde el supervisor asignado.
+        if actor.is_solicitante() or actor.is_admin():
+            grupos.extend(self._grupos_info_faltante(actor))
 
         if actor.is_admin():
             grupos.extend(self._grupos_admin(items))
@@ -273,24 +288,6 @@ class ObtenerBuzon:
                     )
                 )
 
-                if c.requiere_poliza_y_no_la_tiene():
-                    sin_poliza.append(
-                        Tarea(
-                            id=f"contrato:{c.id}:sin_poliza",
-                            tipo="sin_poliza",
-                            titulo=f"Subir póliza — {codigo}",
-                            descripcion=(
-                                f"{c.proveedor_contratista} requiere póliza para poder activarse."
-                            ),
-                            prioridad=PrioridadTarea.ALTA,
-                            contrato_id=c.id,
-                            contrato_codigo=c.codigo,
-                            proveedor=c.proveedor_contratista,
-                            fecha_referencia=None,
-                            accion_url="/app/juridica/pendientes.html",
-                        )
-                    )
-
                 if (
                     (not c.requiere_poliza or c.tiene_poliza())
                     and c.tiene_borrador()
@@ -311,6 +308,28 @@ class ObtenerBuzon:
                             accion_url=_url_editar(c),
                         )
                     )
+
+            if (
+                c.estado_aprobacion == EstadoAprobacion.APROBADO
+                and c.estado in (EstadoContrato.EN_PROCESO, EstadoContrato.ELABORANDO)
+                and c.requiere_poliza_y_no_la_tiene()
+            ):
+                sin_poliza.append(
+                    Tarea(
+                        id=f"contrato:{c.id}:sin_poliza",
+                        tipo="sin_poliza",
+                        titulo=f"Subir póliza — {codigo}",
+                        descripcion=(
+                            f"{c.proveedor_contratista} — Jurídica/Gerencia debe adjuntar la póliza en elaboración."
+                        ),
+                        prioridad=PrioridadTarea.ALTA,
+                        contrato_id=c.id,
+                        contrato_codigo=c.codigo,
+                        proveedor=c.proveedor_contratista,
+                        fecha_referencia=None,
+                        accion_url="/app/juridica/pendientes.html",
+                    )
+                )
 
             if _alerta_vencimiento(c):
                 dias = _dias_para_vencer(c)
@@ -558,6 +577,46 @@ class ObtenerBuzon:
             otrosi_id=otrosi.id,
             otrosi_numero=otrosi.numero,
         )
+
+    def _grupos_info_faltante(self, actor: User) -> list[GrupoTareas]:
+        """Solicitudes de información pendientes que el supervisor debe responder."""
+        tareas: list[Tarea] = []
+        for contrato, solicitud in self._contratos.list_solicitudes_informacion_pendientes():
+            if actor.is_solicitante() and contrato.supervisor_id != actor.id:
+                continue
+            codigo = _codigo(contrato)
+            dias = solicitud.dias_para_responder()
+            vencida = solicitud.vencida()
+            titulo = (
+                f"Responder información — {codigo}"
+                if not vencida
+                else f"Información vencida — {codigo}"
+            )
+            tareas.append(
+                Tarea(
+                    id=f"contrato:{contrato.id}:info_faltante:{solicitud.id}",
+                    tipo="info_faltante_supervisor",
+                    titulo=titulo,
+                    descripcion=(
+                        f"{contrato.proveedor_contratista}: Jurídica solicitó información"
+                        + (f" — quedan {dias} día(s) hábiles." if dias is not None and dias >= 0 else " — plazo vencido.")
+                    ),
+                    prioridad=PrioridadTarea.ALTA if vencida else PrioridadTarea.MEDIA,
+                    contrato_id=contrato.id,
+                    contrato_codigo=contrato.codigo,
+                    proveedor=contrato.proveedor_contratista,
+                    fecha_referencia=solicitud.fecha_limite_respuesta,
+                    accion_url=_url_finalizar(contrato),
+                )
+            )
+        return [
+            GrupoTareas(
+                clave="info_faltante_supervisor",
+                titulo="Información solicitada por Jurídica",
+                descripcion="Solicitudes de información faltante pendientes de responder.",
+                tareas=tareas,
+            )
+        ]
 
     def _grupos_admin(self, items: list[Contrato]) -> list[GrupoTareas]:
         aprobacion: list[Tarea] = []

@@ -109,3 +109,12 @@ def require_admin(current: User = Depends(get_current_user)) -> User:
             detail="Se requiere rol de administrador.",
         )
     return current
+
+
+def require_compras_o_admin(current: User = Depends(get_current_user)) -> User:
+    if not (current.is_admin() or current.is_compras()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere rol de Compras o Administrador.",
+        )
+    return current

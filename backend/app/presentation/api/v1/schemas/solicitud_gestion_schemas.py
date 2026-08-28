@@ -1,12 +1,38 @@
 """Schemas para solicitudes del módulo Gestión de Solicitudes."""
 
 from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel
 
 from app.domain.value_objects.estado_solicitud_gestion import EstadoSolicitudGestion
 from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
+
+
+class PuntoSerieIndicador(BaseModel):
+    mes: str
+    recibidas: int
+    gestionadas: int
+
+
+class ItemRankingIndicador(BaseModel):
+    etiqueta: str
+    valor: float
+    detalles: list[str] = []
+
+
+class IndicadoresComprasResponse(BaseModel):
+    mes: str
+    recibidas_mes: int
+    gestionadas_mes: int
+    tiempo_resolucion_dias: Optional[float] = None
+    valor_servicios: Decimal = Decimal("0")
+    serie: list[PuntoSerieIndicador] = []
+    por_estado: dict[str, int] = {}
+    por_tipo: dict[str, int] = {}
+    areas_gasto: list[ItemRankingIndicador] = []
+    proveedores_frecuentes: list[ItemRankingIndicador] = []
 
 
 class SolicitudGestionProductoResponse(BaseModel):
@@ -38,6 +64,12 @@ class SolicitudGestionArchivoResponse(BaseModel):
     categoria: str = "solicitud"
     observacion_id: Optional[int] = None
     created_at: Optional[datetime] = None
+    valor_cotizacion: Optional[float] = None
+    moneda_cotizacion: str = "COP"
+    requiere_anticipo: bool = False
+    porcentaje_anticipo: Optional[float] = None
+    monto_anticipo: Optional[float] = None
+    propuesta: bool = False
 
 
 class SolicitudGestionHistorialEstadoResponse(BaseModel):
@@ -53,6 +85,7 @@ class SolicitudGestionHistorialEstadoResponse(BaseModel):
 class SolicitudGestionVisitaProgramadaResponse(BaseModel):
     id: int
     programador_visita: str
+    rol_programador: str = ""
     proveedor_visita: str
     fecha_visita: Optional[date] = None
     hora_visita: Optional[time] = None
@@ -92,6 +125,10 @@ class SolicitudGestionListItem(BaseModel):
     creado_por_username: str = ""
     gestor_id: Optional[int] = None
     gestor_username: str = ""
+    proyectista_id: Optional[int] = None
+    comite_supervisor_ok: bool = False
+    comite_proyectos_ok: bool = False
+    requiere_comite_tecnico: Optional[bool] = None
     requiere_anticipo: bool = False
     porcentaje_anticipo: Optional[float] = None
     lider_anticipo_label: str = ""
@@ -133,6 +170,7 @@ class SolicitudGestionResponse(BaseModel):
     observaciones: str
     observaciones_texto: str
     requiere_visita: Optional[bool] = None
+    requiere_comite_tecnico: Optional[bool] = None
     servicio_programado: Optional[bool] = None
     fecha_servicio_programado: Optional[date] = None
     descripcion_servicio: str = ""
@@ -146,6 +184,9 @@ class SolicitudGestionResponse(BaseModel):
     lider_segunda_aprobacion_label: str = ""
     gestor_id: Optional[int] = None
     gestor_username: str = ""
+    proyectista_id: Optional[int] = None
+    comite_supervisor_ok: bool = False
+    comite_proyectos_ok: bool = False
     requiere_anticipo: bool = False
     porcentaje_anticipo: Optional[float] = None
     lider_anticipo_id: str = ""

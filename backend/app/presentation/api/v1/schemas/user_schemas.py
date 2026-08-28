@@ -11,6 +11,7 @@ class UserCreateRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=100)
     password: str = Field(..., min_length=4, max_length=200)
     role: Role
+    nombre: str = Field(default="", max_length=150)
     email: str = Field(default="", max_length=255)
     lider_catalog_id: str = Field(default="", max_length=50)
 
@@ -19,6 +20,7 @@ class UserUpdateRequest(BaseModel):
     username: Optional[str] = Field(None, min_length=1, max_length=100)
     role: Optional[Role] = None
     is_active: Optional[bool] = None
+    nombre: Optional[str] = Field(None, max_length=150)
     email: Optional[str] = Field(None, max_length=255)
     lider_catalog_id: Optional[str] = Field(None, max_length=50)
 

@@ -179,6 +179,11 @@ export function createSearchableSelect({
         return hidden.value;
     }
 
+    function setValue(id) {
+        const item = items.find((i) => String(i.id) === String(id));
+        if (item) selectItem(item);
+    }
+
     function getSelectedItem() {
         return selectedItem;
     }
@@ -189,7 +194,7 @@ export function createSearchableSelect({
         closeList();
     }
 
-    return { getValue, getSelectedItem, clear, hiddenInput: hidden, input };
+    return { getValue, setValue, getSelectedItem, clear, hiddenInput: hidden, input };
 }
 
 function escapeAttr(str) {

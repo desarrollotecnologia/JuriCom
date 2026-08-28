@@ -1,6 +1,7 @@
 """Configuración global cargada desde .env."""
 
 import socket
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
@@ -64,12 +65,36 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = ""
     SMTP_FROM_NAME: str = "JURICOM_BEEF"
 
+    # Modo prueba: si tiene un correo, TODOS los envíos se redirigen ahí.
+    # Dejar vacío para volver a la normalidad.
+    EMAIL_OVERRIDE_TO: str = ""
+
     JURIDICA_EMAILS: str = ""
     COMPRAS_EMAILS: str = ""
 
     # Correos del flujo de aprobación líder → gerencia (radicar / otrosí).
+    # Ver .env: APROBACION_UMBRAL_COP, APROBACION_DIEGO_SERRANO_EMAIL,
+    # APROBACION_GERENCIA_GENERAL_EMAIL.
     LIDER_INMEDIATO_EMAIL: str = "coordinacion.juridica@colbeef.com"
     GERENCIA_EMAIL: str = "tommyelite25@gmail.com"
+    APROBACION_UMBRAL_COP: str = "10000000"
+    APROBACION_DIEGO_SERRANO_EMAIL: str = "gerencia.financiera@colbeef.com"
+    APROBACION_GERENCIA_GENERAL_EMAIL: str = "gerencia.general@colbeef.com"
+
+    # Umbral para el acta de liquidación: contratos con valor MAYOR a este monto
+    # exigen que Jurídica elabore/cargue el acta (además del informe final del
+    # supervisor). Los de valor igual o menor solo requieren el informe final.
+    LIQUIDACION_ACTA_UMBRAL_COP: str = "15000000"
+
+    @property
+    def aprobacion_umbral_cop(self) -> Decimal:
+        return Decimal(str(self.APROBACION_UMBRAL_COP).replace("_", "").strip() or "10000000")
+
+    @property
+    def liquidacion_acta_umbral_cop(self) -> Decimal:
+        return Decimal(
+            str(self.LIQUIDACION_ACTA_UMBRAL_COP).replace("_", "").strip() or "15000000"
+        )
 
     @property
     def juridica_emails_list(self) -> list[str]:

@@ -61,8 +61,35 @@
                 border-radius: 6px;
                 margin-top: 12px;
             }
+            .otrosi-tipo-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+            .tipo-block {
+                background: white;
+                border: 1px solid #bbf7d0;
+                border-radius: var(--radius-md);
+                padding: 12px 14px;
+            }
+            .tipo-block.off {
+                opacity: 0.5;
+            }
+            .tipo-check {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                margin-bottom: 8px;
+            }
+            .tipo-check input {
+                width: auto;
+            }
             @media (max-width: 720px) {
-                .search-line {
+                .search-line,
+                .otrosi-tipo-grid {
                     grid-template-columns: 1fr;
                 }
             }
@@ -148,19 +175,30 @@
                         </p>
                         <div id="otrosi-disabled"></div>
                         <form id="form-otrosi">
-                            <div class="row-2">
-                                <div class="field">
-                                    <label>Tipo de otrosí <span class="required">*</span></label>
-                                    <select id="otrosi-tipo" required>
-                                        <option value="prorroga">Prórroga (más tiempo)</option>
-                                        <option value="adicion">Adición (aumentar valor)</option>
-                                        <option value="modificacion">Modificación (cambiar servicio)</option>
-                                    </select>
+                            <p class="hint">
+                                Por defecto se solicitan <strong>prórroga</strong> y <strong>adición</strong> juntas.
+                                Quita el que no necesites.
+                            </p>
+                            <div class="otrosi-tipo-grid">
+                                <div class="tipo-block" id="block-prorroga">
+                                    <label class="tipo-check">
+                                        <input type="checkbox" id="chk-prorroga" checked />
+                                        Prórroga (más tiempo)
+                                    </label>
                                     <span class="hint">
-                                        En una prórroga, Jurídica definirá el plazo exacto al finalizar el otrosí.
+                                        Solicitas más tiempo. Jurídica definirá el plazo exacto al finalizar.
                                     </span>
                                 </div>
-                                <div id="otrosi-extra-wrap"></div>
+                                <div class="tipo-block" id="block-adicion">
+                                    <label class="tipo-check">
+                                        <input type="checkbox" id="chk-adicion" checked />
+                                        Adición (aumentar valor)
+                                    </label>
+                                    <div class="field">
+                                        <label>Valor adicional (<span id="moneda-adicion">COP</span>) <span class="required">*</span></label>
+                                        <input type="number" id="otrosi-valor" min="0.01" step="0.01" placeholder="Ej: 1000000" />
+                                    </div>
+                                </div>
                             </div>
                             <div class="field">
                                 <label>Motivo / descripción <span class="required">*</span></label>
@@ -198,21 +236,30 @@
             const alertError = document.getElementById("alert-error");
             const alertSuccess = document.getElementById("alert-success");
             const formOtrosi = document.getElementById("form-otrosi");
-            const tipoSelect = document.getElementById("otrosi-tipo");
+            const chkProrroga = document.getElementById("chk-prorroga");
+            const chkAdicion = document.getElementById("chk-adicion");
 
             const ESTADO_LABEL = {
                 en_proceso: "Pendiente",
+                elaborando: "Elaborando contrato",
+                revision_polizas: "Revisión de pólizas",
+                solicitud_firmas: "Solicitud de firmas",
+                anticipo_contabilidad: "Anticipo en contabilidad",
+                anticipo_tesoreria: "Anticipo en tesorería",
+                anticipo_pagado: "Anticipo pagado",
                 activo: "Activo",
                 finalizado: "Finalizado",
             };
             const TIPO_OTROSI_LABEL = {
                 prorroga: "Prórroga",
                 adicion: "Adición",
+                prorroga_adicion: "Prórroga + Adición",
                 modificacion: "Modificación",
                 otro: "Otro",
             };
             const UNIDAD_PLAZO_LABEL = {
-                dias: "días",
+                dias: "días hábiles",
+                dias_calendario: "días calendario",
                 meses: "meses",
                 anios: "años",
             };
@@ -265,7 +312,8 @@
                 document.getElementById("plazo").textContent = formatPlazo(c.plazo_cantidad, c.plazo_unidad);
                 document.getElementById("descripcion").textContent = c.descripcion_servicio;
                 renderHistorial(c);
-                renderOtrosiExtraField(tipoSelect.value, c);
+                document.getElementById("moneda-adicion").textContent = c.moneda || "COP";
+                syncBloques();
 
                 const disabled = c.estado !== "activo";
                 formOtrosi.style.display = disabled ? "none" : "block";
@@ -297,47 +345,40 @@
             }
 
             function describeEfecto(o) {
-                if (o.tipo === "prorroga") {
+                const parts = [];
+                if (o.plazo_adicional_cantidad) {
                     const unidad = UNIDAD_PLAZO_LABEL[o.plazo_adicional_unidad] || o.plazo_adicional_unidad || "";
-                    return `+${o.plazo_adicional_cantidad || 0} ${unidad}`;
+                    parts.push(`+${o.plazo_adicional_cantidad} ${unidad}`);
                 }
-                if (o.tipo === "adicion") {
-                    return `+${Number(o.valor_adicional || 0).toLocaleString("es-CO", { minimumFractionDigits: 2 })}`;
+                if (o.valor_adicional) {
+                    parts.push(`+${Number(o.valor_adicional).toLocaleString("es-CO", { minimumFractionDigits: 2 })}`);
                 }
-                if (o.tipo === "modificacion") return "Cambió descripción del servicio";
-                return "Sin cambio en campos del contrato";
+                return parts.length ? parts.join(" · ") : "Sin cambio en campos del contrato";
             }
 
-            function renderOtrosiExtraField(tipo, contrato) {
-                const wrap = document.getElementById("otrosi-extra-wrap");
-                if (!wrap || !contrato) return;
-                if (tipo === "prorroga") {
-                    wrap.innerHTML = `<p class="hint" style="margin-top:28px;">
-                        Solicitas una prórroga. Jurídica definirá el plazo adicional al finalizar.
-                    </p>`;
-                } else if (tipo === "adicion") {
-                    wrap.innerHTML = `
-                        <div class="field">
-                            <label>Valor adicional (${contrato.moneda}) <span class="required">*</span></label>
-                            <input type="number" id="otrosi-valor" min="0.01" step="0.01" placeholder="Ej: 1000000" />
-                        </div>
-                    `;
-                } else if (tipo === "modificacion") {
-                    wrap.innerHTML = `
-                        <div class="field">
-                            <label>Nueva descripción <span class="required">*</span></label>
-                            <textarea id="otrosi-nueva-desc" placeholder="Nuevo alcance del servicio"></textarea>
-                        </div>
-                    `;
-                } else {
-                    wrap.innerHTML = `<p class="muted" style="margin-top:28px;">Solo se registrará el otrosí en el historial.</p>`;
-                }
+            function computeTipo() {
+                const p = chkProrroga.checked;
+                const a = chkAdicion.checked;
+                if (p && a) return "prorroga_adicion";
+                if (p) return "prorroga";
+                if (a) return "adicion";
+                return "";
+            }
+
+            function syncBloques() {
+                document.getElementById("block-prorroga").classList.toggle("off", !chkProrroga.checked);
+                document.getElementById("block-adicion").classList.toggle("off", !chkAdicion.checked);
+                document.getElementById("otrosi-valor").disabled = !chkAdicion.checked;
             }
 
             async function aplicarOtrosi(event) {
                 event.preventDefault();
                 if (!current) return;
-                const tipo = tipoSelect.value;
+                const tipo = computeTipo();
+                if (!tipo) {
+                    showError("Debes dejar al menos una: prórroga o adición.");
+                    return;
+                }
                 const descripcion = document.getElementById("otrosi-descripcion").value.trim();
                 if (!descripcion) {
                     showError("La descripción / motivo del otrosí es obligatoria.");
@@ -346,23 +387,14 @@
                 const fd = new FormData();
                 fd.append("tipo", tipo);
                 fd.append("descripcion", descripcion);
-
-                if (tipo === "prorroga") {
-                    // Compras solo solicita; Jurídica define el plazo al finalizar.
-                } else if (tipo === "adicion") {
+                // Compras solo solicita la prórroga; Jurídica define el plazo al finalizar.
+                if (chkAdicion.checked) {
                     const v = document.getElementById("otrosi-valor")?.value;
                     if (!v || Number(v) <= 0) {
                         showError("Debes indicar el valor adicional mayor a 0.");
                         return;
                     }
                     fd.append("valor_adicional", v);
-                } else if (tipo === "modificacion") {
-                    const v = document.getElementById("otrosi-nueva-desc")?.value.trim();
-                    if (!v) {
-                        showError("Debes escribir la nueva descripción.");
-                        return;
-                    }
-                    fd.append("nueva_descripcion_servicio", v);
                 }
 
                 try {
@@ -379,7 +411,8 @@
             codigoInput.addEventListener("keydown", (event) => {
                 if (event.key === "Enter") buscarContrato();
             });
-            tipoSelect.addEventListener("change", () => renderOtrosiExtraField(tipoSelect.value, current));
+            chkProrroga.addEventListener("change", syncBloques);
+            chkAdicion.addEventListener("change", syncBloques);
             formOtrosi.addEventListener("submit", aplicarOtrosi);
 
             const params = new URLSearchParams(window.location.search);

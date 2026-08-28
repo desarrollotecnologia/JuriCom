@@ -28,6 +28,7 @@ from app.domain.entities.contrato import (
     TIPO_CODIGO_CONTRATO,
     TipoArchivo,
     normalizar_tipo_codigo,
+    sumar_dias_habiles,
 )
 from app.domain.entities.user import User
 from app.domain.exceptions import (
@@ -35,7 +36,11 @@ from app.domain.exceptions import (
     MissingRequiredFileError,
     UnauthorizedError,
 )
+from app.domain.value_objects.calendario_colombia import siguiente_dia_habil
+from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
+from app.domain.value_objects.estado_solicitud_gestion import EstadoSolicitudGestion
 from app.domain.value_objects.moneda import Moneda
+from app.domain.value_objects.tipo_precio import TipoPrecio
 from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_servicios
 from app.domain.value_objects.unidad_plazo import UnidadPlazo
 
@@ -46,6 +51,49 @@ class ArchivoEntrada:
     nombre_original: str
     mime_type: str
     contenido: bytes
+
+
+def _cotizacion_elegida(solicitud_origen):
+    for archivo in getattr(solicitud_origen, "archivos", None) or []:
+        if (
+            getattr(archivo, "categoria", "") == "cotizacion"
+            and getattr(archivo, "propuesta", False)
+        ):
+            return archivo
+    return None
+
+
+def _entrada_cotizacion_desde_srv(solicitud_origen, storage: FileStorage) -> ArchivoEntrada | None:
+    elegido = _cotizacion_elegida(solicitud_origen)
+    if elegido is None:
+        return None
+    contenido = storage.read(elegido.ruta_almacenamiento)
+    return ArchivoEntrada(
+        tipo=TipoArchivo.COTIZACION,
+        nombre_original=elegido.nombre_original,
+        mime_type=elegido.mime_type or "application/octet-stream",
+        contenido=contenido,
+    )
+
+
+def _snapshot_anticipo(solicitud_origen) -> dict:
+    """Copia los datos de anticipo de la SRV para fijarlos en el contrato.
+
+    Si el contrato no nace de una SRV, queda sin anticipo.
+    """
+    if solicitud_origen is None:
+        return {
+            "requiere_anticipo": False,
+            "porcentaje_anticipo": None,
+            "monto_anticipo": None,
+            "observaciones_anticipo": "",
+        }
+    return {
+        "requiere_anticipo": bool(getattr(solicitud_origen, "requiere_anticipo", False)),
+        "porcentaje_anticipo": getattr(solicitud_origen, "porcentaje_anticipo", None),
+        "monto_anticipo": getattr(solicitud_origen, "monto_anticipo", None),
+        "observaciones_anticipo": getattr(solicitud_origen, "observaciones_anticipo", "") or "",
+    }
 
 
 def _validar_actor_y_tipo(actor: User, tipo_codigo: str) -> str:
@@ -75,6 +123,7 @@ class RadicarSolicitud:
         actor: User,
         proveedor_contratista: str,
         nit_proveedor: str,
+        proveedor_email: str,
         descripcion_servicio: str,
         obligaciones_colbeef: str,
         obligaciones_proveedor: str,
@@ -85,6 +134,9 @@ class RadicarSolicitud:
         renovacion_automatica: bool,
         condiciones_recibido_satisfactorio: str,
         requiere_poliza: bool,
+        tipo_precio: TipoPrecio,
+        forma_pago: str,
+        centro_costos: str,
         correo_lider_proceso: str,
         correo_gerencia: str,
         tipo_codigo: str,
@@ -93,8 +145,20 @@ class RadicarSolicitud:
         fecha_fin: date | None = None,
         fecha_proxima_notificacion: date | None = None,
         solicitud_gestion_id: int | None = None,
+        supervisor_id: int | None = None,
     ) -> Contrato:
         tipo_codigo = _validar_actor_y_tipo(actor, tipo_codigo)
+
+        solicitud_origen = None
+        solicitud_codigo = ""
+        if solicitud_gestion_id is not None:
+            solicitud_origen, solicitud_codigo = self._resolver_solicitud_origen(
+                actor, solicitud_gestion_id
+            )
+            if not any(a.tipo == TipoArchivo.COTIZACION for a in archivos):
+                extra = _entrada_cotizacion_desde_srv(solicitud_origen, self._storage)
+                if extra is not None:
+                    archivos.append(extra)
 
         self._validar_archivos_obligatorios(archivos)
         self._validar_campos(
@@ -105,17 +169,19 @@ class RadicarSolicitud:
             obligaciones_proveedor=obligaciones_proveedor,
             valor=valor,
             plazo_cantidad=plazo_cantidad,
-            condiciones_recibido_satisfactorio=condiciones_recibido_satisfactorio,
+            condiciones_recibido_satisfactorio=condiciones_recibido_satisfactorio.strip(),
             correo_lider_proceso=correo_lider_proceso,
             correo_gerencia=correo_gerencia,
         )
+        forma_pago_limpia = (forma_pago or "").strip()
+        if not forma_pago_limpia:
+            raise ValueError("La forma de pago es obligatoria.")
+        centro_costos_limpio = (centro_costos or "").strip()
+        if not centro_costos_limpio:
+            raise ValueError("El centro de costos es obligatorio.")
 
-        solicitud_origen = None
-        solicitud_codigo = ""
-        if solicitud_gestion_id is not None:
-            solicitud_origen, solicitud_codigo = self._resolver_solicitud_origen(
-                actor, solicitud_gestion_id
-            )
+        # Snapshot del anticipo gestionado en la SRV (queda fijo en el contrato).
+        anticipo = _snapshot_anticipo(solicitud_origen)
 
         fecha_fin_calculada = fecha_fin
         if fecha_inicio and fecha_fin_calculada is None:
@@ -136,6 +202,7 @@ class RadicarSolicitud:
             compania=COMPANIA_DEFAULT,
             proveedor_contratista=proveedor_contratista.strip(),
             nit_proveedor=nit_proveedor.strip(),
+            proveedor_email=(proveedor_email or "").strip(),
             descripcion_servicio=descripcion_servicio.strip(),
             obligaciones_colbeef=obligaciones_colbeef.strip(),
             obligaciones_proveedor=obligaciones_proveedor.strip(),
@@ -146,10 +213,21 @@ class RadicarSolicitud:
             renovacion_automatica=renovacion_automatica,
             condiciones_recibido_satisfactorio=condiciones_recibido_satisfactorio.strip(),
             requiere_poliza=requiere_poliza,
+            tipo_precio=tipo_precio,
+            forma_pago=forma_pago_limpia,
+            centro_costos=centro_costos_limpio,
+            supervisor_id=supervisor_id,
+            requiere_anticipo=anticipo["requiere_anticipo"],
+            porcentaje_anticipo=anticipo["porcentaje_anticipo"],
+            monto_anticipo=anticipo["monto_anticipo"],
+            observaciones_anticipo=anticipo["observaciones_anticipo"],
             creado_por_id=actor.id,
             correo_lider_proceso=correo_lider_proceso.strip(),
             correo_gerencia=correo_gerencia.strip(),
             tipo_codigo=tipo_codigo,
+            # La aprobación Líder→Gerencia ya se hace en la Solicitud de Servicio,
+            # así que el contrato nace aprobado y pasa directo a Jurídica.
+            estado_aprobacion=EstadoAprobacion.APROBADO,
             solicitud_gestion_id=solicitud_origen.id if solicitud_origen else None,
             solicitud_gestion_codigo=solicitud_codigo,
             fecha_inicio=fecha_inicio,
@@ -214,7 +292,7 @@ class RadicarSolicitud:
         self._solicitudes.update(solicitud)
         self._solicitudes.registrar_historial(
             solicitud.id,
-            solicitud.estado,
+            EstadoSolicitudGestion.EN_JURIDICA,
             usuario_id=actor.id,
             comentario=(
                 f"Documento {contrato.codigo} radicado y vinculado a {solicitud.codigo}"
@@ -277,12 +355,14 @@ def calcular_fecha_fin(
     plazo_cantidad: int,
     plazo_unidad: UnidadPlazo,
 ) -> date:
-    if plazo_unidad == UnidadPlazo.DIAS:
+    if plazo_unidad == UnidadPlazo.DIAS_CALENDARIO:
         return fecha_inicio + timedelta(days=plazo_cantidad)
+    if plazo_unidad == UnidadPlazo.DIAS:
+        return sumar_dias_habiles(fecha_inicio, plazo_cantidad)
 
     meses = plazo_cantidad if plazo_unidad == UnidadPlazo.MESES else plazo_cantidad * 12
     mes_base = fecha_inicio.month - 1 + meses
     anio = fecha_inicio.year + mes_base // 12
     mes = mes_base % 12 + 1
     dia = min(fecha_inicio.day, monthrange(anio, mes)[1])
-    return date(anio, mes, dia)
+    return siguiente_dia_habil(date(anio, mes, dia))

@@ -21,6 +21,7 @@ class SqlAlchemyUserRepository(UserRepository):
             username=model.username,
             password_hash=model.password_hash,
             role=Role(model.role),
+            nombre=getattr(model, "nombre", "") or "",
             email=getattr(model, "email", "") or "",
             lider_catalog_id=getattr(model, "lider_catalog_id", "") or "",
             is_active=model.is_active,
@@ -50,6 +51,7 @@ class SqlAlchemyUserRepository(UserRepository):
             username=user.username,
             password_hash=user.password_hash,
             role=user.role.value,
+            nombre=(user.nombre or "").strip(),
             email=(user.email or "").strip(),
             lider_catalog_id=(user.lider_catalog_id or "").strip(),
             is_active=user.is_active,
@@ -70,6 +72,7 @@ class SqlAlchemyUserRepository(UserRepository):
         model.username = user.username
         model.password_hash = user.password_hash
         model.role = user.role.value
+        model.nombre = (user.nombre or "").strip()
         model.email = (user.email or "").strip()
         model.lider_catalog_id = (user.lider_catalog_id or "").strip()
         model.is_active = user.is_active

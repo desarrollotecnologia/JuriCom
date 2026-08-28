@@ -32,6 +32,7 @@ class CreateUser:
         role: Role,
         email: str = "",
         lider_catalog_id: str = "",
+        nombre: str = "",
     ) -> User:
         if not actor.can_manage_users():
             raise UnauthorizedError("Sólo el administrador puede crear usuarios.")
@@ -49,6 +50,7 @@ class CreateUser:
             username=username,
             password_hash=self._hasher.hash(password),
             role=role,
+            nombre=(nombre or "").strip(),
             email=(email or "").strip(),
             lider_catalog_id=_validar_lider_catalog_id(role, lider_catalog_id),
             is_active=True,

@@ -1,7 +1,12 @@
 // Helpers de formato.
 
 const MONEDA_SYMBOL = { COP: "$", USD: "US$", EUR: "€" };
-const UNIDAD_LABEL = { dias: "días", meses: "meses", anios: "años" };
+const UNIDAD_LABEL = {
+    dias: "días hábiles",
+    dias_calendario: "días calendario",
+    meses: "meses",
+    anios: "años",
+};
 
 export function formatMoney(amount, moneda) {
     const symbol = MONEDA_SYMBOL[moneda] || "";
@@ -10,6 +15,42 @@ export function formatMoney(amount, moneda) {
         maximumFractionDigits: 2,
     });
     return `${symbol} ${num}`;
+}
+
+function _fmtEscala(n) {
+    return n.toLocaleString("es-CO", {
+        maximumFractionDigits: 2,
+        minimumFractionDigits: 0,
+    });
+}
+
+/** Escala en vivo: mil / millones / billones (billón = 1.000 millones). */
+export function etiquetaEscalaMonto(amount) {
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    if (n >= 1_000_000_000) {
+        const v = n / 1_000_000_000;
+        return `${_fmtEscala(v)} ${Math.abs(v - 1) < 1e-9 ? "billón" : "billones"}`;
+    }
+    if (n >= 1_000_000) {
+        const v = n / 1_000_000;
+        return `${_fmtEscala(v)} ${Math.abs(v - 1) < 1e-9 ? "millón" : "millones"}`;
+    }
+    if (n >= 1_000) {
+        return `${_fmtEscala(n / 1_000)} mil`;
+    }
+    return _fmtEscala(n);
+}
+
+const MONEDA_NOMBRE = { COP: "pesos", USD: "dólares", EUR: "euros" };
+
+export function previewValorCotizacion(amount, moneda = "COP") {
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    const code = MONEDA_SYMBOL[moneda] ? moneda : "COP";
+    const escala = etiquetaEscalaMonto(n);
+    const nombre = MONEDA_NOMBRE[code] || code;
+    return `${formatMoney(n, code)}  ·  ${escala} ${nombre}`;
 }
 
 export function formatValorTramiteOc(amount) {

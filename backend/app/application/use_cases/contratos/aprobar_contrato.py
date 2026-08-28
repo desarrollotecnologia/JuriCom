@@ -6,6 +6,7 @@ from app.application.interfaces.contrato_repository import ContratoRepository
 from app.domain.entities.contrato import Contrato
 from app.domain.exceptions import ContratoNotFoundError
 from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
+from app.domain.value_objects.estado_contrato import EstadoContrato
 
 
 class AprobarContrato:
@@ -28,6 +29,10 @@ class AprobarContrato:
             raise ValueError("Esta solicitud no está pendiente de aprobación gerencia.")
         contrato.estado_aprobacion = EstadoAprobacion.APROBADO
         contrato.aprobado_gerencia_at = datetime.now()
+        # Al aprobar gerencia, el contrato pasa a elaboración por Jurídica y
+        # arranca el plazo (2 días hábiles por defecto).
+        if contrato.estado == EstadoContrato.EN_PROCESO:
+            contrato.estado = EstadoContrato.ELABORANDO
         return self._contratos.update(contrato)
 
     def rechazar(self, contrato_id: int, paso: str) -> Contrato:

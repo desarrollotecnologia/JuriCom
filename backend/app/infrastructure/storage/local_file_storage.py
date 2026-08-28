@@ -44,6 +44,12 @@ class LocalFileStorage(FileStorage):
             tamano_bytes=len(contenido),
         )
 
+    def read(self, ruta: str) -> bytes:
+        ruta_completa = self._base / ruta
+        if not ruta_completa.exists():
+            raise FileNotFoundError(f"No existe el archivo {ruta}")
+        return ruta_completa.read_bytes()
+
     def delete(self, ruta: str) -> None:
         ruta_completa = self._base / ruta
         if ruta_completa.exists():

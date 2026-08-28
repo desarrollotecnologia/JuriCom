@@ -14,6 +14,9 @@ class Role(str, Enum):
     SOLICITANTE = "solicitante"
     ANTICIPOS = "anticipos"
     LIDER_APROBADOR = "lider_aprobador"
+    PROYECTOS = "proyectos"
+    CONTABILIDAD = "contabilidad"
+    TESORERIA = "tesoreria"
 
     @classmethod
     def values(cls) -> list[str]:

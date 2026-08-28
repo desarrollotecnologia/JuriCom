@@ -10,7 +10,7 @@ import {
     hydrateInlineObservacionImages,
     renderDetalleSolicitudHtml,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=25";
+} from "./gestion-solicitudes-common.js?v=46";
 
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
@@ -57,7 +57,7 @@ export function initGestionAnticipo() {
         return;
     }
 
-    function initObservacionEditor() {
+    function initObservacionEditor(solicitudId) {
         observacionControl?.destroy();
         observacionControl = createObservacionConAdjuntos({
             editorContainerId: OBS_EDITOR_ID,
@@ -66,6 +66,7 @@ export function initGestionAnticipo() {
             name: "anticipo_observacion",
             placeholder: "Comentarios sobre la gestión del anticipo...",
             minHeight: 160,
+            autosaveKey: `anticipo-gestion:${solicitudId}`,
         });
     }
 
@@ -172,7 +173,7 @@ export function initGestionAnticipo() {
             if (modoGestion) {
                 gestionPanel?.removeAttribute("hidden");
                 btnGestionar?.removeAttribute("hidden");
-                initObservacionEditor();
+                initObservacionEditor(s.id);
             } else {
                 gestionPanel?.setAttribute("hidden", "");
                 btnGestionar?.setAttribute("hidden", "");
@@ -219,6 +220,7 @@ export function initGestionAnticipo() {
                 `/solicitudes-gestion/${selectedSolicitud.id}/gestionar-anticipo`,
                 formData
             );
+            observacionControl?.clearDraft();
             showSuccess(`Anticipo gestionado — ${selectedSolicitud.codigo}.`);
             closeModal();
             await load();

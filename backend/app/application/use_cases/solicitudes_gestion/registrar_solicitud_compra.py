@@ -32,6 +32,12 @@ class ArchivoEntradaSolicitud:
     mime_type: str
     contenido: bytes
     categoria: str = "solicitud"
+    valor_cotizacion: Optional[Decimal] = None
+    moneda_cotizacion: str = "COP"
+    requiere_anticipo: bool = False
+    porcentaje_anticipo: Optional[Decimal] = None
+    monto_anticipo: Optional[Decimal] = None
+    propuesta: bool = False
 
 
 class RegistrarSolicitudCompra:

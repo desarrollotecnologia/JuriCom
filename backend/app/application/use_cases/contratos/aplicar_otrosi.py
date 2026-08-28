@@ -102,12 +102,24 @@ class AplicarOtrosi:
         if not descripcion:
             raise ValueError("La descripción / motivo del otrosí es obligatoria.")
 
-        # Validaciones según el tipo
+        # Un otrosí puede incluir prórroga, adición o ambas a la vez.
         plazo_aplicar: Optional[int] = None
         valor_aplicar: Optional[Decimal] = None
         nueva_desc_aplicar: Optional[str] = None
 
-        if tipo == TipoOtrosi.PRORROGA:
+        if not (tipo.incluye_prorroga or tipo.incluye_adicion):
+            raise ValueError(
+                "El otrosí debe incluir al menos una prórroga o una adición."
+            )
+
+        if tipo.incluye_adicion:
+            if valor_adicional is None or Decimal(valor_adicional) <= 0:
+                raise ValueError(
+                    "Para una adición debes indicar un valor adicional mayor a 0."
+                )
+            valor_aplicar = Decimal(valor_adicional)
+
+        if tipo.incluye_prorroga:
             # Compras sólo solicita la prórroga; Jurídica define el plazo al finalizar.
             if not actor.is_compras():
                 if not plazo_adicional_cantidad or plazo_adicional_cantidad <= 0:
@@ -116,21 +128,6 @@ class AplicarOtrosi:
                         "adicional mayor a 0."
                     )
                 plazo_aplicar = plazo_adicional_cantidad
-
-        elif tipo == TipoOtrosi.ADICION:
-            if valor_adicional is None or Decimal(valor_adicional) <= 0:
-                raise ValueError(
-                    "Para una adición debes indicar un valor adicional mayor a 0."
-                )
-            valor_aplicar = Decimal(valor_adicional)
-
-        elif tipo == TipoOtrosi.MODIFICACION:
-            if not nueva_descripcion_servicio or not nueva_descripcion_servicio.strip():
-                raise ValueError(
-                    "Para una modificación debes indicar la nueva descripción "
-                    "del servicio."
-                )
-            nueva_desc_aplicar = nueva_descripcion_servicio.strip()
 
         # 1) Si hay PDF, lo guardamos primero y obtenemos su id
         archivo_id: Optional[int] = None

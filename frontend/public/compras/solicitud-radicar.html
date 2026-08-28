@@ -5,7 +5,7 @@
         <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Radicar Solicitud · JURICOM_BEEF</title>
-        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=13" />
         <style>
             .form-section {
                 margin-bottom: 28px;
@@ -65,6 +65,13 @@
                 font-size: 0.85rem;
                 color: var(--color-text);
                 margin-bottom: 6px;
+            }
+            .readonly-box {
+                background: var(--color-surface-2);
+                padding: 10px 14px;
+                border-radius: var(--radius-md);
+                border: 1px solid var(--color-border);
+                min-height: 40px;
             }
             .approval-card {
                 background: #f0f6ff;
@@ -177,83 +184,17 @@
                                 <input type="text" name="nit_proveedor" required />
                             </div>
                             <div class="field">
-                                <label>
-                                    Líder / jefe responsable <span class="required">*</span>
-                                </label>
-                                <select id="lider-jefe-colbeef" name="lider_jefe_id" required>
-                                    <option value="">Selecciona un líder o jefe</option>
-                                    <option value="1977852">
-                                        RINCON SARMIENTO CARLOS ANDRES - DIRECTOR NEGOCIOS GANADEROS
-                                    </option>
-                                    <option value="80424220">
-                                        HERNANDEZ URZOLA ROBERTO CARLOS - DIRECTOR COMERCIAL
-                                    </option>
-                                    <option value="13542263">
-                                        SERRANO ARDILA DIEGO FERNANDO - DIRECTOR ADMINISTRATIVO Y FINANCIERO
-                                    </option>
-                                    <option value="37747995">
-                                        GOMEZ MARTINEZ NIDIA ROCIO - DIRECTORA DE ASUNTOS CORPORATIVOS
-                                    </option>
-                                    <option value="1098673651">
-                                        PINEDA TRIANA VIVIANA ANDREA - JEFE DE TESORERIA Y CARTERA
-                                    </option>
-                                    <option value="79249780">
-                                        ARDILA JIMENEZ DIEGO SIGIFREDO - GERENTE GENERAL
-                                    </option>
-                                    <option value="1127947335">
-                                        RINCON BOTELLO YERSON JAVIER - LIDER DE BENEFICIO
-                                    </option>
-                                    <option value="91536323">
-                                        DIAZ HIGUERA LUIS FERNANDO - JEFE DE VENTAS
-                                    </option>
-                                    <option value="73579178">
-                                        LARA LUNA LEONARDO LUIS - JEFE DE TECNOLOGIA
-                                    </option>
-                                    <option value="1098660251">
-                                        ARENAS SARMIENTO FAUSTO ANDRES - LIDER CRECIMIENTO COMERCIAL
-                                    </option>
-                                    <option value="91477701">
-                                        VARGAS DURAN ROBINSON - LIDER DE DESPOSTE
-                                    </option>
-                                    <option value="1098763171">
-                                        SUAREZ QUIÑONES JEFFERSON ALEXANDER - LIDER SST
-                                    </option>
-                                    <option value="1056908061">
-                                        SEGURA BARRERA MARIA FILOMENA - DIRECTORA DE PLANTA
-                                    </option>
-                                    <option value="1098661407">
-                                        VERA MORA CINDY LEOMAR - JEFE DE GESTION HUMANA
-                                    </option>
-                                    <option value="63560912">
-                                        RUBIANO LEMUS YUDY ANDREA - JEFE DE CALIDAD
-                                    </option>
-                                    <option value="1102387740">
-                                        LIZARAZO PARADA DIEGO FERNANDO - LIDER DE PLANILLAJE
-                                    </option>
-                                    <option value="43536705">
-                                        OSORIO ESTRADA LILIANA MARIA - JEFE DE CONTABILIDAD
-                                    </option>
-                                    <option value="1098738467">
-                                        ROMERO PEDRAZA SERGIO OMAR - JEFE DE PRODUCCION
-                                    </option>
-                                    <option value="1095807041">
-                                        BARAJAS MAYORGA WILMER DARIO - LIDER LOGISTICA
-                                    </option>
-                                    <option value="1098661799">
-                                        RUEDA MADERO PAOLA CAROLINA - LIDER DE VENTAS
-                                    </option>
-                                    <option value="52822147">
-                                        MUÑOZ BERNAL PAOLA ANDREA - JEFE DE MERCADEO
-                                    </option>
-                                    <option value="1098665901">
-                                        RODRIGUEZ RUIZ ALEXANDER - JEFE DE PLANEACION FINANCIERA
-                                    </option>
-                                    <option value="1098725715">
-                                        QUESADA ZORRILLA WILHELM ARLEY - DIRECTOR CONTROLLER
-                                    </option>
-                                </select>
+                                <label>Correo electrónico del proveedor</label>
+                                <input type="email" name="proveedor_email" placeholder="correo@proveedor.com" />
+                            </div>
+                            <div class="field">
+                                <label>Líder / jefe responsable (para aprobar otrosíes)</label>
+                                <div class="readonly-box" id="lider-jefe-colbeef">
+                                    SERRANO ARDILA DIEGO FERNANDO - DIRECTOR ADMINISTRATIVO Y FINANCIERO
+                                </div>
                                 <span class="hint">
-                                    Lista cargada desde LIDERES COLBEEF 2026.
+                                    Los otrosíes (Adición / Prórroga) los aprueba siempre
+                                    Diego Serrano (Financiera).
                                 </span>
                             </div>
                         </div>
@@ -312,9 +253,14 @@
                                         <option value="EUR">Euros (EUR)</option>
                                     </select>
                                 </div>
+                                <p class="sg-cotizacion-valor-vivo" id="valor-contrato-vivo" aria-live="polite"></p>
                                 <span class="hint">
                                     Los pesos son pesos colombianos (COP). Máximo
                                     16 dígitos.
+                                </span>
+                                <span class="hint" id="hint-aprobacion-gerencia" style="display:block;margin-top:6px;">
+                                    Primera aprobación de otrosíes: Diego Serrano (Financiera).
+                                    Segunda: hasta $10.000.000 → Diego Serrano; superior → Gerencia General.
                                 </span>
                             </div>
 
@@ -331,14 +277,15 @@
                                         placeholder="Cantidad"
                                     />
                                     <select name="plazo_unidad" required>
-                                        <option value="dias">Días</option>
+                                        <option value="dias">Días (hábiles)</option>
+                                        <option value="dias_calendario">Días calendario</option>
                                         <option value="meses" selected>Meses</option>
                                         <option value="anios">Años</option>
                                     </select>
                                 </div>
                                 <span class="hint">
-                                    Ej.: 6 meses, 30 días, 1 año. Se usa para
-                                    notificaciones.
+                                    Días, meses y años no cuentan sábado, domingo ni festivos.
+                                    Días calendario sí incluye sábado y domingo.
                                 </span>
                             </div>
                         </div>
@@ -357,21 +304,65 @@
                                     Si es "Sí", al vencerse se renueva por el mismo plazo.
                                 </span>
                             </div>
-                            <div class="field">
-                                <label>
-                                    ¿Requiere póliza? <span class="required">*</span>
-                                </label>
-                                <select name="requiere_poliza" required>
-                                    <option value="false">No</option>
-                                    <option value="true">Sí</option>
-                                </select>
-                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== Formas de pago ===== -->
+                    <div class="form-section">
+                        <h3>3. Formas de pago</h3>
+                        <div class="field">
+                            <label>
+                                Forma de pago <span class="required">*</span>
+                            </label>
+                            <textarea
+                                name="forma_pago"
+                                required
+                                placeholder="Ej.: Con anticipo del 30%, sin anticipo, pago mediante avance de obra, etc."
+                            ></textarea>
+                            <span class="hint">
+                                Describe cómo se pagará el contrato (anticipo, sin anticipo, avance de obra u otra modalidad).
+                            </span>
+                        </div>
+                        <div class="field">
+                            <label>
+                                Centro de costos <span class="required">*</span>
+                            </label>
+                            <select name="centro_costos" id="centroCostos" required>
+                                <option value="">Selecciona un centro de costos…</option>
+                            </select>
+                            <span class="hint">
+                                Centro de costos al que se carga el proyecto del contrato.
+                            </span>
+                        </div>
+                        <div class="field">
+                            <label>
+                                Supervisor encargado <span class="required">*</span>
+                            </label>
+                            <select name="supervisor_id" id="supervisorSelect" required>
+                                <option value="">Selecciona un supervisor…</option>
+                            </select>
+                            <span class="hint" id="hint-supervisor">
+                                Supervisor responsable de vigilar el contrato y finalizarlo cuando se cumpla el servicio.
+                            </span>
+                        </div>
+                        <div class="field">
+                            <label>
+                                El precio es <span class="required">*</span>
+                            </label>
+                            <select name="tipo_precio" required>
+                                <option value="mas_iva">Más IVA</option>
+                                <option value="aui">AUI</option>
+                                <option value="no_aplica">No aplica</option>
+                            </select>
+                            <span class="hint">
+                                Indica si el valor del contrato se pacta como Más IVA o AUI.
+                            </span>
                         </div>
                     </div>
 
                     <!-- ===== Condiciones ===== -->
                     <div class="form-section">
-                        <h3>3. Condiciones de recibido satisfactorio</h3>
+                        <h3>4. Condiciones de recibido satisfactorio</h3>
                         <div class="field">
                             <label>
                                 Detalle las condiciones <span class="required">*</span>
@@ -389,7 +380,7 @@
 
                     <!-- ===== Archivos ===== -->
                     <div class="form-section">
-                        <h3>4. Documentos adjuntos</h3>
+                        <h3>5. Documentos adjuntos</h3>
                         <p class="muted" style="margin-bottom: 16px;">
                             Los 3 primeros archivos son OBLIGATORIOS. El último es opcional.
                         </p>
@@ -415,9 +406,13 @@
                                     <input
                                         type="file"
                                         name="cotizacion"
-                                        accept="application/pdf,image/*"
+                                        id="input-cotizacion"
+                                        accept="application/pdf,image/*,.doc,.docx"
                                         required
                                     />
+                                    <span class="hint" id="hint-cotizacion-srv" hidden>
+                                        Se adjuntará la cotización elegida de la solicitud. Puedes reemplazarla aquí.
+                                    </span>
                                 </div>
                             </div>
 
@@ -465,13 +460,32 @@
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
             import { api, ApiError } from "/static/js/api/client.js";
-            import { LIDERES_COLBEEF } from "/static/js/catalogos/lideres-colbeef.js";
+            import { poblarCentrosCostos } from "/static/js/catalogos/centros-costos.js";
+            import { previewValorCotizacion } from "/static/js/utils/format.js?v=3";
 
             session.requireAuth();
             session.requireRole(["compras", "juridica", "admin"]);
             const currentUser = session.getUser();
             const isJuridica = currentUser?.role === "juridica";
             renderSidebar();
+
+            poblarCentrosCostos(document.getElementById("centroCostos"));
+
+            const supervisoresReady = (async () => {
+                const sel = document.getElementById("supervisorSelect");
+                if (!sel) return;
+                try {
+                    const supervisores = await api.get("/users/supervisores");
+                    for (const s of supervisores) {
+                        const opt = document.createElement("option");
+                        opt.value = s.id;
+                        opt.textContent = s.username;
+                        sel.appendChild(opt);
+                    }
+                } catch (err) {
+                    console.error("No se pudieron cargar los supervisores", err);
+                }
+            })();
 
             const tipoCodigoSelect = document.querySelector('select[name="tipo_codigo"]');
             const tipoFromQuery = new URLSearchParams(window.location.search).get("tipo_codigo");
@@ -498,43 +512,154 @@
                     bannerVinculo.hidden = false;
                     bannerVinculo.classList.add("show");
                     bannerVinculo.textContent =
-                        `Esta radicación quedará vinculada a la solicitud ${solicitudGestionCodigo || `#${solicitudGestionId}`}.`;
+                        `Esta radicación quedará vinculada a ${solicitudGestionCodigo || `#${solicitudGestionId}`}. ` +
+                        "Se copian valor, forma de pago, centro de costo y el supervisor que solicitó el servicio.";
                 }
             }
 
-            const selectLiderJefe = document.getElementById("lider-jefe-colbeef");
             const inputLider = document.getElementById("correo-lider-proceso");
             const inputGerencia = document.getElementById("correo-gerencia");
+            const form = document.getElementById("form-contrato");
 
-            const EMAIL_GERENCIA_DEFAULT = "gerencia.juridica@colbeef.com";
-            const EMAILS_LIDERES = Object.fromEntries(
-                LIDERES_COLBEEF.map((lider) => [lider.id, lider.email || ""])
-            );
-            let emailGerencia = "";
+            const EMAIL_GERENCIA_DEFAULT = "gerencia.general@colbeef.com";
+            const EMAIL_DIEGO_DEFAULT = "gerencia.financiera@colbeef.com";
+            let emailGerenciaGeneral = EMAIL_GERENCIA_DEFAULT;
+            let emailDiegoSerrano = EMAIL_DIEGO_DEFAULT;
+            let umbralCop = 10_000_000;
 
             api.get("/config/aprobacion-emails")
                 .then((cfg) => {
-                    emailGerencia = cfg.gerencia || EMAIL_GERENCIA_DEFAULT;
+                    emailGerenciaGeneral =
+                        cfg.gerencia_general || cfg.gerencia || EMAIL_GERENCIA_DEFAULT;
+                    emailDiegoSerrano = cfg.diego_serrano || EMAIL_DIEGO_DEFAULT;
+                    if (cfg.umbral_cop) umbralCop = Number(cfg.umbral_cop);
+                    actualizarHintAprobacion();
+                    vincularCorreosAprobacion();
                 })
                 .catch(() => {
-                    emailGerencia = EMAIL_GERENCIA_DEFAULT;
+                    emailGerenciaGeneral = EMAIL_GERENCIA_DEFAULT;
+                    emailDiegoSerrano = EMAIL_DIEGO_DEFAULT;
+                    vincularCorreosAprobacion();
                 });
 
-            function vincularCorreosAlElegirJefe() {
-                if (!selectLiderJefe.value) {
-                    inputLider.value = "";
-                    inputGerencia.value = "";
-                    return;
+            function correoGerenciaPorValor() {
+                const valor = Number(form.querySelector('input[name="valor"]')?.value || 0);
+                const moneda = form.querySelector('select[name="moneda"]')?.value || "COP";
+                if (moneda === "COP" && valor > 0 && valor <= umbralCop) {
+                    return {
+                        email: emailDiegoSerrano,
+                        label: "Diego Serrano (Director Administrativo y Financiero)",
+                    };
                 }
-                const lider = EMAILS_LIDERES[selectLiderJefe.value] || "";
-                const gerencia = emailGerencia || EMAIL_GERENCIA_DEFAULT;
-                inputLider.value = lider;
-                inputGerencia.value = gerencia;
+                return {
+                    email: emailGerenciaGeneral,
+                    label: "Gerencia General",
+                };
             }
 
-            selectLiderJefe.addEventListener("change", vincularCorreosAlElegirJefe);
+            function actualizarHintAprobacion() {
+                const hint = document.getElementById("hint-aprobacion-gerencia");
+                if (!hint) return;
+                const umbralTxt = umbralCop.toLocaleString("es-CO");
+                const elegido = correoGerenciaPorValor();
+                const valor = Number(form.querySelector('input[name="valor"]')?.value || 0);
+                hint.textContent = valor > 0
+                    ? `Primera aprobación de otrosíes: Diego Serrano (Financiera). Segunda según valor: ${elegido.label}. Regla: hasta $${umbralTxt} COP → Diego Serrano; superior → Gerencia General.`
+                    : `Primera aprobación de otrosíes: Diego Serrano (Financiera). Segunda: hasta $${umbralTxt} COP → Diego Serrano; superior → Gerencia General.`;
+            }
 
-            const form = document.getElementById("form-contrato");
+            function vincularCorreosAprobacion() {
+                inputLider.value = emailDiegoSerrano;
+                inputGerencia.value = correoGerenciaPorValor().email;
+                actualizarHintAprobacion();
+            }
+
+            function actualizarValorVivo() {
+                const vivo = document.getElementById("valor-contrato-vivo");
+                if (!vivo) return;
+                const valor = form.querySelector('input[name="valor"]')?.value;
+                const moneda = form.querySelector('select[name="moneda"]')?.value || "COP";
+                vivo.textContent = previewValorCotizacion(valor, moneda);
+            }
+
+            form.querySelector('input[name="valor"]')?.addEventListener("input", () => {
+                vincularCorreosAprobacion();
+                actualizarValorVivo();
+            });
+            form.querySelector('select[name="moneda"]')?.addEventListener("change", () => {
+                vincularCorreosAprobacion();
+                actualizarValorVivo();
+            });
+            vincularCorreosAprobacion();
+
+            function setFormValue(name, value) {
+                const el = form.querySelector(`[name="${name}"]`);
+                if (!el || value === undefined || value === null || value === "") return;
+                el.value = value;
+            }
+
+            function prefillDesdeSrv(s) {
+                const elegido = (s.archivos || []).find(
+                    (a) => a.categoria === "cotizacion" && a.propuesta
+                );
+                if (s.valor_tramite_oc) setFormValue("valor", s.valor_tramite_oc);
+                if (elegido?.moneda_cotizacion) setFormValue("moneda", elegido.moneda_cotizacion);
+                if (s.centro_costo_area) {
+                    poblarCentrosCostos(
+                        document.getElementById("centroCostos"),
+                        s.centro_costo_area
+                    );
+                }
+                const supervisorSel = document.getElementById("supervisorSelect");
+                if (supervisorSel && s.creado_por_id) {
+                    const value = String(s.creado_por_id);
+                    if (![...supervisorSel.options].some((o) => o.value === value)) {
+                        const opt = document.createElement("option");
+                        opt.value = value;
+                        opt.textContent = s.creado_por_username || `Usuario #${s.creado_por_id}`;
+                        supervisorSel.appendChild(opt);
+                    }
+                    supervisorSel.value = value;
+                    supervisorSel.disabled = true;
+                    const hint = document.getElementById("hint-supervisor");
+                    if (hint) {
+                        hint.textContent =
+                            "Quien solicitó el servicio queda como supervisor encargado del contrato.";
+                    }
+                }
+                if (s.requiere_anticipo && s.porcentaje_anticipo) {
+                    setFormValue(
+                        "forma_pago",
+                        `Con anticipo del ${s.porcentaje_anticipo}%.`
+                    );
+                } else if (s.gestion_valor_registrada) {
+                    setFormValue("forma_pago", "Sin anticipo.");
+                }
+                vincularCorreosAprobacion();
+                actualizarValorVivo();
+
+                const inputCot = document.getElementById("input-cotizacion");
+                const hintCot = document.getElementById("hint-cotizacion-srv");
+                if (elegido && inputCot) {
+                    inputCot.required = false;
+                    if (hintCot) hintCot.hidden = false;
+                }
+            }
+
+            if (solicitudGestionId) {
+                if (tipoCodigoSelect) {
+                    tipoCodigoSelect.disabled = true;
+                }
+                Promise.all([
+                    supervisoresReady,
+                    api.get(`/solicitudes-gestion/${solicitudGestionId}`),
+                ])
+                    .then(([, s]) => prefillDesdeSrv(s))
+                    .catch((err) => {
+                        console.error("No se pudo precargar la solicitud", err);
+                    });
+            }
+
             const alertError = document.getElementById("alert-error");
             const alertSuccess = document.getElementById("alert-success");
             const submitBtn = document.getElementById("btn-submit");
@@ -564,19 +689,20 @@
                 submitBtn.textContent = "Radicando...";
 
                 try {
-                    if (!selectLiderJefe.value) {
-                        showError("Selecciona el líder / jefe responsable.");
-                        return;
-                    }
-                    vincularCorreosAlElegirJefe();
+                    vincularCorreosAprobacion();
                     if (!inputLider.value) {
-                        showError(
-                            "Espera un momento y vuelve a elegir el líder / jefe responsable."
-                        );
+                        showError("No se pudo asignar el correo de Diego Serrano (Financiera).");
                         return;
                     }
 
                     const formData = new FormData(form);
+                    if (tipoCodigoSelect?.disabled && (tipoFromQuery === "C" || tipoFromQuery === "OS")) {
+                        formData.set("tipo_codigo", tipoFromQuery);
+                    }
+                    const supervisorSel = document.getElementById("supervisorSelect");
+                    if (supervisorSel?.disabled && supervisorSel.value) {
+                        formData.set("supervisor_id", supervisorSel.value);
+                    }
                     formData.set("correo_lider_proceso", inputLider.value);
                     formData.set("correo_gerencia", inputGerencia.value);
                     if (solicitudGestionId) {
@@ -589,6 +715,10 @@
                     if (opcional && opcional.size === 0) {
                         formData.delete("archivo_opcional");
                     }
+                    const cotizacionFile = formData.get("cotizacion");
+                    if (cotizacionFile && cotizacionFile.size === 0) {
+                        formData.delete("cotizacion");
+                    }
 
                     const data = await api.postForm("/contratos", formData);
                     const vinculoTxt =
@@ -597,11 +727,13 @@
                             : "";
                     showSuccess(
                         `Solicitud radicada con código ${data.codigo}.${vinculoTxt} ` +
-                        "Se notificó al Líder y Gerencia por correo; al aprobar, el caso llegará a Gestión Jurídica."
+                        "Quedó vinculada y pasó a Jurídica con los datos de la cotización elegida."
                     );
-                    form.reset();
-                    inputLider.value = "";
-                    inputGerencia.value = "";
+                    setTimeout(() => {
+                        window.location.href = isJuridica
+                            ? "/app/juridica/pendientes.html"
+                            : "/app/compras/gestion-panel-solicitudes.html";
+                    }, 1600);
                 } catch (err) {
                     const msg =
                         err instanceof ApiError

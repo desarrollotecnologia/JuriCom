@@ -12,7 +12,10 @@ from app.domain.value_objects.estado_solicitud_gestion import (
     EstadoSolicitudGestion,
     normalizar_estado,
 )
-from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
+from app.domain.value_objects.tipo_solicitud_gestion import (
+    es_flujo_salidas_almacen,
+    es_flujo_servicios,
+)
 
 
 class GestionarSolicitudPanel:
@@ -33,7 +36,10 @@ class GestionarSolicitudPanel:
         if es_salidas:
             return self._gestionar_salidas_almacen(actor, solicitud_id, solicitud, estado)
 
-        if estado == EstadoSolicitudGestion.COTIZACION:
+        if estado in (
+            EstadoSolicitudGestion.PROGRAMACION_VISITA,
+            EstadoSolicitudGestion.COTIZACION,
+        ):
             if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             if not solicitud.gestor_id:
@@ -95,17 +101,39 @@ class GestionarSolicitudPanel:
                 "Tramitada OC o Entrega parcial realizada."
             )
 
+        if (
+            es_flujo_servicios(solicitud.tipo)
+            and bool(getattr(solicitud, "requiere_comite_tecnico", False))
+        ):
+            raise UnauthorizedError(
+                "Esta solicitud requiere comité técnico; primero la cotiza Proyectos."
+            )
+
         if solicitud.gestor_id and solicitud.gestor_id != actor.id and not actor.is_admin():
             raise UnauthorizedError("Esta solicitud ya fue tomada por otro gestor.")
 
         solicitud.gestor_id = actor.id
-        solicitud.estado = EstadoSolicitudGestion.COTIZACION
+        # Servicios con "requiere visita": antes de cotizar hay que agendar la visita.
+        requiere_visita = es_flujo_servicios(solicitud.tipo) and bool(
+            getattr(solicitud, "requiere_visita", False)
+        )
+        destino = (
+            EstadoSolicitudGestion.PROGRAMACION_VISITA
+            if requiere_visita
+            else EstadoSolicitudGestion.COTIZACION
+        )
+        solicitud.estado = destino
         actualizada = self._solicitudes.update(solicitud)
+        comentario = (
+            f"Programación de visita iniciada por {actor.username}"
+            if requiere_visita
+            else f"Gestión iniciada por {actor.username}"
+        )
         self._solicitudes.registrar_historial(
             solicitud_id,
-            EstadoSolicitudGestion.COTIZACION,
+            destino,
             usuario_id=actor.id,
-            comentario=f"Gestión iniciada por {actor.username}",
+            comentario=comentario,
         )
         return actualizada
 

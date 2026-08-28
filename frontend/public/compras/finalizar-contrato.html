@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Finalizar contrato · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .search-card {
+                margin-bottom: 18px;
+            }
+            .search-line {
+                display: grid;
+                grid-template-columns: minmax(220px, 360px) auto;
+                gap: 10px;
+                align-items: end;
+            }
+            .form-section {
+                margin-bottom: 28px;
+            }
+            .form-section h3 {
+                color: var(--color-primary-dark);
+                margin-bottom: 16px;
+                padding-bottom: 8px;
+                border-bottom: 2px solid var(--color-primary-light);
+            }
+            .info-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px 24px;
+            }
+            .info-grid .muted {
+                font-size: 0.85rem;
+            }
+            .disabled-note {
+                background: #fff7ed;
+                border-left: 4px solid var(--color-warning);
+                color: #92400e;
+                padding: 12px 14px;
+                border-radius: 6px;
+                margin-top: 12px;
+            }
+            .acta-hint {
+                font-size: 0.85rem;
+                color: #64748b;
+                margin-top: 4px;
+            }
+            .req {
+                color: #b91c1c;
+                font-weight: 600;
+            }
+            @media (max-width: 720px) {
+                .search-line,
+                .info-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .table-wrap {
+                overflow-x: auto;
+            }
+            .contracts-table {
+                border-collapse: collapse;
+                min-width: 720px;
+                width: 100%;
+            }
+            .contracts-table th,
+            .contracts-table td {
+                border-bottom: 1px solid var(--color-border);
+                padding: 12px 10px;
+                text-align: left;
+                vertical-align: middle;
+            }
+            .contracts-table th {
+                color: var(--color-text-muted);
+                font-size: 0.75rem;
+                letter-spacing: 0.03em;
+                text-transform: uppercase;
+            }
+            .contracts-table tbody tr {
+                cursor: pointer;
+                transition: background 0.15s ease;
+            }
+            .contracts-table tbody tr:hover {
+                background: var(--color-primary-light, #eef2ff);
+            }
+            .contract-object {
+                max-width: 280px;
+                white-space: normal;
+            }
+            .status-pill {
+                border-radius: 999px;
+                display: inline-block;
+                font-size: 0.75rem;
+                font-weight: 700;
+                padding: 5px 10px;
+                white-space: nowrap;
+            }
+            .status-activo {
+                background: #dcfce7;
+                color: #166534;
+            }
+            .status-finalizado {
+                background: #e5e7eb;
+                color: #374151;
+            }
+            .status-elaborando {
+                background: #dbeafe;
+                color: #1e40af;
+            }
+            .status-en_proceso {
+                background: #fef3c7;
+                color: #92400e;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Finalizar contrato</h1>
+                        <p class="muted">
+                            Como supervisor encargado, sigue el estado de tus contratos,
+                            responde a Jurídica y, cuando el servicio ya se cumplió,
+                            entrega el informe final. En contratos mayores a $15.000.000,
+                            Jurídica cargará luego el acta de liquidación.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card search-card">
+                    <div class="search-line">
+                        <div class="field">
+                            <label>Código del contrato</label>
+                            <input
+                                type="text"
+                                id="codigo-input"
+                                placeholder="Ej: C-0001 u OS-0001"
+                                autocomplete="off"
+                            />
+                        </div>
+                        <button class="btn btn-primary" id="btn-buscar">
+                            Buscar contrato
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card" id="mis-contratos-card" style="margin-bottom:18px;">
+                    <h2 class="card-title">Tus servicios / contratos</h2>
+                    <p class="muted" style="margin-bottom:12px;">
+                        Los servicios donde eres el supervisor encargado. Ábrelos para revisar,
+                        responder a Jurídica y, cuando estén <strong>Activo</strong>, subir el
+                        informe final y el acta para finalizar.
+                    </p>
+                    <div id="mis-contratos-list" class="muted">Cargando…</div>
+                </div>
+
+                <div class="card" id="mis-realizadas-card" style="margin-bottom:18px;display:none;">
+                    <h2 class="card-title">Solicitudes realizadas</h2>
+                    <p class="muted" style="margin-bottom:12px;">
+                        Servicios/contratos que ya <strong>finalizaste</strong>. Quedan aquí como
+                        historial: puedes abrirlos para consultar, pero ya no hay nada que finalizar.
+                    </p>
+                    <div id="mis-realizadas-list" class="muted"></div>
+                </div>
+
+                <div class="modal-overlay" id="contrato-modal">
+                  <div class="modal" style="max-width: 900px;">
+                    <div class="sg-modal-head" style="justify-content:space-between;margin-bottom:12px;">
+                        <h2 style="margin:0;">Detalle del contrato</h2>
+                        <button type="button" class="btn btn-secondary" id="btn-cerrar-modal">Cerrar</button>
+                    </div>
+                    <div id="contrato-card">
+                    <div class="form-section">
+                        <h3>1. Información del contrato</h3>
+                        <p>
+                            <span id="codigo-display" class="codigo-contrato"></span>
+                            <span id="estado-display" class="badge"></span>
+                        </p>
+                        <div class="info-grid">
+                            <div><div class="muted">Proveedor / Contratista</div><div id="proveedor"></div></div>
+                            <div><div class="muted">NIT</div><div id="nit"></div></div>
+                            <div><div class="muted">Valor</div><div id="valor"></div></div>
+                            <div><div class="muted">Plazo</div><div id="plazo"></div></div>
+                            <div style="grid-column:1 / -1;"><div class="muted">Objeto</div><div id="descripcion"></div></div>
+                        </div>
+                    </div>
+
+                    <div id="finalizar-disabled"></div>
+
+                    <form id="form-finalizar" class="form-section" style="display:none;">
+                        <h3>2. Documentos de finalización</h3>
+                        <div class="field">
+                            <label>Informe final <span class="req">*</span></label>
+                            <input type="file" id="file-informe" accept="application/pdf,image/*" />
+                            <div class="acta-hint">Obligatorio. PDF o imagen.</div>
+                        </div>
+                        <div class="disabled-note" id="acta-jur-note" style="display:none;"></div>
+                        <div style="display:flex;justify-content:flex-end;">
+                            <button type="submit" class="btn btn-primary" id="btn-finalizar">
+                                Finalizar contrato
+                            </button>
+                        </div>
+                    </form>
+
+                    <div id="pendiente-acta-note"></div>
+
+                    <div id="info-faltante-section" class="form-section" style="display:none;"></div>
+                    </div>
+                  </div>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api } from "/static/js/api/client.js";
+            import { escapeHtml, formatMoney, formatPlazo, formatDate } from "/static/js/utils/format.js";
+            import { API_BASE } from "/static/js/utils/config.js";
+
+            session.requireAuth();
+            session.requireRole(["solicitante", "admin"]);
+            renderSidebar();
+
+            const currentUser = session.getUser();
+            let current = null;
+
+            const codigoInput = document.getElementById("codigo-input");
+            const contratoModal = document.getElementById("contrato-modal");
+            const alertError = document.getElementById("alert-error");
+            const alertSuccess = document.getElementById("alert-success");
+            const formFinalizar = document.getElementById("form-finalizar");
+
+            const ESTADO_LABEL = {
+                en_proceso: "Pendiente",
+                elaborando: "Elaborando contrato",
+                revision_polizas: "Revisión de pólizas",
+                solicitud_firmas: "Solicitud de firmas",
+                anticipo_contabilidad: "Anticipo en contabilidad",
+                anticipo_tesoreria: "Anticipo en tesorería",
+                anticipo_pagado: "Anticipo pagado",
+                activo: "Activo",
+                finalizado: "Finalizado",
+            };
+
+            function showError(message) {
+                alertSuccess.classList.remove("show");
+                alertError.textContent = message;
+                alertError.classList.add("show");
+                setTimeout(() => alertError.classList.remove("show"), 7000);
+            }
+
+            function showSuccess(message) {
+                alertError.classList.remove("show");
+                alertSuccess.textContent = message;
+                alertSuccess.classList.add("show");
+                setTimeout(() => alertSuccess.classList.remove("show"), 5000);
+            }
+
+            function abrirModal() {
+                contratoModal.classList.add("show");
+            }
+            function cerrarModal() {
+                contratoModal.classList.remove("show");
+            }
+            document.getElementById("btn-cerrar-modal").addEventListener("click", cerrarModal);
+            contratoModal.addEventListener("click", (e) => {
+                if (e.target === contratoModal) cerrarModal();
+            });
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && contratoModal.classList.contains("show")) cerrarModal();
+            });
+
+            document.getElementById("info-faltante-section")?.addEventListener("click", async (e) => {
+                const link = e.target.closest("a[data-download-url]");
+                if (!link) return;
+                e.preventDefault();
+                try {
+                    const path = link.dataset.downloadUrl.replace("/api/v1", "");
+                    const response = await fetch(`${API_BASE}${path}`, {
+                        headers: { Authorization: `Bearer ${session.getToken()}` },
+                    });
+                    if (!response.ok) throw new Error(`No se pudo descargar (${response.status}).`);
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = link.dataset.filename || "archivo";
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                } catch (err) {
+                    showError(err.message || "No se pudo descargar el archivo.");
+                }
+            });
+
+            async function buscarContrato() {
+                const codigo = codigoInput.value.trim().toUpperCase();
+                if (!codigo) {
+                    showError("Escribe el código del contrato.");
+                    return;
+                }
+                try {
+                    const resultados = await api.get(`/contratos?q=${encodeURIComponent(codigo)}`);
+                    const item = resultados.find((c) => c.codigo === codigo) || resultados[0];
+                    if (!item) {
+                        showError(`No encontré ningún contrato con código ${codigo}.`);
+                        cerrarModal();
+                        return;
+                    }
+                    current = await api.get(`/contratos/${item.id}`);
+                    renderContrato(current);
+                    abrirModal();
+                    showSuccess(`Contrato ${current.codigo} cargado.`);
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            function renderContrato(c) {
+                document.getElementById("codigo-display").textContent = c.codigo || "";
+                const estado = document.getElementById("estado-display");
+                estado.className = `badge badge-${c.estado}`;
+                estado.textContent = ESTADO_LABEL[c.estado] || c.estado;
+                document.getElementById("proveedor").textContent = c.proveedor_contratista;
+                document.getElementById("nit").textContent = c.nit_proveedor;
+                document.getElementById("valor").textContent = formatMoney(c.valor, c.moneda);
+                document.getElementById("plazo").textContent = formatPlazo(c.plazo_cantidad, c.plazo_unidad);
+                document.getElementById("descripcion").textContent = c.descripcion_servicio;
+
+                const activo = c.estado === "activo";
+                const esAdmin = currentUser?.role === "admin";
+                const esSupervisorAsignado =
+                    c.supervisor_id != null && Number(c.supervisor_id) === Number(currentUser?.id);
+                const puedeFinalizar = activo && (esAdmin || esSupervisorAsignado);
+                const requiereActa = !!c.requiere_acta_liquidacion;
+                const pendienteActa = !!c.pendiente_acta_liquidacion;
+
+                const notaActa = document.getElementById("acta-jur-note");
+                const pendienteNote = document.getElementById("pendiente-acta-note");
+                const btnFinalizar = document.getElementById("btn-finalizar");
+
+                // Cuando ya se entregó el informe y falta el acta de Jurídica, no hay
+                // formulario para el supervisor: solo un aviso de que está en Jurídica.
+                if (pendienteActa) {
+                    formFinalizar.style.display = "none";
+                    pendienteNote.innerHTML = `<div class="disabled-note">
+                        Ya entregaste el <strong>informe final</strong>. El contrato supera
+                        los $15.000.000, así que <strong>Jurídica</strong> debe elaborar y
+                        cargar el <strong>acta de liquidación</strong> para finalizarlo.
+                        Te avisaremos cuando esté lista.</div>`;
+                } else {
+                    pendienteNote.innerHTML = "";
+                    formFinalizar.style.display = puedeFinalizar ? "block" : "none";
+                    if (btnFinalizar) {
+                        btnFinalizar.textContent = requiereActa
+                            ? "Enviar informe final a Jurídica"
+                            : "Finalizar contrato";
+                    }
+                    if (notaActa) {
+                        if (requiereActa) {
+                            notaActa.style.display = "block";
+                            notaActa.innerHTML = `Este contrato supera los
+                                <strong>$15.000.000</strong>: al enviar el informe final,
+                                <strong>Jurídica</strong> elaborará el acta de liquidación
+                                para finalizar el contrato.`;
+                        } else {
+                            notaActa.style.display = "none";
+                            notaActa.innerHTML = "";
+                        }
+                    }
+                }
+
+                let notaBloqueo = "";
+                if (!activo) {
+                    notaBloqueo = `Solo se puede finalizar un contrato <strong>Activo</strong>.
+                          Estado actual: <strong>${ESTADO_LABEL[c.estado] || c.estado}</strong>.`;
+                } else if (!puedeFinalizar) {
+                    notaBloqueo = c.supervisor_username
+                        ? `Este contrato solo lo puede finalizar su supervisor asignado
+                           (<strong>${escapeHtml(c.supervisor_username)}</strong>).`
+                        : `Este contrato no tiene un supervisor asignado. Pide a Jurídica
+                           que asigne un supervisor antes de finalizarlo.`;
+                }
+                document.getElementById("finalizar-disabled").innerHTML = notaBloqueo
+                    ? `<div class="disabled-note">${notaBloqueo}</div>`
+                    : "";
+                document.getElementById("file-informe").value = "";
+
+                cargarInfoFaltante(c);
+            }
+
+            function puedeResponderInfo(c) {
+                const esAdmin = currentUser?.role === "admin";
+                const esSupervisorAsignado =
+                    c.supervisor_id != null && Number(c.supervisor_id) === Number(currentUser?.id);
+                return esAdmin || esSupervisorAsignado;
+            }
+
+            async function cargarInfoFaltante(c) {
+                const cont = document.getElementById("info-faltante-section");
+                if (!cont) return;
+                let items = [];
+                try {
+                    items = await api.get(`/contratos/${c.id}/solicitudes-informacion`);
+                } catch (err) {
+                    cont.style.display = "none";
+                    cont.innerHTML = "";
+                    return;
+                }
+                if (!items.length) {
+                    cont.style.display = "block";
+                    cont.innerHTML = `<h3>Comunicación con Jurídica</h3>
+                        <p class="muted">Aún no hay mensajes con Jurídica para este contrato.</p>`;
+                    return;
+                }
+                const puedeResponder = puedeResponderInfo(c);
+                const cronologico = [...items].sort((a, b) => (a.id || 0) - (b.id || 0));
+                cont.style.display = "block";
+                cont.innerHTML = `
+                    <h3>Comunicación con Jurídica (${cronologico.length})</h3>
+                    ${cronologico.map((s) => renderInfoItem(s, puedeResponder)).join("")}
+                `;
+                if (puedeResponder) {
+                    cronologico.filter((s) => s.estado !== "respondida").forEach((s) => {
+                        const btn = document.getElementById(`btn-responder-info-${s.id}`);
+                        if (btn) btn.addEventListener("click", () => responderInfo(c.id, s.id));
+                    });
+                }
+            }
+
+            function renderInfoItem(s, puedeResponder) {
+                const respondida = s.estado === "respondida";
+                const borde = respondida ? "#16a34a" : (s.vencida ? "#dc2626" : "#f59e0b");
+                const limite = s.fecha_limite_respuesta ? formatDate(s.fecha_limite_respuesta) : "—";
+                const estadoTxt = respondida
+                    ? `Respondida por ${escapeHtml(s.respondido_por_username || "el supervisor")}`
+                    : (s.vencida
+                        ? "Pendiente — plazo vencido"
+                        : `Pendiente — ${s.dias_para_responder ?? "?"} día(s) hábiles para responder`);
+                const solicitante = escapeHtml(s.solicitado_por_username || "Jurídica");
+                const htmlAdjuntos = (list) =>
+                    list.length
+                        ? `<div style="margin-top:6px;"><strong>Adjuntos:</strong> ${list
+                              .map(
+                                  (a) =>
+                                      `<a href="#" data-download-url="/archivos/${s.contrato_id}/${a.id}" data-filename="${escapeHtml(a.nombre_original)}">${escapeHtml(a.nombre_original)}</a>`
+                              )
+                              .join(" · ")}</div>`
+                        : "";
+                const adjuntosJuridica = (s.archivos || []).filter((a) => a.tipo === "solicitud_informacion");
+                const adjuntosSupervisor = (s.archivos || []).filter((a) => a.tipo !== "solicitud_informacion");
+                const respuestaHtml = respondida
+                    ? `<div style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border-radius:6px;">
+                           <strong>Respuesta:</strong><br>${escapeHtml(s.respuesta).replace(/\n/g, "<br>")}
+                           ${htmlAdjuntos(adjuntosSupervisor)}
+                       </div>`
+                    : "";
+                const formHtml = (!respondida && puedeResponder)
+                    ? `<div style="margin-top:10px;">
+                           <textarea id="resp-info-${s.id}" rows="3" style="width:100%;" placeholder="Escribe la información solicitada..."></textarea>
+                           <input type="file" id="files-info-${s.id}" multiple style="margin-top:6px;" />
+                           <div style="display:flex;justify-content:flex-end;margin-top:6px;">
+                               <button class="btn btn-sm btn-primary" id="btn-responder-info-${s.id}">Responder a Jurídica</button>
+                           </div>
+                       </div>`
+                    : "";
+                return `
+                    <div style="border-left:4px solid ${borde};background:#f8fafc;border-radius:6px;padding:10px 12px;margin-bottom:10px;">
+                        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                            <strong>${escapeHtml(estadoTxt)}</strong>
+                            <span class="muted">Límite: ${limite}</span>
+                        </div>
+                        <div style="margin-top:6px;"><strong>${solicitante} solicitó:</strong> ${escapeHtml(s.mensaje).replace(/\n/g, "<br>")}</div>
+                        ${htmlAdjuntos(adjuntosJuridica)}
+                        ${respuestaHtml}
+                        ${formHtml}
+                    </div>`;
+            }
+
+            async function responderInfo(contratoId, solicitudId) {
+                const respuesta = document.getElementById(`resp-info-${solicitudId}`).value.trim();
+                if (!respuesta) {
+                    showError("Escribe la información solicitada antes de responder.");
+                    return;
+                }
+                const fd = new FormData();
+                fd.append("respuesta", respuesta);
+                const files = document.getElementById(`files-info-${solicitudId}`).files;
+                for (const f of files) fd.append("archivos", f);
+                const btn = document.getElementById(`btn-responder-info-${solicitudId}`);
+                btn.disabled = true;
+                try {
+                    await api.postForm(`/contratos/${contratoId}/solicitudes-informacion/${solicitudId}/responder`, fd);
+                    showSuccess("Respuesta enviada a Jurídica.");
+                    const c = await api.get(`/contratos/${contratoId}`);
+                    cargarInfoFaltante(c);
+                } catch (err) {
+                    showError(err.message || "No se pudo enviar la respuesta.");
+                    btn.disabled = false;
+                }
+            }
+
+            async function finalizar(event) {
+                event.preventDefault();
+                if (!current) return;
+                const informe = document.getElementById("file-informe").files[0];
+                if (!informe) {
+                    showError("Debes adjuntar el informe final.");
+                    return;
+                }
+                const fd = new FormData();
+                fd.append("informe_final", informe);
+
+                const btn = document.getElementById("btn-finalizar");
+                btn.disabled = true;
+                try {
+                    current = await api.postForm(`/contratos/${current.id}/finalizar`, fd);
+                    renderContrato(current);
+                    if (current.estado === "finalizado") {
+                        showSuccess(`Contrato ${current.codigo} finalizado correctamente.`);
+                    } else {
+                        showSuccess(
+                            `Informe final enviado a Jurídica. Cargarán el acta de liquidación para finalizar el contrato ${current.codigo}.`
+                        );
+                    }
+                    cargarMisContratos();
+                } catch (err) {
+                    showError(err.message || "No se pudo finalizar el contrato.");
+                } finally {
+                    btn.disabled = false;
+                }
+            }
+
+            document.getElementById("btn-buscar").addEventListener("click", buscarContrato);
+            codigoInput.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") buscarContrato();
+            });
+            formFinalizar.addEventListener("submit", finalizar);
+
+            function tablaContratosHtml(lista) {
+                return `
+                    <div class="table-wrap">
+                        <table class="contracts-table">
+                            <thead>
+                                <tr>
+                                    <th>N.º</th>
+                                    <th>Proveedor / Contratista</th>
+                                    <th>Objeto</th>
+                                    <th>Valor</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${lista
+                                    .map(
+                                        (c) => `
+                                    <tr data-codigo="${escapeHtml(c.codigo || "")}">
+                                        <td><strong class="codigo-contrato">${escapeHtml(c.codigo || "—")}</strong></td>
+                                        <td>${escapeHtml(c.proveedor_contratista || "—")}</td>
+                                        <td class="contract-object">${escapeHtml(c.descripcion_servicio || "—")}</td>
+                                        <td>${escapeHtml(formatMoney(c.valor, c.moneda))}</td>
+                                        <td><span class="status-pill status-${escapeHtml(c.estado || "")}">${escapeHtml(ESTADO_LABEL[c.estado] || c.estado)}</span></td>
+                                    </tr>`
+                                    )
+                                    .join("")}
+                            </tbody>
+                        </table>
+                    </div>`;
+            }
+
+            function bindFilasContrato(container) {
+                container.querySelectorAll("tr[data-codigo]").forEach((row) => {
+                    row.addEventListener("click", () => {
+                        codigoInput.value = row.dataset.codigo || "";
+                        buscarContrato();
+                    });
+                });
+            }
+
+            async function cargarMisContratos() {
+                const list = document.getElementById("mis-contratos-list");
+                const realizadasCard = document.getElementById("mis-realizadas-card");
+                const realizadasList = document.getElementById("mis-realizadas-list");
+                if (!list) return;
+                try {
+                    const items = await api.get("/contratos");
+                    // Admin ve todos; aquí mostramos solo donde el usuario es supervisor
+                    // (los servicios que solicitó / debe finalizar). Para solicitante el
+                    // backend ya filtra, así que el filtro es inofensivo.
+                    const mios = (Array.isArray(items) ? items : []).filter(
+                        (c) => Number(c.supervisor_id) === Number(currentUser?.id)
+                    );
+                    // Los finalizados salen de la lista activa y van a "Realizadas".
+                    const finalizados = mios.filter((c) => c.estado === "finalizado");
+                    const activos = mios.filter((c) => c.estado !== "finalizado");
+
+                    if (!activos.length) {
+                        list.classList.add("muted");
+                        list.textContent = mios.length
+                            ? "No tienes servicios pendientes por finalizar."
+                            : "No tienes servicios asignados como supervisor todavía.";
+                    } else {
+                        // Finalizables (Activo) primero.
+                        activos.sort((a, b) => (b.estado === "activo") - (a.estado === "activo"));
+                        list.classList.remove("muted");
+                        list.innerHTML = tablaContratosHtml(activos);
+                        bindFilasContrato(list);
+                    }
+
+                    if (realizadasCard && realizadasList) {
+                        if (finalizados.length) {
+                            realizadasList.classList.remove("muted");
+                            realizadasList.innerHTML = tablaContratosHtml(finalizados);
+                            bindFilasContrato(realizadasList);
+                            realizadasCard.style.display = "block";
+                        } else {
+                            realizadasCard.style.display = "none";
+                            realizadasList.innerHTML = "";
+                        }
+                    }
+                } catch (err) {
+                    list.textContent = err.message || "No se pudieron cargar tus contratos.";
+                }
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            const codigo = params.get("codigo");
+            if (codigo) {
+                codigoInput.value = codigo;
+                buscarContrato();
+            }
+            cargarMisContratos();
+        </script>
+    </body>
+</html>

@@ -162,6 +162,18 @@ class NotificadorSolicitudGestion:
     def _url_anticipos(self) -> str:
         return f"{settings.public_url.rstrip('/')}/app/compras/gestion-anticipo.html"
 
+    def _url_panel_proyectos(self) -> str:
+        return f"{settings.public_url.rstrip('/')}/app/proyectos/panel-cotizaciones.html"
+
+    def _emails_supervisor_y_proyectos(
+        self, solicitud: SolicitudGestion, *, exclude_user_id: Optional[int] = None
+    ) -> tuple[str, list[str]]:
+        sup = resolver_email_solicitante(solicitud, self._users)
+        if exclude_user_id and solicitud.creado_por_id == exclude_user_id:
+            sup = ""
+        proy = self._emails_rol(Role.PROYECTOS, exclude_user_id=exclude_user_id)
+        return sup, proy
+
     def notificar_solicitud_creada(
         self,
         solicitud: SolicitudGestion,
@@ -309,6 +321,56 @@ class NotificadorSolicitudGestion:
                 destinatarios=compras,
             )
 
+    def notificar_solicitud_en_revision(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Avisa al solicitante que debe ajustar su solicitud."""
+        codigo = solicitud.codigo or ""
+        sol = resolver_email_solicitante(solicitud, self._users)
+        if not sol:
+            return
+        self._enviar_evento(
+            solicitud,
+            asunto=f"[JURICOM_BEEF] {codigo} — Ajustes solicitados",
+            titulo="Tu solicitud necesita ajustes",
+            mensaje=(
+                f"El aprobador te pide ajustar la solicitud <strong>{codigo}</strong> "
+                "antes de continuar. Revisa el comentario en "
+                "<strong>Mis solicitudes</strong>, responde con los ajustes y "
+                "reenvíala a aprobación."
+            ),
+            url=self._url_mis_solicitudes(),
+            boton="Ver mis solicitudes",
+            destinatarios=[sol],
+        )
+
+    def notificar_revision_reenviada(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Avisa a los líderes que el solicitante respondió y reenvió."""
+        codigo = solicitud.codigo or ""
+        lideres = self._emails_lider_catalogo(
+            solicitud.lider_area_id,
+            exclude_user_id=actor.id,
+        )
+        if lideres:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Reenviada tras ajustes",
+                titulo="Solicitud ajustada y reenviada",
+                mensaje=(
+                    f"El solicitante ajustó la solicitud <strong>{codigo}</strong> "
+                    "y la reenvió a primera aprobación."
+                ),
+                url=self._url_aprobar(),
+                boton="Aprobar solicitudes",
+                destinatarios=lideres,
+            )
+
     def notificar_cotizacion_enviada(
         self,
         solicitud: SolicitudGestion,
@@ -360,6 +422,176 @@ class NotificadorSolicitudGestion:
                 url=self._url_aprobar(),
                 boton="Aprobar solicitudes",
                 destinatarios=lideres,
+            )
+
+    def notificar_cotizacion_proyectos_enviada(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Proyectos envió sus cotizaciones a Compras (comité técnico)."""
+        codigo = solicitud.codigo or ""
+        compras = self._emails_rol(Role.COMPRAS, exclude_user_id=actor.id)
+        if compras:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Cotizaciones de Proyectos",
+                titulo="Cotizaciones de Proyectos",
+                mensaje=(
+                    f"Proyectos envió cotizaciones para la solicitud "
+                    f"<strong>{codigo}</strong>. Compras debe completarlas "
+                    "(mínimo 3) y enviar a segunda aprobación."
+                ),
+                url=self._url_panel(),
+                boton="Panel de solicitudes",
+                destinatarios=compras,
+            )
+
+    def notificar_comite_iniciado(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Diego aprobó una SRV con comité técnico: inicia el comité."""
+        codigo = solicitud.codigo or ""
+        sup, proy = self._emails_supervisor_y_proyectos(solicitud)
+        mensaje = (
+            f"La solicitud <strong>{codigo}</strong> pasó a comité técnico. "
+            "Tras la reunión, el supervisor y Proyectos deben aceptar para continuar."
+        )
+        if sup:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Comité técnico",
+                titulo="Comité técnico",
+                mensaje=mensaje,
+                url=self._url_mis_solicitudes(),
+                boton="Ver mis solicitudes",
+                destinatarios=[sup],
+            )
+        if proy:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Comité técnico",
+                titulo="Comité técnico",
+                mensaje=mensaje,
+                url=self._url_panel_proyectos(),
+                boton="Panel de proyectos",
+                destinatarios=proy,
+            )
+
+    def notificar_comite_aceptacion_parcial(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Un participante aceptó; avisa al otro que falta su aceptación."""
+        codigo = solicitud.codigo or ""
+        sup, proy = self._emails_supervisor_y_proyectos(
+            solicitud, exclude_user_id=actor.id
+        )
+        mensaje = (
+            f"Un participante aceptó el comité de la solicitud "
+            f"<strong>{codigo}</strong>. Falta tu aceptación para continuar."
+        )
+        if sup:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Falta tu aceptación",
+                titulo="Comité técnico",
+                mensaje=mensaje,
+                url=self._url_mis_solicitudes(),
+                boton="Ver mis solicitudes",
+                destinatarios=[sup],
+            )
+        if proy:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Falta tu aceptación",
+                titulo="Comité técnico",
+                mensaje=mensaje,
+                url=self._url_panel_proyectos(),
+                boton="Panel de proyectos",
+                destinatarios=proy,
+            )
+
+    def notificar_comite_aprobado(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Supervisor y Proyectos aceptaron: vuelve a Compras para gestionar."""
+        codigo = solicitud.codigo or ""
+        compras = self._emails_rol(Role.COMPRAS, exclude_user_id=actor.id)
+        sup, proy = self._emails_supervisor_y_proyectos(
+            solicitud, exclude_user_id=actor.id
+        )
+        if compras:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Comité aprobado",
+                titulo="Comité técnico aprobado",
+                mensaje=(
+                    f"El comité de la solicitud <strong>{codigo}</strong> fue aceptado "
+                    "por supervisor y Proyectos. Continúa la gestión del servicio."
+                ),
+                url=self._url_panel(),
+                boton="Panel de solicitudes",
+                destinatarios=compras,
+            )
+        for dest, url, boton in (
+            ([sup] if sup else [], self._url_mis_solicitudes(), "Ver mis solicitudes"),
+            (proy, self._url_panel_proyectos(), "Panel de proyectos"),
+        ):
+            if dest:
+                self._enviar_evento(
+                    solicitud,
+                    asunto=f"[JURICOM_BEEF] {codigo} — Comité aprobado",
+                    titulo="Comité técnico aprobado",
+                    mensaje=(
+                        f"El comité de la solicitud <strong>{codigo}</strong> quedó "
+                        "aprobado. Compras continuará con la gestión del servicio."
+                    ),
+                    url=url,
+                    boton=boton,
+                    destinatarios=dest,
+                )
+
+    def notificar_comite_recotizar(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Comité sin acuerdo: vuelve a Proyectos para recotizar."""
+        codigo = solicitud.codigo or ""
+        sup, proy = self._emails_supervisor_y_proyectos(
+            solicitud, exclude_user_id=actor.id
+        )
+        if proy:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Recotizar (comité)",
+                titulo="Comité: recotización",
+                mensaje=(
+                    f"El comité de la solicitud <strong>{codigo}</strong> no llegó a "
+                    "acuerdo. Debes recotizar y volver a enviar a Compras."
+                ),
+                url=self._url_panel_proyectos(),
+                boton="Panel de proyectos",
+                destinatarios=proy,
+            )
+        if sup:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM_BEEF] {codigo} — Recotizar (comité)",
+                titulo="Comité: recotización",
+                mensaje=(
+                    f"El comité de la solicitud <strong>{codigo}</strong> se devolvió "
+                    "a Proyectos para recotizar."
+                ),
+                url=self._url_mis_solicitudes(),
+                boton="Ver mis solicitudes",
+                destinatarios=[sup],
             )
 
     def notificar_recotizacion(

@@ -5,6 +5,7 @@ from typing import Optional
 
 from app.domain.entities.contrato import ArchivoAdjunto, Contrato
 from app.domain.entities.otrosi import Otrosi
+from app.domain.entities.solicitud_informacion import SolicitudInformacion
 from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
 from app.domain.value_objects.estado_contrato import EstadoContrato
 
@@ -70,6 +71,33 @@ class ContratoRepository(ABC):
         query: Optional[str] = None,
         estado: Optional[EstadoContrato] = None,
         creador_id: Optional[int] = None,
+        supervisor_id: Optional[int] = None,
         solo_aprobados: bool = False,
         incluir_eliminados: bool = False,
     ) -> list[Contrato]: ...
+
+    # --- solicitudes de información faltante (Jurídica -> Compras) ---
+    @abstractmethod
+    def crear_solicitud_informacion(
+        self, solicitud: SolicitudInformacion
+    ) -> SolicitudInformacion: ...
+
+    @abstractmethod
+    def get_solicitud_informacion(
+        self, solicitud_id: int
+    ) -> Optional[SolicitudInformacion]: ...
+
+    @abstractmethod
+    def actualizar_solicitud_informacion(
+        self, solicitud: SolicitudInformacion
+    ) -> SolicitudInformacion: ...
+
+    @abstractmethod
+    def list_solicitudes_informacion_by_contrato(
+        self, contrato_id: int
+    ) -> list[SolicitudInformacion]: ...
+
+    @abstractmethod
+    def list_solicitudes_informacion_pendientes(
+        self,
+    ) -> list[tuple[Contrato, SolicitudInformacion]]: ...

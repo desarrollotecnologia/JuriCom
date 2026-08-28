@@ -40,6 +40,8 @@ class User:
 
     role: Role
 
+    nombre: str = ""
+
     email: str = ""
 
     lider_catalog_id: str = ""
@@ -92,6 +94,24 @@ class User:
 
 
 
+    def is_proyectos(self) -> bool:
+
+        return self.role == Role.PROYECTOS
+
+
+
+    def is_contabilidad(self) -> bool:
+
+        return self.role == Role.CONTABILIDAD
+
+
+
+    def is_tesoreria(self) -> bool:
+
+        return self.role == Role.TESORERIA
+
+
+
     def puede_crear_solicitudes_gestion(self) -> bool:
         return self.is_admin() or self.is_compras() or self.is_solicitante() or self.is_anticipos()
 
@@ -104,8 +124,20 @@ class User:
     def puede_gestionar_panel_compras(self) -> bool:
         return self.is_admin() or self.is_compras()
 
+    def puede_cotizar_proyectos(self) -> bool:
+        """Rol proyectos: cotiza SRV que requieren comité técnico."""
+        return self.is_admin() or self.is_proyectos()
+
     def puede_operar_anticipos(self) -> bool:
         return self.is_admin() or self.is_anticipos()
+
+    def puede_gestionar_anticipo_contabilidad(self) -> bool:
+        """Rol contabilidad: gestiona el anticipo del contrato antes de tesorería."""
+        return self.is_admin() or self.is_contabilidad()
+
+    def puede_gestionar_anticipo_tesoreria(self) -> bool:
+        """Rol tesorería: confirma el pago del anticipo del contrato."""
+        return self.is_admin() or self.is_tesoreria()
 
 
 

@@ -63,6 +63,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             id=model.id,
             solicitud_id=model.solicitud_id,
             programador_visita=model.programador_visita or "",
+            rol_programador=getattr(model, "rol_programador", "") or "",
             proveedor_visita=model.proveedor_visita or "",
             fecha_visita=getattr(model, "fecha_visita", None),
             hora_visita=getattr(model, "hora_visita", None),
@@ -81,6 +82,12 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             categoria=getattr(model, "categoria", None) or "solicitud",
             subido_por_id=model.subido_por_id,
             created_at=model.created_at,
+            valor_cotizacion=getattr(model, "valor_cotizacion", None),
+            moneda_cotizacion=getattr(model, "moneda_cotizacion", None) or "COP",
+            requiere_anticipo=bool(getattr(model, "requiere_anticipo", False)),
+            porcentaje_anticipo=getattr(model, "porcentaje_anticipo", None),
+            monto_anticipo=getattr(model, "monto_anticipo", None),
+            propuesta=bool(getattr(model, "propuesta", False)),
         )
 
     @classmethod
@@ -121,6 +128,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones=model.observaciones,
             observaciones_texto=model.observaciones_texto,
             requiere_visita=getattr(model, "requiere_visita", None),
+            requiere_comite_tecnico=getattr(model, "requiere_comite_tecnico", None),
             servicio_programado=getattr(model, "servicio_programado", None),
             fecha_servicio_programado=getattr(model, "fecha_servicio_programado", None),
             descripcion_servicio=getattr(model, "descripcion_servicio", "") or "",
@@ -152,6 +160,10 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             factura_registrada_por_id=getattr(model, "factura_registrada_por_id", None),
             gestor_id=getattr(model, "gestor_id", None),
             gestor_username=gestor_username,
+            proyectista_id=getattr(model, "proyectista_id", None),
+            comite_supervisor_ok=bool(getattr(model, "comite_supervisor_ok", False)),
+            comite_proyectos_ok=bool(getattr(model, "comite_proyectos_ok", False)),
+            visita_proyectos_hecha=bool(getattr(model, "visita_proyectos_hecha", False)),
             estado=normalizar_estado(model.estado),
             creado_por_id=model.creado_por_id,
             creado_por_username=creado_por_username,
@@ -217,6 +229,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones=solicitud.observaciones,
             observaciones_texto=solicitud.observaciones_texto,
             requiere_visita=solicitud.requiere_visita,
+            requiere_comite_tecnico=solicitud.requiere_comite_tecnico,
             servicio_programado=solicitud.servicio_programado,
             fecha_servicio_programado=solicitud.fecha_servicio_programado,
             descripcion_servicio=solicitud.descripcion_servicio or "",
@@ -374,6 +387,12 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             raise ValueError(f"No existe la solicitud {solicitud.id}.")
 
         model.estado = normalizar_estado(solicitud.estado).value
+        model.titulo = solicitud.titulo or ""
+        model.centro_costo_area = solicitud.centro_costo_area or ""
+        model.proveedor_sugerido = solicitud.proveedor_sugerido or ""
+        model.descripcion_servicio = solicitud.descripcion_servicio or ""
+        model.descripcion_servicio_texto = solicitud.descripcion_servicio_texto or ""
+        model.observaciones = solicitud.observaciones or ""
         model.observaciones_texto = solicitud.observaciones_texto
         model.observaciones_gestion = solicitud.observaciones_gestion
         model.justificacion_cotizaciones = solicitud.justificacion_cotizaciones
@@ -396,6 +415,10 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model.factura_registrada_at = solicitud.factura_registrada_at
         model.factura_registrada_por_id = solicitud.factura_registrada_por_id
         model.gestor_id = solicitud.gestor_id
+        model.proyectista_id = solicitud.proyectista_id
+        model.comite_supervisor_ok = bool(solicitud.comite_supervisor_ok)
+        model.comite_proyectos_ok = bool(solicitud.comite_proyectos_ok)
+        model.visita_proyectos_hecha = bool(getattr(solicitud, "visita_proyectos_hecha", False))
         model.lider_segunda_aprobacion_id = solicitud.lider_segunda_aprobacion_id
         model.lider_segunda_aprobacion_label = solicitud.lider_segunda_aprobacion_label
         self._db.commit()
@@ -446,12 +469,39 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
                 categoria=archivo.categoria or "solicitud",
                 observacion_id=archivo.observacion_id or observacion_id,
                 subido_por_id=archivo.subido_por_id,
+                valor_cotizacion=getattr(archivo, "valor_cotizacion", None),
+                moneda_cotizacion=getattr(archivo, "moneda_cotizacion", None) or "COP",
+                requiere_anticipo=bool(getattr(archivo, "requiere_anticipo", False)),
+                porcentaje_anticipo=getattr(archivo, "porcentaje_anticipo", None),
+                monto_anticipo=getattr(archivo, "monto_anticipo", None),
+                propuesta=bool(getattr(archivo, "propuesta", False)),
             )
             self._db.add(model)
             self._db.flush()
             created_ids.append(model.id)
         self._db.commit()
         return created_ids
+
+    def marcar_cotizacion_elegida(
+        self, solicitud_id: int, archivo_id: int
+    ) -> SolicitudGestionArchivo:
+        rows = (
+            self._db.query(SolicitudGestionArchivoModel)
+            .filter(
+                SolicitudGestionArchivoModel.solicitud_id == solicitud_id,
+                SolicitudGestionArchivoModel.categoria == "cotizacion",
+            )
+            .all()
+        )
+        elegido = None
+        for row in rows:
+            row.propuesta = row.id == archivo_id
+            if row.propuesta:
+                elegido = row
+        if elegido is None:
+            raise ValueError("La cotización seleccionada no existe en esta solicitud.")
+        self._db.commit()
+        return self._archivo_to_entity(elegido)
 
     def link_archivos_observacion(self, observacion_id: int, archivo_ids: list[int]) -> None:
         if not archivo_ids:
@@ -491,6 +541,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
                 SolicitudGestionVisitaProgramadaModel(
                     solicitud_id=solicitud_id,
                     programador_visita=(visita.programador_visita or "").strip(),
+                    rol_programador=(getattr(visita, "rol_programador", "") or "").strip(),
                     proveedor_visita=(visita.proveedor_visita or "").strip(),
                     fecha_visita=visita.fecha_visita,
                     hora_visita=visita.hora_visita,

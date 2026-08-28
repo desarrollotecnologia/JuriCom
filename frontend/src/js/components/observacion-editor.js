@@ -63,6 +63,7 @@ export function createObservacionConAdjuntos({
     placeholder = "Escribe tu observación...",
     minHeight = 160,
     accept = OBSERVACION_ADJUNTOS_ACCEPT,
+    autosaveKey = "",
 }) {
     const fileInput = document.getElementById(fileInputId);
     const fileListEl = document.getElementById(fileListId);
@@ -137,6 +138,55 @@ export function createObservacionConAdjuntos({
 
     const root = editor.root;
 
+    // --- Autoguardado del borrador (opt-in mediante autosaveKey) ---
+    // ponytail: solo persiste el HTML del comentario en localStorage (no los archivos
+    // adjuntos, que no son serializables). Techo: cuota de localStorage (~5MB); si el
+    // contenido la supera, el guardado se ignora en silencio.
+    const storageKey = autosaveKey ? `obs-draft:${autosaveKey}` : "";
+    let draftTimer = null;
+    let draftRestored = false;
+
+    function readDraft() {
+        if (!storageKey) return "";
+        try {
+            return localStorage.getItem(storageKey) || "";
+        } catch (_) {
+            return "";
+        }
+    }
+
+    function persistDraft() {
+        if (!storageKey) return;
+        try {
+            const html = (editor.getHtml() || "").trim();
+            if (html && html !== "<br>") localStorage.setItem(storageKey, html);
+            else localStorage.removeItem(storageKey);
+        } catch (_) {
+            /* cuota u otro: ignorar, no rompe la edición */
+        }
+    }
+
+    function clearDraft() {
+        if (!storageKey) return;
+        try {
+            localStorage.removeItem(storageKey);
+        } catch (_) {
+            /* noop */
+        }
+    }
+
+    if (storageKey) {
+        const saved = readDraft();
+        if (saved) {
+            editor.setHtml(saved);
+            draftRestored = true;
+        }
+        root?.addEventListener("input", () => {
+            clearTimeout(draftTimer);
+            draftTimer = setTimeout(persistDraft, 500);
+        });
+    }
+
     fileInput?.addEventListener("change", () => {
         addFiles(fileInput.files);
         fileInput.value = "";
@@ -162,6 +212,8 @@ export function createObservacionConAdjuntos({
     return {
         editor,
         getFiles: () => [...archivos],
+        draftRestored,
+        clearDraft,
         clearAttachments: () => {
             archivos = [];
             renderFileList();
@@ -170,8 +222,10 @@ export function createObservacionConAdjuntos({
             editor.clear();
             archivos = [];
             renderFileList();
+            clearDraft();
         },
         destroy: () => {
+            clearTimeout(draftTimer);
             archivos = [];
             if (fileListEl) {
                 fileListEl.innerHTML = "";

@@ -1,7 +1,7 @@
 import { api, ApiError } from "../api/client.js";
 import { session } from "../auth/session.js";
 
-import { escapeHtml, formatDate } from "../utils/format.js";
+import { escapeHtml, formatDate } from "../utils/format.js?v=2";
 
 import { createObservacionConAdjuntos } from "../components/observacion-editor.js";
 
@@ -11,6 +11,8 @@ import {
 
     badgeEstado,
 
+    bindClasifCotizacionElegida,
+
     hydrateInlineObservacionImages,
 
     normalizarEstado,
@@ -18,7 +20,7 @@ import {
     renderDetalleSolicitudHtml,
     esSolicitudServicios,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=22";
+} from "./gestion-solicitudes-common.js?v=46";
 
 
 
@@ -30,7 +32,7 @@ const APROBACION_HINT = {
 
     solicitud: "Primera aprobación — tu comentario quedará en el historial de observaciones.",
 
-    en_aprobacion: "Segunda aprobación — comenta por qué apruebas, o usa «Solicitar recotización» para devolver la solicitud al gestor.",
+    en_aprobacion: "Segunda aprobación — elige una cotización y aprueba, o solicita recotización.",
 
     aprobacion_anticipo: "Aprobación de anticipo — revisa el porcentaje, monto y líder asignado antes de aprobar.",
 
@@ -102,7 +104,8 @@ export function initAprobarSolicitudesGestion() {
 
     const btnRecotizar = document.getElementById("btn-solicitar-recotizacion");
 
-    const motivoRechazo = document.getElementById("motivo-rechazo");
+    const btnRevisar = document.getElementById("btn-solicitar-revision");
+
 
     const obsHint = document.getElementById("aprobacion-obs-hint");
 
@@ -185,6 +188,8 @@ export function initAprobarSolicitudesGestion() {
             placeholder: "Escribe tu observación como líder aprobador...",
 
             minHeight: 140,
+
+            autosaveKey: selectedSolicitud ? `aprobacion:${selectedSolicitud.id}` : "",
 
         });
 
@@ -501,6 +506,14 @@ export function initAprobarSolicitudesGestion() {
             }
         }
 
+        if (btnRevisar) {
+            if (esPrimeraAprobacion(estado)) {
+                btnRevisar.removeAttribute("hidden");
+            } else {
+                btnRevisar.setAttribute("hidden", "");
+            }
+        }
+
         if (btnRechazar) {
             btnRechazar.textContent = esAprobacionAnticipo(estado)
                 ? "Rechazar anticipo"
@@ -519,7 +532,7 @@ export function initAprobarSolicitudesGestion() {
 
         selectedSolicitud = null;
 
-        if (motivoRechazo) motivoRechazo.value = "";
+        document.getElementById("srv-rechazo-modal")?.remove();
 
         resetObservacionForm();
 
@@ -543,6 +556,7 @@ export function initAprobarSolicitudesGestion() {
             detailContent.innerHTML =
                 renderDetalleSolicitudHtml(s, {
                 showAprobacionParcialAlert: false,
+                seleccionarCotizacion: esSegundaAprobacion(s.estado) && esServicios,
 
                 productosOptions: isPrimera && !esServicios
 
@@ -566,6 +580,8 @@ export function initAprobarSolicitudesGestion() {
                       },
 
             }) ;
+
+            bindClasifCotizacionElegida();
 
             if (isPrimera && !esServicios) {
                 primeraPanel?.removeAttribute("hidden");
@@ -614,11 +630,13 @@ export function initAprobarSolicitudesGestion() {
 
         resetPrimeraAprobacionUI();
 
-        if (motivoRechazo) motivoRechazo.value = "";
+        document.getElementById("srv-rechazo-modal")?.remove();
 
         if (btnAprobar) btnAprobar.textContent = "Aprobar";
 
         btnRecotizar?.setAttribute("hidden", "");
+
+        btnRevisar?.setAttribute("hidden", "");
 
     }
 
@@ -639,8 +657,23 @@ export function initAprobarSolicitudesGestion() {
         const isPrimera = esPrimeraAprobacion(estado);
         const isAnticipo = esAprobacionAnticipo(estado);
         const esServicios = esSolicitudServicios(solicitud);
+        const isSegunda = esSegundaAprobacion(estado);
 
+        if (isSegunda && esServicios && !esDesdeModal) {
+            await openDetail(solicitudId, estado);
+            showError("Selecciona la cotización que apruebas, o solicita recotización.");
+            return;
+        }
 
+        let cotizacionElegidaId = "";
+        if (isSegunda && esServicios && esDesdeModal) {
+            cotizacionElegidaId =
+                document.querySelector('input[name="cotizacion-elegida"]:checked')?.value || "";
+            if (!cotizacionElegidaId) {
+                showError("Selecciona la cotización que apruebas, o solicita recotización.");
+                return;
+            }
+        }
 
         let tipoAprobacion = "total";
 
@@ -695,6 +728,8 @@ export function initAprobarSolicitudesGestion() {
 
         observacionControl?.editor.syncHidden();
 
+        observacionControl?.clearDraft();
+
         const obsHtml = esDesdeModal ? (observacionControl?.editor.getHtml() ?? "") : "";
 
         const obsTexto = esDesdeModal ? (observacionControl?.editor.getText() ?? "") : "";
@@ -712,6 +747,10 @@ export function initAprobarSolicitudesGestion() {
         formData.append("tipo_aprobacion", tipoAprobacion);
 
         formData.append("productos_aprobados", JSON.stringify(productosAprobados));
+
+        if (cotizacionElegidaId) {
+            formData.append("cotizacion_elegida_id", cotizacionElegidaId);
+        }
 
         if (isPrimera && esDesdeModal) {
             formData.append("productos_cantidades", JSON.stringify(getProductosCantidades()));
@@ -781,56 +820,72 @@ export function initAprobarSolicitudesGestion() {
 
 
 
-    async function rechazar() {
-
+    function rechazar() {
         if (!selectedId) return;
 
-        const motivo = motivoRechazo?.value.trim() ?? "";
+        document.getElementById("srv-rechazo-modal")?.remove();
+        const esAnticipo = esAprobacionAnticipo(selectedEstado);
+        const titulo = esAnticipo ? "Rechazar anticipo" : "Cancelar solicitud";
 
-        if (!motivo) {
+        const overlay = document.createElement("div");
+        overlay.id = "srv-rechazo-modal";
+        overlay.style.cssText =
+            "position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;" +
+            "align-items:center;justify-content:center;z-index:1100;padding:16px;";
 
-            showError("Indica el motivo de la cancelación.");
+        const panel = document.createElement("div");
+        panel.style.cssText =
+            "background:#fff;border-radius:12px;max-width:480px;width:100%;padding:20px;" +
+            "box-shadow:0 10px 40px rgba(0,0,0,.2);";
+        panel.innerHTML = `
+            <h3 style="margin:0 0 12px;">${titulo}</h3>
+            <label for="srv-rechazo-motivo" style="display:block;margin-bottom:6px;font-weight:600;">Motivo (obligatorio)</label>
+            <textarea id="srv-rechazo-motivo" rows="4"
+                placeholder="Describe el motivo..."
+                style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:.95rem;"></textarea>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
+                <button type="button" class="btn btn-secondary" data-accion="cerrar">Cerrar</button>
+                <button type="button" class="btn btn-danger" data-accion="enviar">Enviar</button>
+            </div>
+        `;
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
 
-            return;
+        const ta = panel.querySelector("#srv-rechazo-motivo");
+        ta.focus();
 
-        }
-
-        const esServiciosAnticipo =
-            esAprobacionAnticipo(selectedEstado) && esSolicitudServicios(selectedSolicitud);
-        if (!confirm(
-            esAprobacionAnticipo(selectedEstado)
-                ? esServiciosAnticipo
-                    ? "¿Confirmas rechazar el anticipo? La solicitud volverá a Gestionando servicio sin anticipo."
-                    : "¿Confirmas rechazar el anticipo? La solicitud continuará en Tramitada OC sin anticipo."
-                : "¿Confirmas la cancelación de esta solicitud?"
-        )) return;
-
-
-
-        try {
-
-            if (esAprobacionAnticipo(selectedEstado)) {
-                await api.post(`/solicitudes-gestion/${selectedId}/rechazar-anticipo`, { motivo });
-                showSuccess("Anticipo rechazado.");
-            } else {
-                await api.post(`/solicitudes-gestion/${selectedId}/rechazar`, { motivo });
-                showSuccess("Solicitud cancelada.");
+        overlay.addEventListener("click", async (e) => {
+            const t = e.target;
+            if (t === overlay || t.dataset?.accion === "cerrar") {
+                overlay.remove();
+                return;
             }
-
-            closeModal();
-
-            await load();
-
-        } catch (err) {
-
-            showError(
-
-                err instanceof ApiError ? err.message : "No se pudo rechazar la solicitud."
-
-            );
-
-        }
-
+            if (t.dataset?.accion !== "enviar") return;
+            const motivo = ta.value.trim();
+            if (!motivo) {
+                ta.style.borderColor = "#ef4444";
+                ta.focus();
+                return;
+            }
+            t.disabled = true;
+            try {
+                if (esAprobacionAnticipo(selectedEstado)) {
+                    await api.post(`/solicitudes-gestion/${selectedId}/rechazar-anticipo`, { motivo });
+                    showSuccess("Anticipo rechazado.");
+                } else {
+                    await api.post(`/solicitudes-gestion/${selectedId}/rechazar`, { motivo });
+                    showSuccess("Solicitud cancelada.");
+                }
+                overlay.remove();
+                closeModal();
+                await load();
+            } catch (err) {
+                t.disabled = false;
+                showError(
+                    err instanceof ApiError ? err.message : "No se pudo rechazar la solicitud."
+                );
+            }
+        });
     }
 
 
@@ -840,6 +895,8 @@ export function initAprobarSolicitudesGestion() {
         if (!selectedId || !esSegundaAprobacion(selectedEstado)) return;
 
         observacionControl?.editor.syncHidden();
+
+        observacionControl?.clearDraft();
 
         const observacionHtml = observacionControl?.editor.getHtml() ?? "";
 
@@ -921,6 +978,79 @@ export function initAprobarSolicitudesGestion() {
 
 
 
+    async function solicitarRevision() {
+
+        if (!selectedId || !esPrimeraAprobacion(selectedEstado)) return;
+
+        observacionControl?.editor.syncHidden();
+
+        observacionControl?.clearDraft();
+
+        const observacionHtml = observacionControl?.editor.getHtml() ?? "";
+
+        const observacionTexto = observacionControl?.editor.getText() ?? "";
+
+        if (!observacionTexto.trim() && !observacionHtml.trim()) {
+
+            showError(
+                "Indica en el comentario qué debe ajustar el solicitante antes de devolverla."
+            );
+
+            return;
+
+        }
+
+        if (
+            !confirm(
+                "¿Confirmas devolver esta solicitud al solicitante para que la ajuste?"
+            )
+        ) {
+
+            return;
+
+        }
+
+        const formData = new FormData();
+
+        formData.append("observacion", observacionHtml);
+
+        formData.append("observacion_texto", observacionTexto);
+
+        for (const file of observacionControl?.getFiles() ?? []) {
+
+            formData.append("adjuntos", file);
+
+        }
+
+        try {
+
+            await api.postForm(
+                `/solicitudes-gestion/${selectedId}/solicitar-revision`,
+                formData
+            );
+
+            showSuccess(
+                "Solicitud devuelta al solicitante. Recibirá un aviso para ajustarla."
+            );
+
+            closeModal();
+
+            await load();
+
+        } catch (err) {
+
+            showError(
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo devolver la solicitud a revisión."
+            );
+
+        }
+
+    }
+
+
+
     attachGestionDownloadHandlers(detailContent, showError);
 
 
@@ -938,6 +1068,8 @@ export function initAprobarSolicitudesGestion() {
     btnRechazar?.addEventListener("click", rechazar);
 
     btnRecotizar?.addEventListener("click", solicitarRecotizacion);
+
+    btnRevisar?.addEventListener("click", solicitarRevision);
 
     document.querySelectorAll('input[name="tipo-aprobacion"]').forEach((radio) => {
         radio.addEventListener("change", syncTipoAprobacionUI);

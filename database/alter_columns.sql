@@ -20,6 +20,8 @@ USE Juridica;
 
 -- contratos: flujo aprobación y vigencia
 -- ALTER TABLE contratos ADD COLUMN correo_lider_proceso VARCHAR(255) NOT NULL DEFAULT '' AFTER requiere_poliza;
+-- ALTER TABLE contratos ADD COLUMN tipo_precio VARCHAR(20) NOT NULL DEFAULT 'mas_iva' AFTER requiere_poliza;
+-- ALTER TABLE contratos ADD COLUMN forma_pago VARCHAR(2000) NOT NULL DEFAULT '' AFTER tipo_precio;
 -- ALTER TABLE contratos ADD COLUMN correo_gerencia VARCHAR(255) NOT NULL DEFAULT '' AFTER correo_lider_proceso;
 -- ALTER TABLE contratos ADD COLUMN estado_aprobacion VARCHAR(30) NOT NULL DEFAULT 'aprobado' AFTER correo_gerencia;
 -- ALTER TABLE contratos ADD COLUMN fecha_inicio DATE NULL AFTER estado;
@@ -64,3 +66,13 @@ USE Juridica;
 -- solicitudes_gestion_archivos
 -- ALTER TABLE solicitudes_gestion_archivos ADD COLUMN categoria VARCHAR(30) NOT NULL DEFAULT 'solicitud' AFTER tamano_bytes;
 -- ALTER TABLE solicitudes_gestion_archivos ADD COLUMN observacion_id INT NULL AFTER categoria;
+-- ALTER TABLE solicitudes_gestion_archivos ADD COLUMN valor_cotizacion DECIMAL(18,2) NULL AFTER observacion_id;
+-- ALTER TABLE solicitudes_gestion_archivos ADD COLUMN moneda_cotizacion VARCHAR(3) NOT NULL DEFAULT 'COP' AFTER valor_cotizacion;
+-- ALTER TABLE solicitudes_gestion_archivos ADD COLUMN requiere_anticipo TINYINT(1) NOT NULL DEFAULT 0 AFTER valor_cotizacion;
+-- ALTER TABLE solicitudes_gestion_archivos ADD COLUMN porcentaje_anticipo DECIMAL(5,2) NULL AFTER requiere_anticipo;
+-- ALTER TABLE solicitudes_gestion_archivos ADD COLUMN monto_anticipo DECIMAL(18,2) NULL AFTER porcentaje_anticipo;
+-- ALTER TABLE solicitudes_gestion_archivos ADD COLUMN propuesta TINYINT(1) NOT NULL DEFAULT 0 AFTER monto_anticipo;
+
+-- contratos / otrosíes: plazo admite 'dias_calendario'
+-- ALTER TABLE contratos MODIFY COLUMN plazo_unidad VARCHAR(20) NOT NULL;
+-- ALTER TABLE otrosies_contrato MODIFY COLUMN plazo_adicional_unidad VARCHAR(20) NULL;

@@ -68,6 +68,25 @@
                 background: #dcfce7;
                 border-radius: var(--radius-md);
             }
+            .otrosi-block {
+                border: 1px solid #16a34a;
+                border-radius: var(--radius-md);
+                padding: 10px 12px;
+            }
+            .otrosi-block.off {
+                opacity: 0.5;
+            }
+            .tipo-check {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                margin-bottom: 6px;
+            }
+            .tipo-check input {
+                width: auto;
+            }
             .otrosi-hist-row {
                 cursor: pointer;
             }
@@ -125,6 +144,7 @@
                 </div>
 
                 <form id="form-edicion" class="card" style="display:none;">
+                    <div id="banner-elaboracion" style="display:none;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-weight:600;"></div>
                     <div class="form-section">
                         <h3>1. Contrato</h3>
                         <div class="row-2">
@@ -157,6 +177,11 @@
                                 <label>NIT del proveedor <span class="required">*</span></label>
                                 <input type="text" id="nit" required />
                             </div>
+                        </div>
+
+                        <div class="field">
+                            <label>Correo electrónico del proveedor</label>
+                            <input type="email" id="proveedor-email" placeholder="correo@proveedor.com" />
                         </div>
 
                         <div class="field">
@@ -195,7 +220,8 @@
                                 <div class="input-group">
                                     <input id="plazo-cantidad" type="number" min="1" required />
                                     <select id="plazo-unidad" required>
-                                        <option value="dias">Días</option>
+                                        <option value="dias">Días (hábiles)</option>
+                                        <option value="dias_calendario">Días calendario</option>
                                         <option value="meses">Meses</option>
                                         <option value="anios">Años</option>
                                     </select>
@@ -227,11 +253,20 @@
                             </div>
                             <div class="field">
                                 <label>Hora de notificación</label>
-                                <input id="hora-proxima-notificacion" type="time" value="00:10" />
+                                <input id="hora-proxima-notificacion" type="time" value="07:30" />
                             </div>
                             <span class="hint">
                                 Jurídica define manualmente cuándo el sistema debe volver a notificar este contrato.
                             </span>
+                        </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Fecha límite de elaboración</label>
+                                <input id="fecha-limite-elaboracion" type="date" />
+                                <span class="hint" id="elaboracion-hint"></span>
+                            </div>
+                            <div class="field"></div>
                         </div>
 
                         <div class="row-2">
@@ -248,35 +283,102 @@
                                     <option value="false">No</option>
                                     <option value="true">Sí</option>
                                 </select>
+                                <span class="hint">
+                                    Jurídica decide si este contrato exige póliza. Si marcas Sí, aparece el cargue abajo.
+                                </span>
                             </div>
                         </div>
                     </div>
 
                     <div class="form-section">
-                        <h3>3. Condiciones de recibido satisfactorio</h3>
+                        <h3>3. Formas de pago</h3>
+                        <div class="field">
+                            <label>Forma de pago <span class="required">*</span></label>
+                            <textarea
+                                id="forma-pago"
+                                required
+                                placeholder="Ej.: Con anticipo del 30%, sin anticipo, pago mediante avance de obra, etc."
+                            ></textarea>
+                            <span class="hint">
+                                Describe cómo se pagará el contrato (anticipo, sin anticipo, avance de obra u otra modalidad).
+                            </span>
+                        </div>
+                        <div class="field" id="anticipo-info-field" style="display:none;">
+                            <label>Anticipo (desde la solicitud de servicio)</label>
+                            <div id="anticipo-info" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 12px;"></div>
+                            <span class="hint">
+                                Copia tomada de la SRV al radicar. Es informativa y no se edita aquí.
+                            </span>
+                        </div>
+                        <div class="field">
+                            <label>Centro de costos <span class="required">*</span></label>
+                            <select id="centro-costos" required>
+                                <option value="">Selecciona un centro de costos…</option>
+                            </select>
+                            <span class="hint">
+                                Centro de costos al que se carga el proyecto del contrato.
+                            </span>
+                        </div>
+                        <div class="field">
+                            <label>Supervisor encargado</label>
+                            <select id="supervisor-id">
+                                <option value="">Sin supervisor asignado</option>
+                            </select>
+                            <span class="hint">
+                                Supervisor responsable de finalizar el contrato cuando se cumpla el servicio.
+                            </span>
+                        </div>
+                        <div class="field">
+                            <label>El precio es <span class="required">*</span></label>
+                            <select id="tipo-precio" required>
+                                <option value="mas_iva">Más IVA</option>
+                                <option value="aui">AUI</option>
+                                <option value="no_aplica">No aplica</option>
+                            </select>
+                            <span class="hint">
+                                Indica si el valor del contrato se pacta como Más IVA o AUI.
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>4. Condiciones de recibido satisfactorio</h3>
                         <div class="field">
                             <label>Detalle las condiciones <span class="required">*</span></label>
                             <textarea id="condiciones" required></textarea>
                         </div>
                     </div>
 
-                    <div class="form-section">
-                        <h3>4. Archivos de Jurídica</h3>
+                    <div class="form-section" id="archivos-juridica-section">
+                        <h3>5. Archivos de Jurídica</h3>
+                        <p id="archivos-juridica-hint" style="margin-top:-6px;color:#64748b;font-size:0.9rem;"></p>
                         <div class="upload-grid">
-                            <div class="upload-card">
-                                <label>Póliza</label>
-                                <input type="file" id="file-poliza" accept="application/pdf,image/*" />
-                                <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-poliza">
-                                    Subir póliza
-                                </button>
-                            </div>
-                            <div class="upload-card">
+                            <div class="upload-card" id="card-borrador">
                                 <label>Contrato firmado</label>
                                 <input type="file" id="file-borrador" accept="application/pdf" />
                                 <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-borrador">
                                     Subir contrato firmado
                                 </button>
                             </div>
+                            <div class="upload-card" id="card-poliza">
+                                <label>Póliza</label>
+                                <input type="file" id="file-poliza" accept="application/pdf,image/*" />
+                                <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-poliza">
+                                    Subir póliza
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section" id="acta-liquidacion-section" style="display:none;">
+                        <h3>Acta de liquidación</h3>
+                        <p id="acta-liquidacion-hint" style="margin-top:-6px;color:#64748b;font-size:0.9rem;"></p>
+                        <div class="upload-card" style="max-width:420px;">
+                            <label>Acta de liquidación <span style="color:#b91c1c;">*</span></label>
+                            <input type="file" id="file-acta" accept="application/pdf,image/*" />
+                            <button type="button" class="btn btn-sm btn-primary mt-2" id="btn-acta">
+                                Cargar acta y finalizar
+                            </button>
                         </div>
                     </div>
 
@@ -291,14 +393,39 @@
                     </div>
 
                     <div class="form-section">
+                        <h3>Generar minuta</h3>
+                        <p style="margin-top:-6px;color:#64748b;font-size:0.9rem;">
+                            Descarga un borrador en Word con los datos del contrato ya
+                            diligenciados. Revisa y completa los campos resaltados «COMPLETAR».
+                        </p>
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Tipo de minuta</label>
+                                <select id="minuta-plantilla"></select>
+                            </div>
+                            <div class="field" style="display:flex;align-items:end;">
+                                <button type="button" class="btn btn-primary" id="btn-minuta">
+                                    Descargar minuta (.docx)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
                         <h3>5. Estado del contrato</h3>
                         <div class="row-2">
                             <div class="field">
                                 <label>Estado</label>
                                 <select id="estado">
                                     <option value="en_proceso">Pendiente</option>
+                                    <option value="elaborando">Elaborando contrato</option>
+                                    <option value="revision_polizas">Revisión de pólizas</option>
+                                    <option value="solicitud_firmas">Solicitud de firmas</option>
+                                    <option value="anticipo_contabilidad" disabled>Anticipo en contabilidad</option>
+                                    <option value="anticipo_tesoreria" disabled>Anticipo en tesorería</option>
+                                    <option value="anticipo_pagado" disabled>Anticipo pagado</option>
                                     <option value="activo">Activo</option>
-                                    <option value="finalizado">Finalizado</option>
+                                    <option value="finalizado" disabled>Finalizado (lo realiza el supervisor)</option>
                                 </select>
                             </div>
                             <div class="field" style="display:flex;align-items:end;gap:8px;">
@@ -306,6 +433,10 @@
                                     Guardar estado
                                 </button>
                             </div>
+                        </div>
+                        <div class="field">
+                            <label>Observación del cambio de estado (opcional)</label>
+                            <textarea id="obs-estado" rows="2" placeholder="Se guarda en la trazabilidad y en el historial de observaciones."></textarea>
                         </div>
                     </div>
 
@@ -318,6 +449,8 @@
                         </button>
                     </div>
                 </form>
+
+                <p class="muted" id="aviso-comunicacion-supervisor" style="display:none;margin-top:12px;"></p>
             </main>
         </div>
 
@@ -327,6 +460,8 @@
             import { api } from "/static/js/api/client.js";
             import { API_BASE } from "/static/js/utils/config.js";
             import { escapeHtml, formatDate } from "/static/js/utils/format.js";
+            import { poblarCentrosCostos } from "/static/js/catalogos/centros-costos.js";
+            import { calcularFechaFin } from "/static/js/utils/calendario-colombia.js";
 
             session.requireAuth();
             session.requireRole(["juridica", "admin"]);
@@ -338,10 +473,11 @@
             const OTROSI_TIPO_LABEL = {
                 prorroga: "Prórroga",
                 adicion: "Adición",
+                prorroga_adicion: "Prórroga + Adición",
                 modificacion: "Modificación",
                 otro: "Otro",
             };
-            const UNIDAD_PLAZO_LABEL = { dias: "días", meses: "meses", anios: "años" };
+            const UNIDAD_PLAZO_LABEL = { dias: "días hábiles", dias_calendario: "días calendario", meses: "meses", anios: "años" };
 
             const form = document.getElementById("form-edicion");
             const alertError = document.getElementById("alert-error");
@@ -350,9 +486,49 @@
 
             const ESTADO_LABEL = {
                 en_proceso: "Pendiente",
+                elaborando: "Elaborando contrato",
+                revision_polizas: "Revisión de pólizas",
+                solicitud_firmas: "Solicitud de firmas",
+                anticipo_contabilidad: "Anticipo en contabilidad",
+                anticipo_tesoreria: "Anticipo en tesorería",
+                anticipo_pagado: "Anticipo pagado",
                 activo: "Activo",
                 finalizado: "Finalizado",
             };
+
+            let supervisoresCache = null;
+            async function poblarSupervisores(seleccionadoId, etiquetaExtra = "") {
+                const sel = document.getElementById("supervisor-id");
+                if (!sel) return;
+                if (supervisoresCache === null) {
+                    try {
+                        supervisoresCache = await api.get("/users/supervisores");
+                    } catch (err) {
+                        supervisoresCache = [];
+                        console.error("No se pudieron cargar los supervisores", err);
+                    }
+                }
+                sel.innerHTML = '<option value="">Sin supervisor asignado</option>';
+                for (const s of supervisoresCache) {
+                    const opt = document.createElement("option");
+                    opt.value = s.id;
+                    opt.textContent = s.username;
+                    if (seleccionadoId && Number(seleccionadoId) === Number(s.id)) {
+                        opt.selected = true;
+                    }
+                    sel.appendChild(opt);
+                }
+                if (
+                    seleccionadoId &&
+                    ![...sel.options].some((o) => Number(o.value) === Number(seleccionadoId))
+                ) {
+                    const opt = document.createElement("option");
+                    opt.value = String(seleccionadoId);
+                    opt.textContent = etiquetaExtra || `Usuario #${seleccionadoId}`;
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                }
+            }
 
             function showError(message) {
                 alertSuccess.classList.remove("show");
@@ -380,6 +556,8 @@
                     if (!item) {
                         showError(`No encontré ningún contrato con código ${codigo}.`);
                         form.style.display = "none";
+                        const aviso = document.getElementById("aviso-comunicacion-supervisor");
+                        if (aviso) aviso.style.display = "none";
                         return;
                     }
                     current = await api.get(`/contratos/${item.id}`);
@@ -405,9 +583,15 @@
                 if (origenField && origenDisplay) {
                     if (c.solicitud_gestion_codigo) {
                         origenField.hidden = false;
+                        const cot = (c.archivos || []).find((a) => a.tipo === "cotizacion");
+                        const cotHtml = cot
+                            ? `<div class="muted" style="margin-top:6px;">Cotización elegida: <strong>${escapeHtml(cot.nombre_original)}</strong></div>`
+                            : "";
                         origenDisplay.innerHTML =
                             `<strong class="codigo-solicitud">${escapeHtml(c.solicitud_gestion_codigo)}</strong>` +
-                            ` <span class="muted">— esta OT/contrato nació de esa SRV</span>`;
+                            ` <span class="muted">— esta OT/contrato nació de esa SRV. Compras ya radicó y vinculó los datos.</span>` +
+                            ` <div style="margin-top:8px;"><a href="/app/juridica/trazabilidad-srv.html?codigo=${encodeURIComponent(c.solicitud_gestion_codigo)}">Comunicación con el supervisor → Trazabilidad SRV</a></div>` +
+                            cotHtml;
                     } else {
                         origenField.hidden = true;
                         origenDisplay.textContent = "";
@@ -415,6 +599,7 @@
                 }
                 setValue("proveedor", c.proveedor_contratista);
                 setValue("nit", c.nit_proveedor);
+                setValue("proveedor-email", c.proveedor_email || "");
                 setValue("descripcion", c.descripcion_servicio);
                 setValue("obl-colbeef", c.obligaciones_colbeef);
                 setValue("obl-proveedor", c.obligaciones_proveedor);
@@ -425,11 +610,21 @@
                 setValue("fecha-inicio", c.fecha_inicio);
                 setValue("fecha-fin", c.fecha_fin);
                 setValue("fecha-proxima-notificacion", c.fecha_proxima_notificacion);
-                setValue("hora-proxima-notificacion", (c.hora_proxima_notificacion || "00:10").slice(0, 5));
+                setValue("hora-proxima-notificacion", (c.hora_proxima_notificacion || "07:30").slice(0, 5));
+                setValue("fecha-limite-elaboracion", c.fecha_limite_elaboracion);
+                renderElaboracionHint(c.dias_para_elaborar);
+                renderBannerElaboracion(c);
                 setValue("renovacion", String(Boolean(c.renovacion_automatica)));
                 setValue("requiere-poliza", String(Boolean(c.requiere_poliza)));
+                setValue("tipo-precio", c.tipo_precio || "mas_iva");
+                setValue("forma-pago", c.forma_pago || "");
+                renderAnticipoInfo(c);
+                renderActaLiquidacion(c);
+                poblarCentrosCostos(document.getElementById("centro-costos"), c.centro_costos || "");
+                poblarSupervisores(c.supervisor_id, c.supervisor_username);
                 setValue("condiciones", c.condiciones_recibido_satisfactorio);
                 setValue("estado", c.estado);
+                aplicarVisibilidadArchivos(c);
 
                 const wrap = document.getElementById("inicio-original-wrap");
                 if (c.fecha_inicio_original) {
@@ -440,6 +635,217 @@
                     wrap.style.display = "none";
                 }
                 renderOtrosies(c);
+                const aviso = document.getElementById("aviso-comunicacion-supervisor");
+                if (aviso) {
+                    const codigoSrv = c.solicitud_gestion_codigo;
+                    const href = codigoSrv
+                        ? `/app/juridica/trazabilidad-srv.html?codigo=${encodeURIComponent(codigoSrv)}`
+                        : "/app/juridica/trazabilidad-srv.html";
+                    aviso.innerHTML = codigoSrv
+                        ? `La comunicación con el supervisor está en <a href="${href}">Trazabilidad SRV</a> (${escapeHtml(codigoSrv)}).`
+                        : `La comunicación con el supervisor está en <a href="${href}">Trazabilidad SRV</a>.`;
+                    aviso.style.display = "block";
+                }
+            }
+
+            // Póliza en elaboración (Jurídica/Gerencia). Si quedó pendiente, aún se puede en activo.
+            function aplicarVisibilidadArchivos(c) {
+                const section = document.getElementById("archivos-juridica-section");
+                const cardBorrador = document.getElementById("card-borrador");
+                const cardPoliza = document.getElementById("card-poliza");
+                const hint = document.getElementById("archivos-juridica-hint");
+                const enElaboracion = c.estado === "elaborando" || c.estado === "en_proceso";
+                const selPoliza = document.getElementById("requiere-poliza");
+                const requierePoliza = selPoliza
+                    ? selPoliza.value === "true"
+                    : Boolean(c.requiere_poliza);
+                const polizaPendiente = requierePoliza && !c.tiene_poliza;
+                if (enElaboracion) {
+                    section.style.display = "block";
+                    cardBorrador.style.display = "";
+                    cardPoliza.style.display = requierePoliza ? "" : "none";
+                    hint.textContent = requierePoliza
+                        ? "En elaboración: sube el contrato firmado y la póliza. Solo Jurídica y Gerencia adjuntan la póliza."
+                        : "En elaboración: sube el contrato firmado. Si el contrato requiere póliza, márcalo arriba.";
+                } else if (c.estado === "activo") {
+                    section.style.display = "block";
+                    cardBorrador.style.display = "";
+                    cardPoliza.style.display = polizaPendiente ? "" : "none";
+                    hint.textContent = polizaPendiente
+                        ? "La póliza debió adjuntarse en elaboración. Aún falta: súbela ahora."
+                        : "Contrato activo. La póliza se define y carga durante la elaboración.";
+                } else {
+                    section.style.display = "none";
+                }
+            }
+
+            // Acta de liquidación: solo para contratos > 15MM cuando el supervisor ya
+            // entregó el informe final. Jurídica carga el acta y eso finaliza el contrato.
+            function renderActaLiquidacion(c) {
+                const section = document.getElementById("acta-liquidacion-section");
+                const hint = document.getElementById("acta-liquidacion-hint");
+                const input = document.getElementById("file-acta");
+                if (!section) return;
+                if (!c.pendiente_acta_liquidacion) {
+                    section.style.display = "none";
+                    if (input) input.value = "";
+                    return;
+                }
+                section.style.display = "block";
+                if (input) input.value = "";
+                if (hint) {
+                    hint.innerHTML =
+                        "El supervisor entregó el <strong>informe final</strong> y el contrato " +
+                        "supera los <strong>$15.000.000</strong>. Elabora y carga el " +
+                        "<strong>acta de liquidación</strong>: al cargarla el contrato quedará finalizado.";
+                }
+            }
+
+            async function cargarActaLiquidacion() {
+                if (!current) return;
+                const input = document.getElementById("file-acta");
+                const acta = input?.files[0];
+                if (!acta) {
+                    showError("Debes adjuntar el acta de liquidación.");
+                    return;
+                }
+                const fd = new FormData();
+                fd.append("acta_liquidacion", acta);
+                const btn = document.getElementById("btn-acta");
+                if (btn) btn.disabled = true;
+                try {
+                    current = await api.postForm(
+                        `/contratos/${current.id}/acta-liquidacion`,
+                        fd
+                    );
+                    renderContrato(current);
+                    showSuccess(
+                        `Acta cargada. El contrato ${current.codigo} quedó finalizado.`
+                    );
+                } catch (err) {
+                    showError(err.message || "No se pudo cargar el acta de liquidación.");
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            }
+
+            function renderAnticipoInfo(c) {
+                const field = document.getElementById("anticipo-info-field");
+                const box = document.getElementById("anticipo-info");
+                if (!field || !box) return;
+                if (!c.requiere_anticipo && !c.monto_anticipo && !c.porcentaje_anticipo && !c.observaciones_anticipo) {
+                    field.style.display = "none";
+                    box.innerHTML = "";
+                    const selEstado0 = document.getElementById("estado");
+                    const btnEstado0 = document.getElementById("btn-estado");
+                    if (selEstado0) selEstado0.disabled = false;
+                    if (btnEstado0) btnEstado0.disabled = false;
+                    return;
+                }
+                const partes = [];
+                if (c.requiere_anticipo) partes.push("<strong>Requiere anticipo:</strong> Sí");
+                else partes.push("<strong>Requiere anticipo:</strong> No");
+                if (c.porcentaje_anticipo) partes.push(`<strong>Porcentaje:</strong> ${Number(c.porcentaje_anticipo)}%`);
+                if (c.monto_anticipo) {
+                    const monto = Number(c.monto_anticipo).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+                    partes.push(`<strong>Monto:</strong> ${monto}`);
+                }
+                let html = partes.join(" · ");
+                if (c.observaciones_anticipo) {
+                    html += `<div style="margin-top:6px;"><strong>Observaciones:</strong> ${escapeHtml(c.observaciones_anticipo)}</div>`;
+                }
+                if (c.requiere_anticipo) {
+                    html += renderAnticipoAcciones(c);
+                }
+                box.innerHTML = html;
+                field.style.display = "block";
+                const btnAnt = document.getElementById("btn-enviar-anticipo");
+                if (btnAnt) {
+                    btnAnt.addEventListener("click", () => enviarAnticipoContabilidad(c));
+                }
+                // Mientras el anticipo está en Contabilidad/Tesorería, Jurídica no debe
+                // cambiar el estado manualmente (evita retroceder el flujo).
+                const enAnticipo =
+                    c.estado === "anticipo_contabilidad" || c.estado === "anticipo_tesoreria";
+                const selEstado = document.getElementById("estado");
+                const btnEstado = document.getElementById("btn-estado");
+                if (selEstado) selEstado.disabled = enAnticipo;
+                if (btnEstado) btnEstado.disabled = enAnticipo;
+            }
+
+            // El anticipo se envía desde "Solicitud de firmas": en esa etapa ya se
+            // gestionó la póliza y el contrato firmado.
+            const ESTADOS_PRE_ANTICIPO = new Set(["solicitud_firmas"]);
+
+            function renderAnticipoAcciones(c) {
+                if (c.anticipo_pagado) {
+                    return (
+                        '<div style="margin-top:10px;padding:8px 10px;background:#dcfce7;border-radius:6px;">' +
+                        "✓ <strong>Anticipo pagado por Tesorería.</strong> Ya puedes marcar el contrato como Activo." +
+                        "</div>"
+                    );
+                }
+                if (c.estado === "anticipo_contabilidad") {
+                    return (
+                        '<div style="margin-top:10px;padding:8px 10px;background:#cffafe;border-radius:6px;">' +
+                        "El anticipo está <strong>en gestión de Contabilidad</strong>." +
+                        "</div>"
+                    );
+                }
+                if (c.estado === "anticipo_tesoreria") {
+                    return (
+                        '<div style="margin-top:10px;padding:8px 10px;background:#fef9c3;border-radius:6px;">' +
+                        "El anticipo está <strong>en revisión de Tesorería</strong> para el pago." +
+                        "</div>"
+                    );
+                }
+                if (ESTADOS_PRE_ANTICIPO.has(c.estado)) {
+                    const faltaFirmado = !c.tiene_borrador;
+                    const faltaPoliza = c.requiere_poliza && !c.tiene_poliza;
+                    if (faltaFirmado || faltaPoliza) {
+                        const pendientes = [];
+                        if (faltaPoliza) pendientes.push("la póliza");
+                        if (faltaFirmado) pendientes.push("el contrato firmado");
+                        return (
+                            '<div style="margin-top:10px;padding:8px 10px;background:#fef3c7;border-radius:6px;">' +
+                            "Antes de enviar el anticipo, primero gestiona " +
+                            escapeHtml(pendientes.join(" y ")) +
+                            "." +
+                            "</div>"
+                        );
+                    }
+                    return (
+                        '<div style="margin-top:10px;">' +
+                        '<button type="button" class="btn btn-sm btn-primary" id="btn-enviar-anticipo">' +
+                        "Enviar anticipo" +
+                        "</button>" +
+                        '<div class="muted" style="margin-top:4px;">' +
+                        "Se notifica a Contabilidad para gestionar el anticipo y luego a " +
+                        "Tesorería para el pago. El contrato no podrá activarse hasta que " +
+                        "Tesorería confirme el pago." +
+                        "</div></div>"
+                    );
+                }
+                return "";
+            }
+
+            async function enviarAnticipoContabilidad(c) {
+                if (!current) return;
+                const obsEl = document.getElementById("obs-estado");
+                const fd = new FormData();
+                const obs = obsEl?.value.trim() || "";
+                if (obs) fd.append("observacion", obs);
+                try {
+                    current = await api.postForm(
+                        `/contratos/${c.id}/anticipo/enviar-contabilidad`,
+                        fd
+                    );
+                    if (obsEl) obsEl.value = "";
+                    fillForm(current);
+                    showSuccess("Anticipo enviado a Contabilidad.");
+                } catch (err) {
+                    showError(err.message);
+                }
             }
 
             function describeOtrosiEfecto(o) {
@@ -471,39 +877,24 @@
                 return parts.length ? parts.join("") : `<div class="muted">No modifica plazo ni valor.</div>`;
             }
 
-            function campoPlazoHtml(o, c) {
+            function otrosiBloquesHtml(o, c) {
+                const incP = o.tipo === "prorroga" || o.tipo === "prorroga_adicion";
+                const incA = o.tipo === "adicion" || o.tipo === "prorroga_adicion";
                 const u = UNIDAD_PLAZO_LABEL[o.plazo_adicional_unidad] || o.plazo_adicional_unidad || c.plazo_unidad || "";
                 return `
-                    <div class="field">
-                        <label>Plazo adicional (${u})</label>
-                        <input id="otrosi-plazo" type="number" min="1" value="${o.plazo_adicional_cantidad ?? ""}" />
+                    <p class="hint">Por defecto van prórroga y adición. Quita el que no necesites.</p>
+                    <div class="row-2">
+                        <div class="otrosi-block ${incP ? "" : "off"}" id="block-prorroga">
+                            <label class="tipo-check"><input type="checkbox" id="chk-prorroga" ${incP ? "checked" : ""} /> Prórroga (más tiempo)</label>
+                            <label>Plazo adicional (${u})</label>
+                            <input id="otrosi-plazo" type="number" min="1" value="${o.plazo_adicional_cantidad ?? ""}" />
+                        </div>
+                        <div class="otrosi-block ${incA ? "" : "off"}" id="block-adicion">
+                            <label class="tipo-check"><input type="checkbox" id="chk-adicion" ${incA ? "checked" : ""} /> Adición (más valor)</label>
+                            <label>Valor adicional (${c.moneda})</label>
+                            <input id="otrosi-valor" type="number" min="0.01" step="0.01" value="${o.valor_adicional ?? ""}" />
+                        </div>
                     </div>`;
-            }
-
-            function campoValorHtml(o, c) {
-                return `
-                    <div class="field">
-                        <label>Valor adicional (${c.moneda})</label>
-                        <input id="otrosi-valor" type="number" min="0.01" step="0.01" value="${o.valor_adicional ?? ""}" />
-                    </div>`;
-            }
-
-            function campoDescHtml(o) {
-                return `
-                    <div class="field">
-                        <label>Nueva descripción del servicio</label>
-                        <textarea id="otrosi-nueva-desc">${escapeHtml(o.nueva_descripcion_servicio || "")}</textarea>
-                    </div>`;
-            }
-
-            function otrosiEditableField(o, c) {
-                if (o.tipo === "prorroga") return campoPlazoHtml(o, c);
-                if (o.tipo === "adicion") return campoValorHtml(o, c);
-                if (o.tipo === "modificacion") return campoDescHtml(o);
-                // "Otro": puede modificar todo (todos los campos son opcionales).
-                return `
-                    <div class="row-2">${campoPlazoHtml(o, c)}${campoValorHtml(o, c)}</div>
-                    ${campoDescHtml(o)}`;
             }
 
             async function downloadArchivo(path, filename) {
@@ -556,11 +947,9 @@
                             <div><strong>Tipo:</strong> ${OTROSI_TIPO_LABEL[o.tipo] || o.tipo}</div>
                             <div><strong>Descripción / motivo:</strong> ${escapeHtml(o.descripcion || "")}</div>
                         </div>
-                        ${otrosiEditableField(o, c)}
+                        ${otrosiBloquesHtml(o, c)}
                         <p class="hint">
-                            ${o.tipo === "otro"
-                                ? 'Tipo "Otro": puedes modificar plazo, valor y/o descripción (todos opcionales). Lo que llenes se aplica al contrato al finalizar.'
-                                : "Puedes ajustar este valor; el cambio se aplica al contrato al finalizar el otrosí."}
+                            Ajusta los valores; el cambio se aplica al contrato al finalizar el otrosí.
                         </p>
                         <div class="row-2">
                             <div class="field">
@@ -579,7 +968,7 @@
                             </div>
                             <div class="field">
                                 <label>Hora de notificación</label>
-                                <input id="otrosi-hora" type="time" value="00:10" />
+                                <input id="otrosi-hora" type="time" value="07:30" />
                             </div>
                         </div>
                         <div class="field">
@@ -594,8 +983,21 @@
                 document.getElementById("otrosi-fecha-inicio").value = c.fecha_inicio || "";
                 document.getElementById("otrosi-fecha-fin").value = c.fecha_fin || "";
                 document.getElementById("otrosi-fecha-notif").value = c.fecha_proxima_notificacion || "";
-                document.getElementById("otrosi-hora").value = (c.hora_proxima_notificacion || "00:10").slice(0, 5);
+                document.getElementById("otrosi-hora").value = (c.hora_proxima_notificacion || "07:30").slice(0, 5);
                 section.style.display = "block";
+
+                const chkP = document.getElementById("chk-prorroga");
+                const chkA = document.getElementById("chk-adicion");
+                const syncBloques = () => {
+                    document.getElementById("block-prorroga").classList.toggle("off", !chkP.checked);
+                    document.getElementById("block-adicion").classList.toggle("off", !chkA.checked);
+                    document.getElementById("otrosi-plazo").disabled = !chkP.checked;
+                    document.getElementById("otrosi-valor").disabled = !chkA.checked;
+                };
+                syncBloques();
+                chkP.addEventListener("change", syncBloques);
+                chkA.addEventListener("change", syncBloques);
+
                 document.getElementById("btn-finalizar-otrosi")
                     .addEventListener("click", () => finalizarOtrosi(o));
             }
@@ -669,21 +1071,38 @@
                 const fi = document.getElementById("otrosi-fecha-inicio").value;
                 const ff = document.getElementById("otrosi-fecha-fin").value;
                 const fn = document.getElementById("otrosi-fecha-notif").value;
-                const fh = document.getElementById("otrosi-hora").value || "00:10";
+                const fh = document.getElementById("otrosi-hora").value || "07:30";
                 if (fi && ff && ff < fi) {
                     showError("La fecha fin no puede ser anterior a la fecha inicio.");
                     return;
                 }
+                const incP = document.getElementById("chk-prorroga").checked;
+                const incA = document.getElementById("chk-adicion").checked;
+                const tipo = incP && incA ? "prorroga_adicion" : incP ? "prorroga" : incA ? "adicion" : "";
+                if (!tipo) {
+                    showError("Debes dejar al menos una: prórroga o adición.");
+                    return;
+                }
                 const fd = new FormData();
-                fd.append("tipo", o.tipo);
+                fd.append("tipo", tipo);
                 fd.append("descripcion", (o.descripcion || "").trim());
                 fd.append("archivo", archivo);
-                const valPlazo = document.getElementById("otrosi-plazo")?.value;
-                const valValor = document.getElementById("otrosi-valor")?.value;
-                const valDesc = document.getElementById("otrosi-nueva-desc")?.value;
-                if (valPlazo) fd.append("plazo_adicional_cantidad", valPlazo);
-                if (valValor) fd.append("valor_adicional", valValor);
-                if (valDesc) fd.append("nueva_descripcion_servicio", valDesc);
+                if (incP) {
+                    const valPlazo = document.getElementById("otrosi-plazo")?.value;
+                    if (!valPlazo || Number(valPlazo) <= 0) {
+                        showError("Debes indicar el plazo adicional (mayor a 0).");
+                        return;
+                    }
+                    fd.append("plazo_adicional_cantidad", valPlazo);
+                }
+                if (incA) {
+                    const valValor = document.getElementById("otrosi-valor")?.value;
+                    if (!valValor || Number(valValor) <= 0) {
+                        showError("Debes indicar el valor adicional (mayor a 0).");
+                        return;
+                    }
+                    fd.append("valor_adicional", valValor);
+                }
                 try {
                     await api.postForm(`/contratos/${current.id}/otrosi/${o.id}/finalizar`, fd);
                     otrosiParam = null;
@@ -702,6 +1121,11 @@
                         renovacion_automatica: Boolean(current.renovacion_automatica),
                         condiciones_recibido_satisfactorio: current.condiciones_recibido_satisfactorio,
                         requiere_poliza: Boolean(current.requiere_poliza),
+                        tipo_precio: current.tipo_precio || "mas_iva",
+                        forma_pago: current.forma_pago || "",
+                        centro_costos: current.centro_costos || "",
+                        supervisor_id: current.supervisor_id || null,
+                        fecha_limite_elaboracion: current.fecha_limite_elaboracion || null,
                         fecha_inicio: fi || null,
                         fecha_fin: ff || null,
                         fecha_proxima_notificacion: fn || null,
@@ -718,6 +1142,7 @@
                 return {
                     proveedor_contratista: document.getElementById("proveedor").value.trim(),
                     nit_proveedor: document.getElementById("nit").value.trim(),
+                    proveedor_email: document.getElementById("proveedor-email").value.trim(),
                     descripcion_servicio: document.getElementById("descripcion").value.trim(),
                     obligaciones_colbeef: document.getElementById("obl-colbeef").value.trim(),
                     obligaciones_proveedor: document.getElementById("obl-proveedor").value.trim(),
@@ -728,10 +1153,15 @@
                     renovacion_automatica: document.getElementById("renovacion").value === "true",
                     condiciones_recibido_satisfactorio: document.getElementById("condiciones").value.trim(),
                     requiere_poliza: document.getElementById("requiere-poliza").value === "true",
+                    tipo_precio: document.getElementById("tipo-precio").value,
+                    forma_pago: document.getElementById("forma-pago").value.trim(),
+                    centro_costos: document.getElementById("centro-costos").value,
+                    supervisor_id: Number(document.getElementById("supervisor-id").value) || null,
+                    fecha_limite_elaboracion: document.getElementById("fecha-limite-elaboracion").value || null,
                     fecha_inicio: document.getElementById("fecha-inicio").value || null,
                     fecha_fin: document.getElementById("fecha-fin").value || null,
                     fecha_proxima_notificacion: document.getElementById("fecha-proxima-notificacion").value || null,
-                    hora_proxima_notificacion: document.getElementById("hora-proxima-notificacion").value || "00:10",
+                    hora_proxima_notificacion: document.getElementById("hora-proxima-notificacion").value || "07:30",
                 };
             }
 
@@ -767,9 +1197,12 @@
             async function saveEstado() {
                 if (!current) return;
                 try {
+                    const obsEl = document.getElementById("obs-estado");
                     current = await api.put(`/contratos/${current.id}/estado`, {
                         estado: document.getElementById("estado").value,
+                        observacion: obsEl?.value.trim() || "",
                     });
+                    if (obsEl) obsEl.value = "";
                     fillForm(current);
                     showSuccess("Estado actualizado correctamente.");
                 } catch (err) {
@@ -799,10 +1232,141 @@
                 if (event.key === "Enter") buscarContrato();
             });
             form.addEventListener("submit", saveContrato);
+            document.getElementById("requiere-poliza").addEventListener("change", () => {
+                if (current) aplicarVisibilidadArchivos(current);
+            });
             document.getElementById("btn-poliza").addEventListener("click", () => upload("poliza", "file-poliza"));
             document.getElementById("btn-borrador").addEventListener("click", () => upload("borrador", "file-borrador"));
             document.getElementById("btn-estado").addEventListener("click", saveEstado);
+            document.getElementById("btn-acta").addEventListener("click", cargarActaLiquidacion);
             document.getElementById("btn-delete").addEventListener("click", deleteContrato);
+
+            // ---- Cálculo automático de fecha fin desde inicio + plazo (editable) ----
+            function calcFechaFin(inicioStr, cantidad, unidad) {
+                return calcularFechaFin(inicioStr, cantidad, unidad);
+            }
+
+            function recalcFechaFin() {
+                const nueva = calcFechaFin(
+                    document.getElementById("fecha-inicio").value,
+                    Number(document.getElementById("plazo-cantidad").value),
+                    document.getElementById("plazo-unidad").value
+                );
+                if (nueva) document.getElementById("fecha-fin").value = nueva;
+            }
+
+            ["fecha-inicio", "plazo-cantidad", "plazo-unidad"].forEach((id) =>
+                document.getElementById(id).addEventListener("change", recalcFechaFin)
+            );
+
+            // Días hábiles entre dos fechas (sin contar la primera). Espeja el backend.
+            function contarDiasHabiles(desde, hasta) {
+                const a = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
+                const b = new Date(hasta.getFullYear(), hasta.getMonth(), hasta.getDate());
+                if (a.getTime() === b.getTime()) return 0;
+                const paso = b > a ? 1 : -1;
+                let total = 0;
+                const d = a;
+                while (d.getTime() !== b.getTime()) {
+                    d.setDate(d.getDate() + paso);
+                    const dow = d.getDay();
+                    if (dow !== 0 && dow !== 6) total += paso;
+                }
+                return total;
+            }
+
+            // ---- Banner destacado de plazo de elaboración ----
+            function renderBannerElaboracion(c) {
+                const banner = document.getElementById("banner-elaboracion");
+                const dias = c.dias_para_elaborar;
+                if (c.estado !== "elaborando" || dias === null || dias === undefined) {
+                    banner.style.display = "none";
+                    return;
+                }
+                const limite = c.fecha_limite_elaboracion ? formatDate(c.fecha_limite_elaboracion) : "";
+                let bg, fg, texto;
+                if (dias > 1) {
+                    bg = "#dcfce7"; fg = "#166534";
+                    texto = `${dias} Días hábiles para elaborar este contrato.`;
+                } else if (dias === 1) {
+                    bg = "#fef3c7"; fg = "#b45309";
+                    texto = "1 Día hábil para elaborar este contrato.";
+                } else if (dias === 0) {
+                    bg = "#fef3c7"; fg = "#b45309";
+                    texto = "El plazo para elaborar este contrato vence hoy.";
+                } else {
+                    bg = "#fee2e2"; fg = "#991b1b";
+                    texto = `Plazo de elaboración vencido hace ${Math.abs(dias)} Día(s).`;
+                }
+                banner.style.background = bg;
+                banner.style.color = fg;
+                banner.textContent = limite ? `${texto} (Fecha límite: ${limite})` : texto;
+                banner.style.display = "block";
+            }
+
+            // ---- Aviso de días para elaborar el contrato ----
+            function renderElaboracionHint(dias) {
+                const hint = document.getElementById("elaboracion-hint");
+                if (dias === null || dias === undefined) {
+                    hint.textContent = "Aplica cuando el contrato está aprobado y en elaboración.";
+                    hint.style.color = "";
+                    return;
+                }
+                if (dias > 1) {
+                    hint.textContent = `${dias} Días hábiles para elaborar el contrato.`;
+                    hint.style.color = "var(--color-success, #166534)";
+                } else if (dias === 1) {
+                    hint.textContent = "1 Día hábil para elaborar el contrato.";
+                    hint.style.color = "#b45309";
+                } else if (dias === 0) {
+                    hint.textContent = "El plazo de elaboración vence hoy.";
+                    hint.style.color = "#b45309";
+                } else {
+                    hint.textContent = `Elaboración vencida hace ${Math.abs(dias)} Día(s).`;
+                    hint.style.color = "#991b1b";
+                }
+            }
+
+            document.getElementById("fecha-limite-elaboracion").addEventListener("change", (e) => {
+                if (!current || current.estado !== "elaborando" || current.estado_aprobacion !== "aprobado") return;
+                const v = e.target.value;
+                if (!v) { renderElaboracionHint(current.dias_para_elaborar); return; }
+                const [y, m, d] = v.split("-").map(Number);
+                const hoy = new Date();
+                const desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+                const limite = new Date(y, m - 1, d);
+                renderElaboracionHint(contarDiasHabiles(desde, limite));
+            });
+
+            async function cargarPlantillasMinuta() {
+                const select = document.getElementById("minuta-plantilla");
+                try {
+                    const plantillas = await api.get("/contratos/minutas/plantillas");
+                    select.innerHTML = plantillas
+                        .map((p) => `<option value="${p.clave}">${escapeHtml(p.nombre)}</option>`)
+                        .join("");
+                } catch (err) {
+                    select.innerHTML = `<option value="">${escapeHtml(err.message)}</option>`;
+                }
+            }
+
+            document.getElementById("btn-minuta").addEventListener("click", () => {
+                if (!current) {
+                    showError("Primero busca y carga un contrato.");
+                    return;
+                }
+                const plantilla = document.getElementById("minuta-plantilla").value;
+                if (!plantilla) {
+                    showError("Selecciona un tipo de minuta.");
+                    return;
+                }
+                downloadArchivo(
+                    `/contratos/${current.id}/minuta/${plantilla}`,
+                    `Minuta ${current.codigo}.docx`,
+                );
+            });
+
+            cargarPlantillasMinuta();
 
             const params = new URLSearchParams(window.location.search);
             otrosiParam = params.get("otrosi");

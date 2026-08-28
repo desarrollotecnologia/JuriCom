@@ -2,6 +2,10 @@ from .agregar_observacion_solicitud import AgregarObservacionSolicitud
 
 from .enviar_cotizacion_solicitud import EnviarCotizacionSolicitud
 
+from .enviar_cotizacion_proyectos import EnviarCotizacionProyectos
+
+from .resolver_comite_tecnico import ResolverComiteTecnico
+
 from .guardar_gestion_servicios_solicitud import GuardarGestionServiciosSolicitud
 
 from .gestionar_anticipo_solicitud import GestionarAnticipoSolicitud
@@ -25,6 +29,8 @@ from .listar_solicitudes_gestion import ListarSolicitudesGestion
 
 
 from .listar_solicitudes_panel import ListarSolicitudesPanelGestion
+
+from .listar_panel_proyectos import ListarPanelProyectos
 
 
 
@@ -60,6 +66,12 @@ from .notificar_evidencia_cierre_servicios_solicitud import (
 
 from .solicitar_recotizacion_solicitud import SolicitarRecotizacionSolicitud
 
+from .solicitar_revision_solicitud import SolicitarRevisionSolicitud
+
+from .responder_revision_solicitud import ResponderRevisionSolicitud
+
+from .responder_revision_proyectos import ResponderRevisionProyectos
+
 
 
 
@@ -77,6 +89,10 @@ __all__ = [
 
 
     "EnviarCotizacionSolicitud",
+
+    "EnviarCotizacionProyectos",
+
+    "ResolverComiteTecnico",
 
     "GuardarGestionServiciosSolicitud",
 
@@ -101,6 +117,8 @@ __all__ = [
 
 
     "ListarSolicitudesPanelGestion",
+
+    "ListarPanelProyectos",
 
 
 
@@ -145,6 +163,12 @@ __all__ = [
     "NotificarEvidenciaCierreServiciosSolicitud",
 
     "SolicitarRecotizacionSolicitud",
+
+    "SolicitarRevisionSolicitud",
+
+    "ResponderRevisionSolicitud",
+
+    "ResponderRevisionProyectos",
 
 
 

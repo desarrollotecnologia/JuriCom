@@ -37,6 +37,7 @@
                             <tr>
                                 <th>ID</th>
                                 <th>Usuario</th>
+                                <th>Nombre</th>
                                 <th>Rol</th>
                                 <th>Estado</th>
                                 <th>Creado</th>
@@ -45,7 +46,7 @@
                         </thead>
                         <tbody id="users-tbody">
                             <tr>
-                                <td colspan="6" class="muted">Cargando...</td>
+                                <td colspan="7" class="muted">Cargando...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -62,6 +63,11 @@
                     <div class="field">
                         <label>Usuario <span class="required">*</span></label>
                         <input type="text" id="f-username" required maxlength="100" />
+                    </div>
+                    <div class="field">
+                        <label>Nombre</label>
+                        <input type="text" id="f-nombre" maxlength="150" placeholder="Nombre completo" />
+                        <span class="hint">Nombre visible de la persona (opcional).</span>
                     </div>
                     <div class="field" id="field-password">
                         <label>Contraseña <span class="required">*</span></label>
@@ -80,9 +86,12 @@
                                 <option value="admin">Administrador</option>
                                 <option value="juridica">Jurídica</option>
                                 <option value="compras">Compras</option>
-                                <option value="solicitante">Usuario Solicitante</option>
+                                <option value="solicitante">Supervisor</option>
                                 <option value="anticipos">Anticipos</option>
                                 <option value="lider_aprobador">Líder Aprobador</option>
+                                <option value="proyectos">Proyectos</option>
+                                <option value="contabilidad">Contabilidad</option>
+                                <option value="tesoreria">Tesorería</option>
                             </select>
                         </div>
                         <div class="field" id="field-active" style="display: none;">
@@ -171,9 +180,12 @@
                 admin: '<span class="badge badge-admin">Admin</span>',
                 juridica: '<span class="badge badge-juridica">Jurídica</span>',
                 compras: '<span class="badge badge-compras">Compras</span>',
-                solicitante: '<span class="badge badge-solicitante">Solicitante</span>',
+                solicitante: '<span class="badge badge-solicitante">Supervisor</span>',
                 anticipos: '<span class="badge badge-anticipos">Anticipos</span>',
                 lider_aprobador: '<span class="badge badge-lider-aprobador">Líder Aprobador</span>',
+                proyectos: '<span class="badge badge-proyectos">Proyectos</span>',
+                contabilidad: '<span class="badge badge-contabilidad">Contabilidad</span>',
+                tesoreria: '<span class="badge badge-tesoreria">Tesorería</span>',
             };
 
             const liderSelect = document.getElementById("f-lider-catalog");
@@ -214,7 +226,7 @@
                     const users = await api.get("/users");
                     if (users.length === 0) {
                         tbody.innerHTML =
-                            '<tr><td colspan="6" class="muted">Sin usuarios registrados.</td></tr>';
+                            '<tr><td colspan="7" class="muted">Sin usuarios registrados.</td></tr>';
                         return;
                     }
                     const me = session.getUser();
@@ -227,6 +239,7 @@
                                 <td><strong>${escapeHtml(u.username)}</strong>${
                                 isSelf ? ' <span class="muted">(tú)</span>' : ""
                             }</td>
+                                <td>${u.nombre ? escapeHtml(u.nombre) : '<span class="muted">—</span>'}</td>
                                 <td>${ROLE_BADGE[u.role] || u.role}</td>
                                 <td>
                                     ${
@@ -258,7 +271,7 @@
                         })
                         .join("");
                 } catch (err) {
-                    tbody.innerHTML = `<tr><td colspan="6" class="muted">Error: ${escapeHtml(
+                    tbody.innerHTML = `<tr><td colspan="7" class="muted">Error: ${escapeHtml(
                         err.message
                     )}</td></tr>`;
                 }
@@ -313,6 +326,7 @@
                 document.getElementById("modal-title").textContent = "Editar usuario";
                 document.getElementById("user-id").value = u.id;
                 document.getElementById("f-username").value = u.username;
+                document.getElementById("f-nombre").value = u.nombre || "";
                 document.getElementById("f-email").value = u.email || "";
                 document.getElementById("f-role").value = u.role;
                 document.getElementById("f-lider-catalog").value = u.lider_catalog_id || "";
@@ -328,6 +342,7 @@
                 e.preventDefault();
                 const id = document.getElementById("user-id").value;
                 const username = document.getElementById("f-username").value.trim();
+                const nombre = document.getElementById("f-nombre").value.trim();
                 const email = document.getElementById("f-email").value.trim();
                 const role = document.getElementById("f-role").value;
                 const lider_catalog_id = document.getElementById("f-lider-catalog").value;
@@ -340,6 +355,7 @@
                             username,
                             role,
                             is_active,
+                            nombre,
                             email,
                             lider_catalog_id,
                         });
@@ -350,6 +366,7 @@
                             username,
                             password,
                             role,
+                            nombre,
                             email,
                             lider_catalog_id,
                         });

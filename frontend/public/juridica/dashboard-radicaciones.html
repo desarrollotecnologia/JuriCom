@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Dashboard de radicaciones · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                gap: 16px;
+                margin-top: 18px;
+            }
+            .stat-card {
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-lg);
+                padding: 20px;
+                background: var(--color-surface);
+            }
+            .stat-label {
+                color: var(--color-text-muted);
+                font-size: 0.8rem;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+            .stat-value {
+                color: var(--color-primary-dark);
+                font-size: 2.25rem;
+                font-weight: 700;
+                margin-top: 8px;
+            }
+            .filters {
+                align-items: end;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 14px;
+            }
+            .filters .field {
+                margin: 0;
+                min-width: 190px;
+            }
+            .period-nav {
+                display: flex;
+                gap: 8px;
+            }
+            .period-title {
+                color: var(--color-primary-dark);
+                font-size: 1.15rem;
+                font-weight: 700;
+                margin-top: 16px;
+            }
+            .charts-grid {
+                display: grid;
+                gap: 18px;
+                grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+            }
+            .chart-panel {
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-lg);
+                padding: 20px;
+            }
+            .trend-chart {
+                align-items: end;
+                display: flex;
+                gap: 10px;
+                height: 250px;
+                margin-top: 20px;
+                overflow-x: auto;
+                padding-top: 26px;
+            }
+            .trend-column {
+                align-items: center;
+                display: flex;
+                flex: 1 0 42px;
+                flex-direction: column;
+                height: 100%;
+                justify-content: end;
+                min-width: 42px;
+            }
+            .trend-value {
+                color: var(--color-primary-dark);
+                font-size: 0.78rem;
+                font-weight: 700;
+                margin-bottom: 5px;
+            }
+            .trend-bar {
+                background: linear-gradient(180deg, var(--color-primary), var(--color-primary-dark));
+                border-radius: 7px 7px 2px 2px;
+                min-height: 3px;
+                transition: height 0.25s ease;
+                width: min(42px, 75%);
+            }
+            .trend-label {
+                color: var(--color-text-muted);
+                font-size: 0.75rem;
+                margin-top: 8px;
+                white-space: nowrap;
+            }
+            .donut-wrap {
+                align-items: center;
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+                margin-top: 20px;
+            }
+            .donut {
+                align-items: center;
+                border-radius: 50%;
+                display: flex;
+                height: 180px;
+                justify-content: center;
+                position: relative;
+                width: 180px;
+            }
+            .donut::after {
+                background: var(--color-surface);
+                border-radius: 50%;
+                content: "";
+                height: 108px;
+                position: absolute;
+                width: 108px;
+            }
+            .donut-total {
+                color: var(--color-primary-dark);
+                font-size: 1.8rem;
+                font-weight: 700;
+                position: relative;
+                text-align: center;
+                z-index: 1;
+            }
+            .donut-total small {
+                color: var(--color-text-muted);
+                display: block;
+                font-size: 0.7rem;
+                font-weight: 600;
+            }
+            .legend {
+                display: grid;
+                gap: 9px;
+                width: 100%;
+            }
+            .legend-row {
+                align-items: center;
+                display: flex;
+                justify-content: space-between;
+            }
+            .legend-dot {
+                border-radius: 50%;
+                display: inline-block;
+                height: 10px;
+                margin-right: 7px;
+                width: 10px;
+            }
+            @media (max-width: 960px) {
+                .charts-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .table-wrap {
+                overflow-x: auto;
+            }
+            .contracts-table {
+                border-collapse: collapse;
+                min-width: 1120px;
+                width: 100%;
+            }
+            .contracts-table th,
+            .contracts-table td {
+                border-bottom: 1px solid var(--color-border);
+                padding: 12px 10px;
+                text-align: left;
+                vertical-align: top;
+            }
+            .contracts-table th {
+                color: var(--color-text-muted);
+                font-size: 0.75rem;
+                letter-spacing: 0.03em;
+                text-transform: uppercase;
+            }
+            .contract-object {
+                max-width: 280px;
+                white-space: normal;
+            }
+            .status-pill {
+                border-radius: 999px;
+                display: inline-block;
+                font-size: 0.75rem;
+                font-weight: 700;
+                padding: 5px 10px;
+                white-space: nowrap;
+            }
+            .status-activo {
+                background: #dcfce7;
+                color: #166534;
+            }
+            .status-finalizado {
+                background: #e5e7eb;
+                color: #374151;
+            }
+            .status-en_proceso {
+                background: #fef3c7;
+                color: #92400e;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Dashboard de radicaciones</h1>
+                        <p class="muted" id="periodo-label">
+                            Contratos aprobados disponibles para Gestión Jurídica.
+                        </p>
+                    </div>
+                    <a href="/app/juridica/gestion-juridica.html" class="btn btn-secondary">
+                        Volver
+                    </a>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+
+                <section class="card">
+                    <h2 class="card-title">Filtros del dashboard</h2>
+                    <div class="filters">
+                        <div class="field">
+                            <label for="periodo-tipo">Agrupar por</label>
+                            <select id="periodo-tipo">
+                                <option value="semana">Semana</option>
+                                <option value="mes" selected>Mes</option>
+                                <option value="anio">Año</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="fecha-referencia">Fecha de referencia</label>
+                            <input type="date" id="fecha-referencia" />
+                        </div>
+                        <div class="period-nav">
+                            <button type="button" class="btn btn-secondary" id="periodo-anterior">
+                                ← Anterior
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="periodo-actual">
+                                Actual
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="periodo-siguiente">
+                                Siguiente →
+                            </button>
+                        </div>
+                        <button type="button" class="btn btn-primary" id="exportar-excel">
+                            Exportar a Excel
+                        </button>
+                    </div>
+                    <div class="period-title" id="periodo-seleccionado"></div>
+                </section>
+
+                <section class="card mt-4">
+                    <h2 class="card-title">Indicadores del período</h2>
+                    <div class="stats-grid">
+                        <article class="stat-card">
+                            <div class="stat-label">Total radicados</div>
+                            <div class="stat-value" id="stat-total">—</div>
+                        </article>
+                        <article class="stat-card">
+                            <div class="stat-label">Activos</div>
+                            <div class="stat-value" id="stat-activos">—</div>
+                        </article>
+                        <article class="stat-card">
+                            <div class="stat-label">Finalizados</div>
+                            <div class="stat-value" id="stat-finalizados">—</div>
+                        </article>
+                        <article class="stat-card">
+                            <div class="stat-label">En proceso</div>
+                            <div class="stat-value" id="stat-en-proceso">—</div>
+                        </article>
+                    </div>
+                </section>
+
+                <section class="charts-grid mt-4">
+                    <div class="chart-panel">
+                        <h2 class="card-title" id="trend-title">Evolución de radicaciones</h2>
+                        <div class="trend-chart" id="trend-chart"></div>
+                    </div>
+                    <div class="chart-panel">
+                        <h2 class="card-title">Distribución por estado</h2>
+                        <div class="donut-wrap">
+                            <div class="donut" id="status-donut">
+                                <div class="donut-total">
+                                    <span id="donut-total">0</span>
+                                    <small>radicados</small>
+                                </div>
+                            </div>
+                            <div class="legend">
+                                <div class="legend-row">
+                                    <span><i class="legend-dot" style="background:#16a34a"></i>Activos</span>
+                                    <strong id="legend-activos">0</strong>
+                                </div>
+                                <div class="legend-row">
+                                    <span><i class="legend-dot" style="background:#64748b"></i>Finalizados</span>
+                                    <strong id="legend-finalizados">0</strong>
+                                </div>
+                                <div class="legend-row">
+                                    <span><i class="legend-dot" style="background:#f59e0b"></i>En proceso</span>
+                                    <strong id="legend-proceso">0</strong>
+                                </div>
+                                <div class="legend-row">
+                                    <span>Contratos (C)</span>
+                                    <strong id="legend-contratos">0</strong>
+                                </div>
+                                <div class="legend-row">
+                                    <span>Órdenes (OS)</span>
+                                    <strong id="legend-ordenes">0</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card mt-4">
+                    <h2 class="card-title">Detalle del período <span id="detalle-cantidad"></span></h2>
+                    <p class="muted" style="margin-bottom: 16px">
+                        Información de los contratos aprobados disponibles para Gestión Jurídica.
+                    </p>
+                    <div class="table-wrap">
+                        <table class="contracts-table">
+                            <thead>
+                                <tr>
+                                    <th>N.º contrato</th>
+                                    <th>Usuario que radica</th>
+                                    <th>Proveedor</th>
+                                    <th>NIT</th>
+                                    <th>Objeto del contrato</th>
+                                    <th>Valor</th>
+                                    <th>Forma de pago</th>
+                                    <th>Precio</th>
+                                    <th>Duración / vigencia</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contracts-body">
+                                <tr><td colspan="10" class="muted">Cargando contratos…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { api } from "/static/js/api/client.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import {
+                calcularDashboardPeriodo,
+                generarExcelContratos,
+            } from "/static/js/juridica/dashboard-estadisticas.mjs?v=7";
+
+            session.requireAuth();
+            session.requireRole(["juridica", "admin"]);
+            renderSidebar();
+
+            document.getElementById("periodo-label").textContent =
+                "Indicadores de contratos aprobados disponibles para Gestión Jurídica.";
+
+            function escapeHtml(valor) {
+                return String(valor ?? "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;");
+            }
+
+            function formatearValor(contrato) {
+                return new Intl.NumberFormat("es-CO", {
+                    style: "currency",
+                    currency: contrato.moneda || "COP",
+                    maximumFractionDigits: 2,
+                }).format(Number(contrato.valor || 0));
+            }
+
+            function formatearTipoPrecio(contrato) {
+                if (contrato.tipo_precio === "aui") return "AUI";
+                if (contrato.tipo_precio === "no_aplica") return "No aplica";
+                return "Más IVA";
+            }
+
+            function formatearVigencia(contrato) {
+                const unidades = { dias: "días hábiles", dias_calendario: "días calendario", meses: "meses", anios: "años" };
+                const duracion =
+                    `${contrato.plazo_cantidad} ${unidades[contrato.plazo_unidad] || contrato.plazo_unidad}`;
+                if (!contrato.fecha_inicio && !contrato.fecha_fin) return duracion;
+                const inicio = contrato.fecha_inicio || "Sin inicio";
+                const fin = contrato.fecha_fin || "Sin finalización";
+                return `${duracion} · ${inicio} a ${fin}`;
+            }
+
+            function renderizarContratos(contratos) {
+                const tbody = document.getElementById("contracts-body");
+                document.getElementById("detalle-cantidad").textContent =
+                    `(${contratos.length})`;
+                if (!contratos.length) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="10" class="muted">No hay contratos radicados en el período seleccionado.</td></tr>';
+                    return;
+                }
+                const estados = {
+                    activo: "Activo",
+                    finalizado: "Finalizado",
+                    en_proceso: "En proceso",
+                };
+                tbody.innerHTML = contratos
+                    .map(
+                        (contrato) => `
+                            <tr>
+                                <td><strong>${escapeHtml(contrato.codigo)}</strong></td>
+                                <td>${escapeHtml(contrato.creado_por_username || `Usuario #${contrato.creado_por_id}`)}</td>
+                                <td>${escapeHtml(contrato.proveedor_contratista)}</td>
+                                <td>${escapeHtml(contrato.nit_proveedor)}</td>
+                                <td class="contract-object">${escapeHtml(contrato.descripcion_servicio)}</td>
+                                <td>${escapeHtml(formatearValor(contrato))}</td>
+                                <td class="contract-object">${escapeHtml(contrato.forma_pago || "—")}</td>
+                                <td>${escapeHtml(formatearTipoPrecio(contrato))}</td>
+                                <td>${escapeHtml(formatearVigencia(contrato))}</td>
+                                <td>
+                                    <span class="status-pill status-${escapeHtml(contrato.estado)}">
+                                        ${escapeHtml(estados[contrato.estado] || contrato.estado)}
+                                    </span>
+                                </td>
+                            </tr>
+                        `
+                    )
+                    .join("");
+            }
+
+            const tipoPeriodo = document.getElementById("periodo-tipo");
+            const fechaReferencia = document.getElementById("fecha-referencia");
+            let contratosDisponibles = [];
+            let resumenActual = null;
+
+            function valorFechaInput(fecha) {
+                const anio = fecha.getFullYear();
+                const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+                const dia = String(fecha.getDate()).padStart(2, "0");
+                return `${anio}-${mes}-${dia}`;
+            }
+
+            function fechaDesdeInput() {
+                return new Date(`${fechaReferencia.value}T12:00:00`);
+            }
+
+            function tituloPeriodo(inicio, fin, tipo) {
+                const ultimoDia = new Date(fin);
+                ultimoDia.setDate(fin.getDate() - 1);
+                if (tipo === "anio") return String(inicio.getFullYear());
+                if (tipo === "mes") {
+                    const texto = inicio.toLocaleDateString("es-CO", {
+                        month: "long",
+                        year: "numeric",
+                    });
+                    return texto.charAt(0).toUpperCase() + texto.slice(1);
+                }
+                const formato = { day: "numeric", month: "short", year: "numeric" };
+                return `${inicio.toLocaleDateString("es-CO", formato)} — ${ultimoDia.toLocaleDateString("es-CO", formato)}`;
+            }
+
+            function renderizarGraficas(resumen) {
+                const maximo = Math.max(...resumen.serie.map((item) => item.cantidad), 1);
+                document.getElementById("trend-chart").innerHTML = resumen.serie
+                    .map(
+                        (item) => `
+                            <div class="trend-column" title="${escapeHtml(item.label)}: ${item.cantidad}">
+                                <span class="trend-value">${item.cantidad}</span>
+                                <div class="trend-bar" style="height:${Math.max((item.cantidad / maximo) * 180, 3)}px"></div>
+                                <span class="trend-label">${escapeHtml(item.label)}</span>
+                            </div>
+                        `
+                    )
+                    .join("");
+
+                const total = resumen.total || 1;
+                const activoFin = (resumen.activos / total) * 360;
+                const finalizadoFin = activoFin + (resumen.finalizados / total) * 360;
+                const donut = document.getElementById("status-donut");
+                donut.style.background = resumen.total
+                    ? `conic-gradient(#16a34a 0deg ${activoFin}deg, #64748b ${activoFin}deg ${finalizadoFin}deg, #f59e0b ${finalizadoFin}deg 360deg)`
+                    : "#e5e7eb";
+                document.getElementById("donut-total").textContent = resumen.total;
+                document.getElementById("legend-activos").textContent = resumen.activos;
+                document.getElementById("legend-finalizados").textContent = resumen.finalizados;
+                document.getElementById("legend-proceso").textContent = resumen.enProceso;
+                document.getElementById("legend-contratos").textContent = resumen.contratosTipoC;
+                document.getElementById("legend-ordenes").textContent = resumen.ordenesTipoOS;
+            }
+
+            function actualizarDashboard() {
+                const tipo = tipoPeriodo.value;
+                const resumen = calcularDashboardPeriodo(
+                    contratosDisponibles,
+                    tipo,
+                    fechaDesdeInput()
+                );
+                resumenActual = resumen;
+                document.getElementById("periodo-seleccionado").textContent =
+                    tituloPeriodo(resumen.inicio, resumen.fin, tipo);
+                document.getElementById("trend-title").textContent =
+                    tipo === "semana"
+                        ? "Radicaciones por día"
+                        : tipo === "anio"
+                        ? "Radicaciones por mes"
+                        : "Radicaciones por semana del mes";
+                document.getElementById("stat-total").textContent = resumen.total;
+                document.getElementById("stat-activos").textContent = resumen.activos;
+                document.getElementById("stat-finalizados").textContent =
+                    resumen.finalizados;
+                document.getElementById("stat-en-proceso").textContent =
+                    resumen.enProceso;
+                renderizarGraficas(resumen);
+                renderizarContratos(resumen.contratos);
+                document.getElementById("exportar-excel").disabled = resumen.total === 0;
+            }
+
+            function moverPeriodo(direccion) {
+                const fecha = fechaDesdeInput();
+                if (tipoPeriodo.value === "semana") {
+                    fecha.setDate(fecha.getDate() + direccion * 7);
+                } else if (tipoPeriodo.value === "anio") {
+                    fecha.setFullYear(fecha.getFullYear() + direccion);
+                } else {
+                    fecha.setMonth(fecha.getMonth() + direccion);
+                }
+                fechaReferencia.value = valorFechaInput(fecha);
+                actualizarDashboard();
+            }
+
+            function exportarExcel() {
+                if (!resumenActual?.contratos.length) return;
+                const excel = generarExcelContratos(
+                    resumenActual,
+                    tipoPeriodo.value
+                );
+                const archivo = new Blob([excel], {
+                    type: "application/vnd.ms-excel;charset=utf-8",
+                });
+                const enlace = document.createElement("a");
+                const periodo = `${tipoPeriodo.value}_${fechaReferencia.value}`;
+                enlace.href = URL.createObjectURL(archivo);
+                enlace.download = `contratos_${periodo}.xls`;
+                document.body.appendChild(enlace);
+                enlace.click();
+                enlace.remove();
+                URL.revokeObjectURL(enlace.href);
+            }
+
+            fechaReferencia.value = valorFechaInput(new Date());
+            tipoPeriodo.addEventListener("change", actualizarDashboard);
+            fechaReferencia.addEventListener("change", actualizarDashboard);
+            document
+                .getElementById("periodo-anterior")
+                .addEventListener("click", () => moverPeriodo(-1));
+            document
+                .getElementById("periodo-siguiente")
+                .addEventListener("click", () => moverPeriodo(1));
+            document.getElementById("periodo-actual").addEventListener("click", () => {
+                fechaReferencia.value = valorFechaInput(new Date());
+                actualizarDashboard();
+            });
+            document
+                .getElementById("exportar-excel")
+                .addEventListener("click", exportarExcel);
+
+            try {
+                contratosDisponibles = await api.get("/contratos");
+                actualizarDashboard();
+            } catch (error) {
+                const alerta = document.getElementById("alert-error");
+                alerta.textContent = error.message || "No se pudieron cargar las estadísticas.";
+                alerta.classList.add("show");
+            }
+        </script>
+    </body>
+</html>

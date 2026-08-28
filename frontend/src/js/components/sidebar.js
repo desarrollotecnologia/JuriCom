@@ -7,18 +7,28 @@ const ROLE_LABEL = {
     admin: "Administrador",
     juridica: "Jurídica",
     compras: "Compras",
-    solicitante: "Usuario Solicitante",
+    solicitante: "Supervisor",
     anticipos: "Anticipos",
     lider_aprobador: "Líder Aprobador",
+    proyectos: "Proyectos",
+    contabilidad: "Contabilidad",
+    tesoreria: "Tesorería",
 };
+
+const PANEL_PROYECTOS_HREF = "/app/proyectos/panel-cotizaciones.html";
+const PANEL_CONTABILIDAD_HREF = "/app/contabilidad/panel-anticipos.html";
+const PANEL_TESORERIA_HREF = "/app/tesoreria/panel-anticipos.html";
 
 const GESTION_COMPRAS_HREF = "/app/compras/gestion-solicitudes.html";
 const GESTION_JURIDICA_HREF = "/app/juridica/gestion-juridica.html";
+const DASHBOARD_RADICACIONES_HREF = "/app/juridica/dashboard-radicaciones.html";
+const TRAZABILIDAD_SRV_HREF = "/app/juridica/trazabilidad-srv.html";
 const RADICAR_CONTRATO_HREF = "/app/compras/solicitud-radicar.html";
 const NUEVA_SOLICITUD_HREF = "/app/compras/nueva-solicitud.html";
 const MIS_SOLICITUDES_GESTION_HREF = "/app/compras/gestion-mis-solicitudes.html";
 const GESTION_ANTICIPO_HREF = "/app/compras/gestion-anticipo.html";
 const APROBAR_SOLICITUDES_HREF = "/app/compras/gestion-aprobar-solicitudes.html";
+const CATALOGO_PROVEEDORES_HREF = "/app/compras/catalogo-proveedores.html";
 
 const GESTION_COMPRAS_PATHS = new Set([
     GESTION_COMPRAS_HREF,
@@ -53,6 +63,7 @@ const GESTION_JURIDICA_PATHS = new Set([
     "/app/juridica/pendientes.html",
     "/app/juridica/otrosies-pendientes.html",
     "/app/juridica/editar-contrato.html",
+    TRAZABILIDAD_SRV_HREF,
     "/app/buzon.html",
 ]);
 
@@ -62,20 +73,29 @@ const NAV_BY_ROLE = {
         { href: "/app/admin/usuarios.html", label: "Gestión de usuarios" },
         { href: GESTION_COMPRAS_HREF, label: "Gestión de Solicitudes a Compras" },
         { href: APROBAR_SOLICITUDES_HREF, label: "Aprobar solicitudes" },
+        { href: PANEL_PROYECTOS_HREF, label: "Panel de proyectos" },
         { href: GESTION_JURIDICA_HREF, label: "Gestión Jurídica" },
+        { href: CATALOGO_PROVEEDORES_HREF, label: "Catálogo de proveedores" },
+        { href: PANEL_CONTABILIDAD_HREF, label: "Anticipos · Contabilidad" },
+        { href: PANEL_TESORERIA_HREF, label: "Anticipos · Tesorería" },
+        { href: "/app/compras/finalizar-contrato.html", label: "Finalizar contrato" },
     ],
     juridica: [
         { href: GESTION_JURIDICA_HREF, label: "Gestión Jurídica" },
+        { href: TRAZABILIDAD_SRV_HREF, label: "Trazabilidad SRV" },
+        { href: DASHBOARD_RADICACIONES_HREF, label: "Dashboard de radicaciones" },
         { href: RADICAR_CONTRATO_HREF, label: "Radicar contrato" },
     ],
     compras: [
         { href: GESTION_COMPRAS_HREF, label: "Gestión de Solicitudes a Compras" },
         { href: "/app/compras/mis-solicitudes.html", label: "Mis solicitudes" },
+        { href: CATALOGO_PROVEEDORES_HREF, label: "Catálogo de proveedores" },
     ],
     solicitante: [
         { href: "/app/dashboard.html", label: "Inicio" },
         { href: NUEVA_SOLICITUD_HREF, label: "Nueva solicitud" },
         { href: MIS_SOLICITUDES_GESTION_HREF, label: "Mis solicitudes" },
+        { href: "/app/compras/finalizar-contrato.html", label: "Finalizar contrato" },
     ],
     anticipos: [
         { href: "/app/dashboard.html", label: "Inicio" },
@@ -86,6 +106,15 @@ const NAV_BY_ROLE = {
     lider_aprobador: [
         { href: "/app/dashboard.html", label: "Inicio" },
         { href: APROBAR_SOLICITUDES_HREF, label: "Aprobar solicitudes" },
+    ],
+    proyectos: [
+        { href: PANEL_PROYECTOS_HREF, label: "Panel de cotizaciones" },
+    ],
+    contabilidad: [
+        { href: PANEL_CONTABILIDAD_HREF, label: "Anticipos por gestionar" },
+    ],
+    tesoreria: [
+        { href: PANEL_TESORERIA_HREF, label: "Anticipos por pagar" },
     ],
 };
 

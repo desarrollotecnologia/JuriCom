@@ -5,10 +5,38 @@ from enum import Enum
 
 class EstadoSolicitudGestion(str, Enum):
     SOLICITUD = "solicitud"
+    REVISION = "revision"
     PRIMERA_APROBACION = "primera_aprobacion"
+    # Comité técnico: tras la 1.ª aprobación, Proyectos revisa y puede reescribir
+    # la solicitud antes de cotizar.
+    REVISION_PROYECTOS = "revision_proyectos"
+    # Visita previa a cotizar: si el solicitante marcó "requiere visita", Compras
+    # (flujo normal) o Proyectos (comité) agenda proveedor + fecha + hora antes de cotizar.
+    PROGRAMACION_VISITA = "programacion_visita"
+    # Comité técnico: el rol Proyectos cotiza antes de que Compras complete.
+    COTIZACION_PROYECTOS = "cotizacion_proyectos"
     COTIZACION = "cotizacion"
     EN_APROBACION = "en_aprobacion"
+    # Comité técnico: reunión posterior a la aprobación de gerencia; supervisor
+    # y proyectos deben estar de acuerdo antes de radicar el servicio.
+    COMITE = "comite"
     GESTIONANDO_SERVICIO = "gestionando_servicio"
+    # Sólo historial (el estado de la SRV no cambia): trazabilidad con Jurídica.
+    EN_JURIDICA = "en_juridica"
+    SOLICITANDO_INFO = "solicitando_info"
+    INFO_RECIBIDA = "info_recibida"
+    ELABORANDO_CONTRATO = "elaborando_contrato"
+    REVISION_POLIZAS = "revision_polizas"
+    SOLICITUD_FIRMAS = "solicitud_firmas"
+    ANTICIPO_CONTABILIDAD = "anticipo_contabilidad"
+    ANTICIPO_TESORERIA = "anticipo_tesoreria"
+    ANTICIPO_PAGADO = "anticipo_pagado"
+    CONTRATO_ACTIVO = "contrato_activo"
+    CONTRATO_FINALIZADO = "contrato_finalizado"
+    # Cierre del contrato: pago final Contabilidad → Tesorería → Completado.
+    CIERRE_CONTABILIDAD = "cierre_contabilidad"
+    CIERRE_TESORERIA = "cierre_tesoreria"
+    CONTRATO_COMPLETADO = "contrato_completado"
     PENDIENTE_EVIDENCIA_CIERRE = "pendiente_evidencia_cierre"
     TRAMITANDO_OC = "tramitando_oc"
     TRAMITADA_OC = "tramitada_oc"
@@ -43,10 +71,29 @@ class EstadoSolicitudGestion(str, Enum):
 
 LABELS: dict[EstadoSolicitudGestion, str] = {
     EstadoSolicitudGestion.SOLICITUD: "Solicitud",
+    EstadoSolicitudGestion.REVISION: "En revisión (ajustes al solicitante)",
     EstadoSolicitudGestion.PRIMERA_APROBACION: "Primera Aprobación",
+    EstadoSolicitudGestion.REVISION_PROYECTOS: "Revisión de solicitud (Proyectos)",
+    EstadoSolicitudGestion.PROGRAMACION_VISITA: "Programar visita",
+    EstadoSolicitudGestion.COTIZACION_PROYECTOS: "Cotización (Proyectos)",
     EstadoSolicitudGestion.COTIZACION: "Cotización",
     EstadoSolicitudGestion.EN_APROBACION: "En Aprobación",
+    EstadoSolicitudGestion.COMITE: "Comité técnico",
     EstadoSolicitudGestion.GESTIONANDO_SERVICIO: "Gestionando servicio",
+    EstadoSolicitudGestion.EN_JURIDICA: "En Jurídica",
+    EstadoSolicitudGestion.SOLICITANDO_INFO: "Solicitando información",
+    EstadoSolicitudGestion.INFO_RECIBIDA: "Información recibida",
+    EstadoSolicitudGestion.ELABORANDO_CONTRATO: "Elaborando contrato",
+    EstadoSolicitudGestion.REVISION_POLIZAS: "Revisión de pólizas",
+    EstadoSolicitudGestion.SOLICITUD_FIRMAS: "Solicitud de firmas",
+    EstadoSolicitudGestion.ANTICIPO_CONTABILIDAD: "Anticipo en contabilidad",
+    EstadoSolicitudGestion.ANTICIPO_TESORERIA: "Anticipo en tesorería",
+    EstadoSolicitudGestion.ANTICIPO_PAGADO: "Anticipo pagado",
+    EstadoSolicitudGestion.CONTRATO_ACTIVO: "Contrato activo",
+    EstadoSolicitudGestion.CONTRATO_FINALIZADO: "Contrato finalizado",
+    EstadoSolicitudGestion.CIERRE_CONTABILIDAD: "Cierre en contabilidad",
+    EstadoSolicitudGestion.CIERRE_TESORERIA: "Cierre en tesorería",
+    EstadoSolicitudGestion.CONTRATO_COMPLETADO: "Contrato completado",
     EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE: "Pendiente evidencia cierre",
     EstadoSolicitudGestion.TRAMITANDO_OC: "Tramitando OC",
     EstadoSolicitudGestion.TRAMITADA_OC: "Tramitada OC",
@@ -79,7 +126,11 @@ FLUJO_ORDEN: list[EstadoSolicitudGestion] = [
 FLUJO_HISTORIAL: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.SOLICITUD,
     EstadoSolicitudGestion.PRIMERA_APROBACION,
+    EstadoSolicitudGestion.REVISION_PROYECTOS,
+    EstadoSolicitudGestion.PROGRAMACION_VISITA,
+    EstadoSolicitudGestion.COTIZACION_PROYECTOS,
     EstadoSolicitudGestion.COTIZACION,
+    EstadoSolicitudGestion.COMITE,
     EstadoSolicitudGestion.EN_APROBACION,
     EstadoSolicitudGestion.GESTIONANDO_SERVICIO,
     EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE,
@@ -99,6 +150,8 @@ ESTADOS_TERMINALES: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.CANCELADO,
     EstadoSolicitudGestion.ENTREGADO,
     EstadoSolicitudGestion.FACTURADA,
+    EstadoSolicitudGestion.CONTRATO_FINALIZADO,
+    EstadoSolicitudGestion.CONTRATO_COMPLETADO,
 ]
 
 ESTADOS_ENTREGA_ABIERTA: list[EstadoSolicitudGestion] = [
@@ -127,9 +180,11 @@ ETAPAS_GESTION_ANTICIPO: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.GESTION_ANTICIPO,
 ]
 
-# Solicitudes visibles en el panel de gestión (ya aprobadas al menos una vez).
+# Solicitudes en gestión activa (ya aprobadas, aún no completadas).
+# Las completadas (entregado/facturada/contrato finalizado) van a ETAPAS_PANEL_REALIZADAS.
 ETAPAS_PANEL_GESTION: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.PRIMERA_APROBACION,
+    EstadoSolicitudGestion.PROGRAMACION_VISITA,
     EstadoSolicitudGestion.COTIZACION,
     EstadoSolicitudGestion.GESTIONANDO_SERVICIO,
     EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE,
@@ -137,22 +192,40 @@ ETAPAS_PANEL_GESTION: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.TRAMITADA_OC,
     EstadoSolicitudGestion.ITEMS_EN_CAMINO,
     EstadoSolicitudGestion.RECEPCION_INSUMOS,
-    EstadoSolicitudGestion.ENTREGADO,
     EstadoSolicitudGestion.ENTREGADO_PARCIAL,
-    EstadoSolicitudGestion.FACTURADA,
     # Valores legacy ya normalizados en consultas
     EstadoSolicitudGestion.APROBADA,
     EstadoSolicitudGestion.APROBACION_GERENCIA,
     EstadoSolicitudGestion.PROCESO_COTIZACION,
     EstadoSolicitudGestion.EN_PROCESO,
     EstadoSolicitudGestion.PENDIENTE,
-    EstadoSolicitudGestion.FINALIZADA,
+]
+
+# Comité técnico: etapas donde actúan Proyectos y el comité (fuera del panel de Compras).
+ETAPAS_COMITE_TECNICO: list[EstadoSolicitudGestion] = [
+    EstadoSolicitudGestion.REVISION_PROYECTOS,
+    EstadoSolicitudGestion.PROGRAMACION_VISITA,
+    EstadoSolicitudGestion.COTIZACION_PROYECTOS,
+    EstadoSolicitudGestion.COMITE,
+]
+
+# Solicitudes ya completadas: pestaña "Realizadas".
+ETAPAS_PANEL_REALIZADAS: list[EstadoSolicitudGestion] = [
+    EstadoSolicitudGestion.CONTRATO_FINALIZADO,
+    EstadoSolicitudGestion.CONTRATO_COMPLETADO,
+    EstadoSolicitudGestion.ENTREGADO,
+    EstadoSolicitudGestion.FACTURADA,
+    EstadoSolicitudGestion.FINALIZADA,  # legacy = entregado
 ]
 
 # Solicitudes que salen del panel mientras esperan aprobación o anticipo.
 ETAPAS_PANEL_EN_PROCESO: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.SOLICITUD,
-    EstadoSolicitudGestion.EN_APROBACION,  # 2.ª aprobación (tras cotización)
+    EstadoSolicitudGestion.REVISION,  # devuelta al solicitante para ajustes
+    EstadoSolicitudGestion.REVISION_PROYECTOS,  # comité técnico: Proyectos reescribe
+    EstadoSolicitudGestion.COTIZACION_PROYECTOS,  # comité técnico: cotiza Proyectos
+    EstadoSolicitudGestion.EN_APROBACION,  # 2.ª aprobación (tras mesa técnica)
+    EstadoSolicitudGestion.COMITE,  # comité técnico: reunión de aceptación
     EstadoSolicitudGestion.APROBACION_ANTICIPO,
     EstadoSolicitudGestion.GESTION_ANTICIPO,
     # Legacy equivalentes a solicitud pendiente
@@ -184,8 +257,44 @@ def normalizar_estado(valor: str | EstadoSolicitudGestion) -> EstadoSolicitudGes
             estado = EstadoSolicitudGestion(raw)
         except ValueError:
             # Valores válidos en BD que aún no estén en el enum cargado en memoria.
+            if raw == "revision_proyectos":
+                return EstadoSolicitudGestion.REVISION_PROYECTOS
+            if raw == "programacion_visita":
+                return EstadoSolicitudGestion.PROGRAMACION_VISITA
+            if raw == "cotizacion_proyectos":
+                return EstadoSolicitudGestion.COTIZACION_PROYECTOS
+            if raw == "comite":
+                return EstadoSolicitudGestion.COMITE
             if raw == "gestionando_servicio":
                 return EstadoSolicitudGestion.GESTIONANDO_SERVICIO
+            if raw == "en_juridica":
+                return EstadoSolicitudGestion.EN_JURIDICA
+            if raw == "solicitando_info":
+                return EstadoSolicitudGestion.SOLICITANDO_INFO
+            if raw == "info_recibida":
+                return EstadoSolicitudGestion.INFO_RECIBIDA
+            if raw == "elaborando_contrato":
+                return EstadoSolicitudGestion.ELABORANDO_CONTRATO
+            if raw == "revision_polizas":
+                return EstadoSolicitudGestion.REVISION_POLIZAS
+            if raw == "solicitud_firmas":
+                return EstadoSolicitudGestion.SOLICITUD_FIRMAS
+            if raw == "anticipo_contabilidad":
+                return EstadoSolicitudGestion.ANTICIPO_CONTABILIDAD
+            if raw == "anticipo_tesoreria":
+                return EstadoSolicitudGestion.ANTICIPO_TESORERIA
+            if raw == "anticipo_pagado":
+                return EstadoSolicitudGestion.ANTICIPO_PAGADO
+            if raw == "contrato_activo":
+                return EstadoSolicitudGestion.CONTRATO_ACTIVO
+            if raw == "contrato_finalizado":
+                return EstadoSolicitudGestion.CONTRATO_FINALIZADO
+            if raw == "cierre_contabilidad":
+                return EstadoSolicitudGestion.CIERRE_CONTABILIDAD
+            if raw == "cierre_tesoreria":
+                return EstadoSolicitudGestion.CIERRE_TESORERIA
+            if raw == "contrato_completado":
+                return EstadoSolicitudGestion.CONTRATO_COMPLETADO
             if raw == "pendiente_evidencia_cierre":
                 return EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE
             if raw == "tramitando_oc":
@@ -232,6 +341,25 @@ def siguiente_etapa(estado: EstadoSolicitudGestion) -> EstadoSolicitudGestion | 
     return FLUJO_ORDEN[idx + 1]
 
 
+# Estados anteriores a la aprobación de gerencia financiera (2.ª aprobación),
+# más el cancelado. Todo lo demás implica que gerencia ya aprobó.
+ETAPAS_PRE_GERENCIA: set[EstadoSolicitudGestion] = {
+    EstadoSolicitudGestion.SOLICITUD,
+    EstadoSolicitudGestion.REVISION,
+    EstadoSolicitudGestion.PRIMERA_APROBACION,
+    EstadoSolicitudGestion.PROGRAMACION_VISITA,
+    EstadoSolicitudGestion.COTIZACION_PROYECTOS,
+    EstadoSolicitudGestion.COTIZACION,
+    EstadoSolicitudGestion.EN_APROBACION,
+    EstadoSolicitudGestion.CANCELADO,
+}
+
+
+def aprobada_por_gerencia(estado: EstadoSolicitudGestion | str) -> bool:
+    """True si la solicitud ya pasó la 2.ª aprobación (gerencia financiera)."""
+    return normalizar_estado(estado) not in ETAPAS_PRE_GERENCIA
+
+
 def es_pendiente_aprobacion(estado: EstadoSolicitudGestion) -> bool:
     normalizado = normalizar_estado(estado)
     return normalizado in (
@@ -253,11 +381,15 @@ def es_estado_recepcion_abierta(estado: EstadoSolicitudGestion | str) -> bool:
 
 
 def es_visible_en_panel(estado: EstadoSolicitudGestion | str) -> bool:
-    """True si la solicitud ya fue aprobada y debe gestionarse en el panel."""
+    """True si la solicitud ya fue aprobada (gestión activa o ya realizada)."""
     normalizado = normalizar_estado(estado)
     if normalizado == EstadoSolicitudGestion.CANCELADO:
         return False
-    return normalizado in ETAPAS_PANEL_GESTION
+    return (
+        normalizado in ETAPAS_PANEL_GESTION
+        or normalizado in ETAPAS_PANEL_REALIZADAS
+        or normalizado in ETAPAS_COMITE_TECNICO
+    )
 
 
 def estado_publico(estado: EstadoSolicitudGestion | str) -> EstadoSolicitudGestion:

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Catálogo de proveedores · JURICOM_BEEF</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .toolbar {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+                align-items: center;
+                margin-bottom: 16px;
+            }
+            .toolbar input[type="text"] {
+                flex: 1;
+                min-width: 220px;
+                padding: 10px 12px;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+                font-size: 0.95rem;
+            }
+            table.prov {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.85rem;
+            }
+            table.prov th,
+            table.prov td {
+                text-align: left;
+                padding: 8px 10px;
+                border-bottom: 1px solid #e2e8f0;
+                vertical-align: top;
+            }
+            table.prov th {
+                background: #f8fafc;
+                position: sticky;
+                top: 0;
+                color: var(--color-primary-dark);
+            }
+            .prov-para {
+                font-size: 0.72rem;
+                padding: 2px 8px;
+                border-radius: 999px;
+                background: #e0f2fe;
+                color: #075985;
+                white-space: nowrap;
+            }
+            .prov-para.compras {
+                background: #fef9c3;
+                color: #854d0e;
+            }
+            .prov-para.ambas {
+                background: #dcfce7;
+                color: #166534;
+            }
+            .prov-inactivo {
+                opacity: 0.5;
+            }
+            .row-actions {
+                display: flex;
+                gap: 6px;
+                white-space: nowrap;
+            }
+            .modal-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(15, 23, 42, 0.45);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                padding: 16px;
+            }
+            .modal-panel {
+                background: #fff;
+                border-radius: 12px;
+                max-width: 560px;
+                width: 100%;
+                max-height: 88vh;
+                overflow: auto;
+                padding: 22px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            }
+            .modal-panel .field {
+                margin-bottom: 12px;
+            }
+            .grid-2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+            @media (max-width: 640px) {
+                .grid-2 {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Catálogo de proveedores</h1>
+                        <p class="muted">
+                            Lista de proveedores de Colbeef. Solo Compras y el
+                            Administrador pueden agregar, editar o importar.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="alert alert-error" id="alert-error"></div>
+                <div class="alert alert-success" id="alert-success"></div>
+
+                <div class="card">
+                    <div class="toolbar">
+                        <input
+                            type="text"
+                            id="buscar"
+                            placeholder="Buscar por nombre, sector o ciudad…"
+                            autocomplete="off"
+                        />
+                        <button class="btn btn-secondary" id="btn-importar">Importar Excel</button>
+                        <input type="file" id="file-importar" accept=".xlsx,.xls" hidden />
+                        <button class="btn btn-primary" id="btn-nuevo">Nuevo proveedor</button>
+                    </div>
+                    <p class="muted" id="conteo" style="margin:0 0 10px;"></p>
+                    <div style="overflow:auto;max-height:70vh;">
+                        <table class="prov">
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Sector / qué hace</th>
+                                    <th>Para</th>
+                                    <th>Ciudad</th>
+                                    <th>Teléfono</th>
+                                    <th>Correo</th>
+                                    <th>Contacto</th>
+                                    <th>Cond. pago</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { session } from "/static/js/auth/session.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api, ApiError } from "/static/js/api/client.js";
+            import { escapeHtml } from "/static/js/utils/format.js";
+
+            session.requireAuth();
+            session.requireRole(["compras", "admin"]);
+            renderSidebar();
+
+            const alertError = document.getElementById("alert-error");
+            const alertSuccess = document.getElementById("alert-success");
+            const buscar = document.getElementById("buscar");
+            const tbody = document.getElementById("tbody");
+            const conteo = document.getElementById("conteo");
+
+            const PARA_LABEL = { servicios: "Servicios", compras: "Compras", ambas: "Ambas", "": "—" };
+
+            function showError(msg) {
+                alertSuccess.classList.remove("show");
+                alertError.textContent = msg;
+                alertError.classList.add("show");
+                setTimeout(() => alertError.classList.remove("show"), 7000);
+            }
+            function showSuccess(msg) {
+                alertError.classList.remove("show");
+                alertSuccess.textContent = msg;
+                alertSuccess.classList.add("show");
+                setTimeout(() => alertSuccess.classList.remove("show"), 5000);
+            }
+
+            let lista = [];
+
+            async function cargar() {
+                const q = buscar.value.trim();
+                try {
+                    lista = await api.get(`/proveedores${q ? `?q=${encodeURIComponent(q)}` : ""}`);
+                    render();
+                } catch (err) {
+                    showError(err instanceof ApiError ? err.message : "No se pudo cargar la lista.");
+                }
+            }
+
+            function render() {
+                conteo.textContent = `${lista.length} proveedor(es)`;
+                if (!lista.length) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="9" class="muted" style="padding:16px;">Sin resultados.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = lista
+                    .map((p) => {
+                        const paraCls = p.para === "compras" ? "compras" : p.para === "ambas" ? "ambas" : "";
+                        return `
+                        <tr class="${p.activo ? "" : "prov-inactivo"}">
+                            <td><strong>${escapeHtml(p.nombre)}</strong>${p.calificacion ? `<br><span class="muted">${escapeHtml(p.calificacion)}</span>` : ""}</td>
+                            <td>${escapeHtml(p.sector || "")}</td>
+                            <td><span class="prov-para ${paraCls}">${PARA_LABEL[p.para] || p.para}</span></td>
+                            <td>${escapeHtml(p.ciudad || "")}</td>
+                            <td>${escapeHtml(p.telefono || "")}</td>
+                            <td>${escapeHtml(p.correo || "")}</td>
+                            <td>${escapeHtml(p.contacto || "")}</td>
+                            <td>${escapeHtml(p.condiciones_pago || "")}</td>
+                            <td>
+                                <div class="row-actions">
+                                    <button class="btn btn-sm btn-secondary" data-editar="${p.id}">Editar</button>
+                                    <button class="btn btn-sm btn-danger" data-eliminar="${p.id}">Eliminar</button>
+                                </div>
+                            </td>
+                        </tr>`;
+                    })
+                    .join("");
+            }
+
+            let debounce;
+            buscar.addEventListener("input", () => {
+                clearTimeout(debounce);
+                debounce = setTimeout(cargar, 300);
+            });
+
+            tbody.addEventListener("click", (e) => {
+                const t = e.target;
+                const editId = t.dataset?.editar;
+                const delId = t.dataset?.eliminar;
+                if (editId) {
+                    const p = lista.find((x) => String(x.id) === editId);
+                    if (p) abrirModal(p);
+                } else if (delId) {
+                    const p = lista.find((x) => String(x.id) === delId);
+                    if (p) eliminar(p);
+                }
+            });
+
+            document.getElementById("btn-nuevo").addEventListener("click", () => abrirModal(null));
+
+            async function eliminar(p) {
+                if (!confirm(`¿Eliminar el proveedor "${p.nombre}"?`)) return;
+                try {
+                    await api.delete(`/proveedores/${p.id}`);
+                    showSuccess("Proveedor eliminado.");
+                    cargar();
+                } catch (err) {
+                    showError(err instanceof ApiError ? err.message : "No se pudo eliminar.");
+                }
+            }
+
+            function abrirModal(p) {
+                document.getElementById("prov-modal")?.remove();
+                const esNuevo = !p;
+                const v = (k) => escapeHtml(p?.[k] || "");
+                const overlay = document.createElement("div");
+                overlay.id = "prov-modal";
+                overlay.className = "modal-overlay";
+                overlay.innerHTML = `
+                    <div class="modal-panel">
+                        <h3 style="margin:0 0 16px;">${esNuevo ? "Nuevo proveedor" : "Editar proveedor"}</h3>
+                        <div class="field">
+                            <label>Nombre del proveedor *</label>
+                            <input type="text" id="f-nombre" value="${v("nombre")}" />
+                        </div>
+                        <div class="field">
+                            <label>Sector / qué hace</label>
+                            <input type="text" id="f-sector" value="${v("sector")}" placeholder="Ej.: Refrigeración industrial" />
+                        </div>
+                        <div class="grid-2">
+                            <div class="field">
+                                <label>Para</label>
+                                <select id="f-para">
+                                    <option value="servicios">Servicios</option>
+                                    <option value="compras">Compras</option>
+                                    <option value="ambas">Ambas</option>
+                                    <option value="">Sin definir</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Ciudad</label>
+                                <input type="text" id="f-ciudad" value="${v("ciudad")}" />
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="field">
+                                <label>Teléfono</label>
+                                <input type="text" id="f-telefono" value="${v("telefono")}" />
+                            </div>
+                            <div class="field">
+                                <label>Correo</label>
+                                <input type="text" id="f-correo" value="${v("correo")}" />
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="field">
+                                <label>Contacto principal</label>
+                                <input type="text" id="f-contacto" value="${v("contacto")}" />
+                            </div>
+                            <div class="field">
+                                <label>Condiciones de pago</label>
+                                <input type="text" id="f-condiciones" value="${v("condiciones_pago")}" />
+                            </div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="field">
+                                <label>Calificación</label>
+                                <input type="text" id="f-calificacion" value="${v("calificacion")}" />
+                            </div>
+                            <div class="field">
+                                <label>Estado</label>
+                                <label style="font-weight:400;display:flex;gap:8px;align-items:center;margin-top:8px;">
+                                    <input type="checkbox" id="f-activo" ${!p || p.activo ? "checked" : ""} /> Activo
+                                </label>
+                            </div>
+                        </div>
+                        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;">
+                            <button class="btn btn-secondary" data-accion="cerrar">Cancelar</button>
+                            <button class="btn btn-primary" data-accion="guardar">Guardar</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(overlay);
+                overlay.querySelector("#f-para").value = p?.para ?? "servicios";
+                overlay.querySelector("#f-nombre").focus();
+
+                overlay.addEventListener("click", async (e) => {
+                    const t = e.target;
+                    if (t === overlay || t.dataset?.accion === "cerrar") {
+                        overlay.remove();
+                        return;
+                    }
+                    if (t.dataset?.accion !== "guardar") return;
+                    const payload = {
+                        nombre: overlay.querySelector("#f-nombre").value.trim(),
+                        sector: overlay.querySelector("#f-sector").value.trim(),
+                        para: overlay.querySelector("#f-para").value,
+                        ciudad: overlay.querySelector("#f-ciudad").value.trim(),
+                        telefono: overlay.querySelector("#f-telefono").value.trim(),
+                        correo: overlay.querySelector("#f-correo").value.trim(),
+                        contacto: overlay.querySelector("#f-contacto").value.trim(),
+                        condiciones_pago: overlay.querySelector("#f-condiciones").value.trim(),
+                        calificacion: overlay.querySelector("#f-calificacion").value.trim(),
+                        activo: overlay.querySelector("#f-activo").checked,
+                    };
+                    if (!payload.nombre) {
+                        showError("El nombre es obligatorio.");
+                        return;
+                    }
+                    t.disabled = true;
+                    try {
+                        if (esNuevo) {
+                            await api.post("/proveedores", payload);
+                            showSuccess("Proveedor creado.");
+                        } else {
+                            await api.put(`/proveedores/${p.id}`, payload);
+                            showSuccess("Proveedor actualizado.");
+                        }
+                        overlay.remove();
+                        cargar();
+                    } catch (err) {
+                        t.disabled = false;
+                        showError(err instanceof ApiError ? err.message : "No se pudo guardar.");
+                    }
+                });
+            }
+
+            document.getElementById("btn-importar").addEventListener("click", () =>
+                document.getElementById("file-importar").click()
+            );
+            document.getElementById("file-importar").addEventListener("change", async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const fd = new FormData();
+                fd.append("archivo", file);
+                try {
+                    const r = await api.postForm("/proveedores/importar", fd);
+                    showSuccess(
+                        `Importación lista: ${r.creados} nuevo(s), ${r.actualizados} existente(s) de ${r.total} en el archivo.`
+                    );
+                    cargar();
+                } catch (err) {
+                    showError(err instanceof ApiError ? err.message : "No se pudo importar el Excel.");
+                } finally {
+                    e.target.value = "";
+                }
+            });
+
+            cargar();
+        </script>
+    </body>
+</html>

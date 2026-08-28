@@ -8,6 +8,7 @@ from app.presentation.api.v1.endpoints import (
     config,
     contratos,
     notifications,
+    proveedores,
     solicitudes_gestion,
     tareas,
     users,
@@ -23,3 +24,4 @@ api_v1_router.include_router(archivos.router)
 api_v1_router.include_router(notifications.router)
 api_v1_router.include_router(config.router)
 api_v1_router.include_router(tareas.router)
+api_v1_router.include_router(proveedores.router)

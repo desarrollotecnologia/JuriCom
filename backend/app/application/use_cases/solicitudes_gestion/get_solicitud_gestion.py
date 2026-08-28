@@ -24,6 +24,10 @@ class GetSolicitudGestion:
         solicitud = self._solicitudes.get_by_id(solicitud_id)
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
+        if actor.is_juridica() and not actor.is_admin() and not solicitud.contrato_id:
+            raise UnauthorizedError(
+                "Jurídica sólo consulta solicitudes de servicio vinculadas a un contrato u OT."
+            )
         if (
             actor.ve_solo_propias_solicitudes_gestion()
             and solicitud.creado_por_id != actor.id

@@ -17,6 +17,7 @@ class UserPublic(BaseModel):
     id: int
     username: str
     role: Role
+    nombre: str = ""
     email: str = ""
     lider_catalog_id: str = ""
     is_active: bool

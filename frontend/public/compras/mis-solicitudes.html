@@ -176,6 +176,21 @@
                 border-radius: 4px;
             }
             .otrosi-form textarea { min-height: 60px; resize: vertical; }
+            .otrosi-form .tipo-block {
+                border: 1px solid #bbf7d0;
+                border-radius: 6px;
+                padding: 8px 10px;
+            }
+            .otrosi-form .tipo-block.off { opacity: 0.5; }
+            .otrosi-form .tipo-check {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                cursor: pointer;
+                color: #166534;
+                margin: 0 0 4px;
+            }
+            .otrosi-form .tipo-check input { width: auto; }
             .otrosi-disabled-msg {
                 color: var(--color-text-muted);
                 font-style: italic;
@@ -243,6 +258,7 @@
                         <select id="filter-estado">
                             <option value="">Todos los estados</option>
                             <option value="en_proceso">En proceso</option>
+                            <option value="elaborando">Elaborando contrato</option>
                             <option value="activo">Activo</option>
                             <option value="finalizado">Finalizado</option>
                         </select>
@@ -348,10 +364,19 @@
                 poliza: "Póliza",
                 borrador_firmado: "Contrato firmado",
                 otrosi: "Otrosí firmado",
+                informe_final: "Informe final",
+                acta_liquidacion: "Acta de liquidación",
+                respuesta_informacion: "Respuesta a información",
             };
 
             const ESTADO_LABEL = {
                 en_proceso: "Pendiente",
+                elaborando: "Elaborando contrato",
+                revision_polizas: "Revisión de pólizas",
+                solicitud_firmas: "Solicitud de firmas",
+                anticipo_contabilidad: "Anticipo en contabilidad",
+                anticipo_tesoreria: "Anticipo en tesorería",
+                anticipo_pagado: "Anticipo pagado",
                 activo: "Activo",
                 finalizado: "Finalizado",
             };
@@ -363,15 +388,27 @@
                 rechazado: "Rechazado",
             };
 
+            function badgeElaboracion(dias) {
+                if (dias === null || dias === undefined) return "";
+                let bg, fg, texto;
+                if (dias > 1) { bg = "#dcfce7"; fg = "#166534"; texto = `${dias} Días`; }
+                else if (dias === 1) { bg = "#fef3c7"; fg = "#b45309"; texto = "1 Día"; }
+                else if (dias === 0) { bg = "#fef3c7"; fg = "#b45309"; texto = "Hoy"; }
+                else { bg = "#fee2e2"; fg = "#991b1b"; texto = `Vencido ${Math.abs(dias)} Día${Math.abs(dias) === 1 ? "" : "s"}`; }
+                return `<br><span style="background:${bg};color:${fg};padding:1px 7px;border-radius:999px;font-weight:600;font-size:0.72rem;white-space:nowrap;display:inline-block;margin-top:3px;">${texto}</span>`;
+            }
+
             const TIPO_OTROSI_LABEL = {
                 prorroga: "Prórroga",
                 adicion: "Adición",
+                prorroga_adicion: "Prórroga + Adición",
                 modificacion: "Modificación",
                 otro: "Otro",
             };
 
             const UNIDAD_PLAZO_LABEL = {
-                dias: "días",
+                dias: "días hábiles",
+                dias_calendario: "días calendario",
                 meses: "meses",
                 anios: "años",
             };
@@ -391,7 +428,7 @@
                 window.scrollTo({ top: 0, behavior: "smooth" });
             }
             function formatHora(value) {
-                return value ? String(value).slice(0, 5) : "00:10";
+                return value ? String(value).slice(0, 5) : "07:30";
             }
 
             let timer = null;
@@ -443,7 +480,7 @@
                             const eliminado = Boolean(c.eliminado_at);
                             const estadoHtml = eliminado
                                 ? '<span class="badge badge-finalizado">Eliminado</span>'
-                                : `<span class="badge badge-${c.estado}">${ESTADO_LABEL[c.estado] || c.estado}</span>`;
+                                : `<span class="badge badge-${c.estado}">${ESTADO_LABEL[c.estado] || c.estado}</span>${badgeElaboracion(c.dias_para_elaborar)}`;
                             const faltantesFinal = eliminado
                                 ? `<span title="${escapeHtml(c.eliminado_observacion || "")}">${escapeHtml(c.eliminado_observacion || "Sin observación")}</span>`
                                 : faltantesHtml;
@@ -526,6 +563,19 @@
                 }
             }
 
+            function anticipoDetalleHtml(c) {
+                if (!c.requiere_anticipo && !c.monto_anticipo && !c.porcentaje_anticipo && !c.observaciones_anticipo) {
+                    return "";
+                }
+                const partes = [c.requiere_anticipo ? "Sí" : "No"];
+                if (c.porcentaje_anticipo) partes.push(`${Number(c.porcentaje_anticipo)}%`);
+                if (c.monto_anticipo) partes.push(formatMoney(c.monto_anticipo, c.moneda));
+                const obs = c.observaciones_anticipo
+                    ? `<br><span class="muted">${escapeHtml(c.observaciones_anticipo)}</span>`
+                    : "";
+                return `<p><span class="label">Anticipo:</span> ${partes.join(" · ")}${obs}</p>`;
+            }
+
             function renderDetail(c) {
                 document.getElementById("detail-title").textContent =
                     `Contrato ${c.codigo || ""}`;
@@ -548,7 +598,7 @@
                     c.requiere_poliza && !c.tiene_poliza
                         ? `<div class="poliza-required-banner">
                               ⚠ Este contrato requiere PÓLIZA y aún no se ha adjuntado.
-                              ${esJuridica ? "Adjúntala más abajo." : "Espera a que Jurídica la adjunte."}
+                              ${esJuridica ? "Adjúntala en elaboración (abajo)." : "La adjunta Jurídica o Gerencia durante la elaboración."}
                            </div>`
                         : "";
                 const vigenciaWarning =
@@ -611,6 +661,7 @@
                         <p><span class="label">Gerencia:</span> ${escapeHtml(c.correo_gerencia || "—")}</p>
                         <p><span class="label">Renovación automática:</span> ${c.renovacion_automatica ? "Sí" : "No"}</p>
                         <p><span class="label">Requiere póliza:</span> ${c.requiere_poliza ? "Sí" : "No"}</p>
+                        ${anticipoDetalleHtml(c)}
 
                         <h3>Descripción del servicio</h3>
                         <p class="muted">${escapeHtml(c.descripcion_servicio)}</p>
@@ -628,13 +679,155 @@
                         <ul style="padding-left: 20px;">${archivosHtml}</ul>
                     </div>
 
+                    <div id="info-faltante-compras" class="detail-section"></div>
+
                     ${otrosiSectionHtml}
 
                     ${juridicaActionsHtml}
                 `;
 
+                if (!eliminado) cargarInfoFaltanteCompras(c);
                 if (!eliminado && puedeAplicarOtrosi) wireOtrosiForm(c);
                 if (!eliminado && esJuridica) wireJuridicaActions(c);
+            }
+
+            function puedeResponderInfo(c) {
+                return user.role === "admin" || (user.role === "compras" && c.creado_por_id === user.id);
+            }
+
+            async function cargarInfoFaltanteCompras(c) {
+                const cont = document.getElementById("info-faltante-compras");
+                if (!cont) return;
+                let items = [];
+                try {
+                    items = await api.get(`/contratos/${c.id}/solicitudes-informacion`);
+                } catch (err) {
+                    cont.innerHTML = "";
+                    return;
+                }
+                if (!items.length) {
+                    cont.innerHTML = "";
+                    return;
+                }
+                const puedeResponder = puedeResponderInfo(c);
+                cont.innerHTML = `
+                    <h3>Información solicitada por Jurídica (${items.length})</h3>
+                    ${items.map((s) => renderInfoItem(s, puedeResponder)).join("")}
+                `;
+                if (puedeResponder) {
+                    items.filter((s) => s.estado !== "respondida").forEach((s) => {
+                        const btn = document.getElementById(`btn-responder-info-${s.id}`);
+                        if (btn) btn.addEventListener("click", () => responderInfo(c.id, s.id));
+                    });
+                }
+            }
+
+            function renderInfoItem(s, puedeResponder) {
+                const respondida = s.estado === "respondida";
+                const borde = respondida ? "#16a34a" : (s.vencida ? "#dc2626" : "#f59e0b");
+                const limite = s.fecha_limite_respuesta ? formatDate(s.fecha_limite_respuesta) : "—";
+                const estadoTxt = respondida
+                    ? `Respondida por ${escapeHtml(s.respondido_por_username || "Compras")}`
+                    : (s.vencida
+                        ? "Pendiente — plazo vencido"
+                        : `Pendiente — ${s.dias_para_responder ?? "?"} día(s) hábiles para responder`);
+                const solicitante = escapeHtml(s.solicitado_por_username || "Jurídica");
+                const htmlAdjuntos = (list) =>
+                    list.length
+                        ? `<div style="margin-top:6px;"><strong>Adjuntos:</strong> ${list
+                              .map(
+                                  (a) =>
+                                      `<a href="#" data-download-url="/api/v1/archivos/${s.contrato_id}/${a.id}" data-filename="${escapeHtml(a.nombre_original)}">${escapeHtml(a.nombre_original)}</a>`
+                              )
+                              .join(" · ")}</div>`
+                        : "";
+                const adjuntosJuridica = (s.archivos || []).filter((a) => a.tipo === "solicitud_informacion");
+                const adjuntosSupervisor = (s.archivos || []).filter((a) => a.tipo !== "solicitud_informacion");
+                const respuestaHtml = respondida
+                    ? `<div style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border-radius:6px;">
+                           <strong>Tu respuesta:</strong><br>${escapeHtml(s.respuesta).replace(/\n/g, "<br>")}
+                           ${htmlAdjuntos(adjuntosSupervisor)}
+                       </div>`
+                    : "";
+                const formHtml = (!respondida && puedeResponder)
+                    ? `<div style="margin-top:10px;">
+                           <textarea id="resp-info-${s.id}" rows="3" style="width:100%;" placeholder="Escribe la información solicitada..."></textarea>
+                           <input type="file" id="files-info-${s.id}" multiple style="margin-top:6px;" />
+                           <div style="display:flex;justify-content:flex-end;margin-top:6px;">
+                               <button class="btn btn-sm btn-primary" id="btn-responder-info-${s.id}">Responder a Jurídica</button>
+                           </div>
+                       </div>`
+                    : "";
+                return `
+                    <div style="border-left:4px solid ${borde};background:#f8fafc;border-radius:6px;padding:10px 12px;margin-bottom:10px;">
+                        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                            <strong>${escapeHtml(estadoTxt)}</strong>
+                            <span class="muted">Límite: ${limite}</span>
+                        </div>
+                        <div style="margin-top:6px;"><strong>${solicitante} solicitó:</strong> ${escapeHtml(s.mensaje).replace(/\n/g, "<br>")}</div>
+                        ${htmlAdjuntos(adjuntosJuridica)}
+                        ${respuestaHtml}
+                        ${formHtml}
+                    </div>`;
+            }
+
+            async function responderInfo(contratoId, solicitudId) {
+                const respuesta = document.getElementById(`resp-info-${solicitudId}`).value.trim();
+                if (!respuesta) {
+                    showError("Escribe la información solicitada antes de responder.");
+                    return;
+                }
+                const fd = new FormData();
+                fd.append("respuesta", respuesta);
+                const files = document.getElementById(`files-info-${solicitudId}`).files;
+                for (const f of files) fd.append("archivos", f);
+                const btn = document.getElementById(`btn-responder-info-${solicitudId}`);
+                btn.disabled = true;
+                try {
+                    await api.postForm(`/contratos/${contratoId}/solicitudes-informacion/${solicitudId}/responder`, fd);
+                    showSuccess("Respuesta enviada a Jurídica.");
+                    const c = await api.get(`/contratos/${contratoId}`);
+                    cargarInfoFaltanteCompras(c);
+                } catch (err) {
+                    showError(err.message || "No se pudo enviar la respuesta.");
+                    btn.disabled = false;
+                }
+            }
+
+            // El anticipo se envía desde "Solicitud de firmas": ahí ya se gestionó la
+            // póliza y el contrato firmado. Notifica primero a Contabilidad y luego a Tesorería.
+            function buildAnticipoAccionesHtml(c) {
+                if (!esJuridica || !c.requiere_anticipo) return "";
+                if (c.anticipo_pagado) {
+                    return '<span class="status ok">✓ Anticipo pagado</span>';
+                }
+                if (c.estado === "anticipo_contabilidad") {
+                    return '<span class="hint">Anticipo en gestión de Contabilidad</span>';
+                }
+                if (c.estado === "anticipo_tesoreria") {
+                    return '<span class="hint">Anticipo en revisión de Tesorería</span>';
+                }
+                if (c.estado === "solicitud_firmas") {
+                    const faltaFirmado = !c.tiene_borrador;
+                    const faltaPoliza = c.requiere_poliza && !c.tiene_poliza;
+                    if (faltaFirmado || faltaPoliza) {
+                        const pendientes = [];
+                        if (faltaPoliza) pendientes.push("la póliza");
+                        if (faltaFirmado) pendientes.push("el contrato firmado");
+                        return (
+                            '<span class="hint">Para enviar el anticipo, primero gestiona ' +
+                            escapeHtml(pendientes.join(" y ")) +
+                            ".</span>"
+                        );
+                    }
+                    return (
+                        '<button type="button" class="btn btn-sm btn-primary" id="btn-enviar-anticipo" ' +
+                        'title="Notifica a Contabilidad y luego a Tesorería para el pago del anticipo.">' +
+                        "Enviar anticipo" +
+                        "</button>"
+                    );
+                }
+                return "";
             }
 
             function buildJuridicaActions(c) {
@@ -647,6 +840,10 @@
                 const borradorStatus = c.tiene_borrador
                     ? '<span class="status ok">✓ Adjuntado</span>'
                     : '<span class="status pending">⚠ Pendiente</span>';
+                const puedeSubirPoliza =
+                    c.estado === "elaborando" ||
+                    c.estado === "en_proceso" ||
+                    (c.estado === "activo" && c.requiere_poliza && !c.tiene_poliza);
 
                 return `
                     <div class="juridica-actions">
@@ -698,7 +895,8 @@
                                 <div class="field">
                                     <label>Unidad plazo</label>
                                     <select id="edit-plazo-unidad">
-                                        <option value="dias" ${c.plazo_unidad === "dias" ? "selected" : ""}>Días</option>
+                                        <option value="dias" ${c.plazo_unidad === "dias" ? "selected" : ""}>Días (hábiles)</option>
+                                        <option value="dias_calendario" ${c.plazo_unidad === "dias_calendario" ? "selected" : ""}>Días calendario</option>
                                         <option value="meses" ${c.plazo_unidad === "meses" ? "selected" : ""}>Meses</option>
                                         <option value="anios" ${c.plazo_unidad === "anios" ? "selected" : ""}>Años</option>
                                     </select>
@@ -736,6 +934,7 @@
                                         <option value="false" ${!c.requiere_poliza ? "selected" : ""}>No</option>
                                         <option value="true" ${c.requiere_poliza ? "selected" : ""}>Sí</option>
                                     </select>
+                                    <span class="hint">Lo define Jurídica en Edición de contrato.</span>
                                 </div>
                             </div>
                             <div class="field">
@@ -766,17 +965,25 @@
                             <div style="display: flex; gap: 8px; align-items: center;">
                                 <select id="select-estado" ${isFinalizado ? "" : ""}>
                                     <option value="en_proceso" ${c.estado === "en_proceso" ? "selected" : ""}>En proceso</option>
+                                    <option value="elaborando" ${c.estado === "elaborando" ? "selected" : ""}>Elaborando contrato</option>
+                                    <option value="revision_polizas" ${c.estado === "revision_polizas" ? "selected" : ""}>Revisión de pólizas</option>
+                                    <option value="solicitud_firmas" ${c.estado === "solicitud_firmas" ? "selected" : ""}>Solicitud de firmas</option>
+                                    ${c.estado === "anticipo_contabilidad" ? '<option value="anticipo_contabilidad" selected>Anticipo en contabilidad</option>' : ""}
+                                    ${c.estado === "anticipo_tesoreria" ? '<option value="anticipo_tesoreria" selected>Anticipo en tesorería</option>' : ""}
+                                    ${c.estado === "anticipo_pagado" ? '<option value="anticipo_pagado" selected>Anticipo pagado</option>' : ""}
                                     <option value="activo" ${c.estado === "activo" ? "selected" : ""}>Activo</option>
                                     <option value="finalizado" ${c.estado === "finalizado" ? "selected" : ""}>Finalizado</option>
                                 </select>
-                                <button class="btn btn-sm btn-primary" id="btn-save-estado">Guardar estado</button>
                             </div>
+                            <span class="hint">El estado se guarda automáticamente al seleccionarlo.</span>
+                            <textarea id="obs-estado" class="mt-2" rows="2" placeholder="Observación (opcional): se guarda en la trazabilidad y el historial de observaciones." style="width:100%;"></textarea>
                             <span class="hint">
-                                "Activo" requiere póliza adjuntada (si aplica). "Finalizado" cierra el contrato.
+                                La póliza la adjunta Jurídica o Gerencia durante la elaboración. "Finalizado" cierra el contrato.
                             </span>
                         </div>
 
                         <div class="action-grid mt-2">
+                            ${puedeSubirPoliza ? `
                             <div class="file-upload">
                                 <label>
                                     📄 ${c.requiere_poliza ? "Póliza (obligatoria)" : "Póliza"}
@@ -786,7 +993,12 @@
                                     Subir póliza
                                 </button>
                                 ${polizaStatus}
-                            </div>
+                            </div>` : `
+                            <div class="file-upload">
+                                <label>📄 Póliza</label>
+                                ${polizaStatus}
+                                <span class="hint">La adjunta Jurídica o Gerencia durante la elaboración.</span>
+                            </div>`}
                             <div class="file-upload">
                                 <label>📋 Contrato firmado</label>
                                 <input type="file" id="file-borrador" accept="application/pdf" />
@@ -796,7 +1008,8 @@
                                 ${borradorStatus}
                             </div>
                         </div>
-                        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--color-border); text-align:right;">
+                        <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--color-border); display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <div>${buildAnticipoAccionesHtml(c)}</div>
                             <button class="btn btn-sm btn-secondary" id="btn-delete-contrato" style="color:#991b1b;">
                                 Eliminar contrato
                             </button>
@@ -806,18 +1019,42 @@
             }
 
             function describeOtrosiEfecto(o) {
-                if (o.tipo === "prorroga") {
+                const parts = [];
+                if (o.plazo_adicional_cantidad) {
                     const u = UNIDAD_PLAZO_LABEL[o.plazo_adicional_unidad] || o.plazo_adicional_unidad || "";
-                    return `+${o.plazo_adicional_cantidad ?? 0} ${u}`;
+                    parts.push(`+${o.plazo_adicional_cantidad} ${u}`);
                 }
-                if (o.tipo === "adicion") {
-                    const v = Number(o.valor_adicional ?? 0);
-                    return `+${v.toLocaleString("es-CO", { minimumFractionDigits: 2 })}`;
+                if (o.valor_adicional) {
+                    const v = Number(o.valor_adicional);
+                    parts.push(`+${v.toLocaleString("es-CO", { minimumFractionDigits: 2 })}`);
                 }
-                if (o.tipo === "modificacion") {
-                    return "Cambió descripción del servicio";
-                }
-                return "Sin cambio en campos del contrato";
+                return parts.length ? parts.join(" · ") : "Sin cambio en campos del contrato";
+            }
+
+            function otrosiBloquesHtml(c, otrosi) {
+                const incP = otrosi ? (otrosi.tipo === "prorroga" || otrosi.tipo === "prorroga_adicion") : true;
+                const incA = otrosi ? (otrosi.tipo === "adicion" || otrosi.tipo === "prorroga_adicion") : true;
+                const u = UNIDAD_PLAZO_LABEL[c.plazo_unidad] || c.plazo_unidad;
+                const plazoInner = esJuridica
+                    ? `<label>Plazo adicional (en ${u}) *</label>
+                       <input type="number" min="1" id="otrosi-plazo" placeholder="Ej: 30" value="${otrosi?.plazo_adicional_cantidad || ""}" />
+                       <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">Se sumará al plazo actual (${c.plazo_cantidad} ${u}).</span>`
+                    : `<span class="hint" style="font-size:0.8rem;color:var(--color-text-muted);">Jurídica definirá el plazo adicional al finalizar.</span>`;
+                return `
+                    <p class="hint" style="font-size:0.8rem;color:var(--color-text-muted);margin-bottom:6px;">
+                        Por defecto van prórroga y adición. Quita el que no necesites.
+                    </p>
+                    <div class="row">
+                        <div class="tipo-block ${incP ? "" : "off"}" id="block-prorroga">
+                            <label class="tipo-check"><input type="checkbox" id="chk-prorroga" ${incP ? "checked" : ""} /> Prórroga (más tiempo)</label>
+                            ${plazoInner}
+                        </div>
+                        <div class="tipo-block ${incA ? "" : "off"}" id="block-adicion">
+                            <label class="tipo-check"><input type="checkbox" id="chk-adicion" ${incA ? "checked" : ""} /> Adición (más valor)</label>
+                            <label>Valor adicional (${c.moneda}) *</label>
+                            <input type="number" min="0.01" step="0.01" id="otrosi-valor" placeholder="Ej: 1000000" value="${otrosi?.valor_adicional || ""}" />
+                        </div>
+                    </div>`;
             }
 
             function buildOtrosiSection(c) {
@@ -854,7 +1091,6 @@
                         <input type="file" id="otrosi-archivo" accept="application/pdf" />
                       `
                     : "";
-                const tipoFormulario = otrosiPendienteJuridica?.tipo || "prorroga";
                 const descripcionFormulario = otrosiPendienteJuridica?.descripcion || "";
                 const formularioHtml = otrosiPendienteJuridica
                     ? `
@@ -862,18 +1098,7 @@
                             <p class="muted" style="margin-bottom:10px;">
                                 Datos enviados por Compras. Jurídica puede ajustar tiempos, cargar el firmado y aplicar el cambio.
                             </p>
-                            <div class="row">
-                                <div>
-                                    <label>Tipo de otrosí *</label>
-                                    <select id="otrosi-tipo">
-                                        <option value="prorroga" ${tipoFormulario === "prorroga" ? "selected" : ""}>Prórroga (modificar tiempos)</option>
-                                        <option value="adicion" ${tipoFormulario === "adicion" ? "selected" : ""}>Adición</option>
-                                        <option value="modificacion" ${tipoFormulario === "modificacion" ? "selected" : ""}>Modificación</option>
-                                        <option value="otro" ${tipoFormulario === "otro" ? "selected" : ""}>Otro</option>
-                                    </select>
-                                </div>
-                                <div id="otrosi-extra-wrap"></div>
-                            </div>
+                            ${otrosiBloquesHtml(c, otrosiPendienteJuridica)}
                             <label>Descripción / motivo *</label>
                             <textarea id="otrosi-descripcion">${escapeHtml(descripcionFormulario)}</textarea>
                             ${archivoFirmadoHtml}
@@ -890,20 +1115,7 @@
                     : (puedeCrear && !esJuridica
                     ? `
                         <div class="otrosi-form">
-                            <div class="row">
-                                <div>
-                                    <label>Tipo de otrosí *</label>
-                                    <select id="otrosi-tipo">
-                                        <option value="prorroga">Prórroga (más tiempo)</option>
-                                        <option value="adicion">Adición</option>
-                                        <option value="modificacion">Modificación</option>
-                                    </select>
-                                    <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">
-                                        En una prórroga, Jurídica definirá el plazo exacto al finalizar.
-                                    </span>
-                                </div>
-                                <div id="otrosi-extra-wrap"></div>
-                            </div>
+                            ${otrosiBloquesHtml(c, null)}
                             <label>Descripción / motivo *</label>
                             <textarea id="otrosi-descripcion" placeholder="Explica por qué se solicita el otrosí"></textarea>
                             ${archivoFirmadoHtml}
@@ -936,61 +1148,34 @@
                 `;
             }
 
-            function renderOtrosiExtraField(tipo, contrato, otrosi = null) {
-                const wrap = document.getElementById("otrosi-extra-wrap");
-                if (!wrap) return;
-                if (tipo === "prorroga") {
-                    const u = UNIDAD_PLAZO_LABEL[contrato.plazo_unidad] || contrato.plazo_unidad;
-                    if (esJuridica) {
-                        wrap.innerHTML = `
-                            <label>Plazo adicional (en ${u}) *</label>
-                            <input type="number" min="1" id="otrosi-plazo" placeholder="Ej: 30" value="${otrosi?.plazo_adicional_cantidad || ""}" />
-                            <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">
-                                Se sumará al plazo actual (${contrato.plazo_cantidad} ${u}).
-                            </span>
-                        `;
-                    } else {
-                        wrap.innerHTML = `<p class="hint" style="font-size:0.8rem;color:var(--color-text-muted);margin-top:18px;">
-                            Solicitas una prórroga. Jurídica definirá el plazo adicional al finalizar.
-                        </p>`;
-                    }
-                } else if (tipo === "adicion") {
-                    wrap.innerHTML = `
-                        <label>Valor adicional (${contrato.moneda}) *</label>
-                        <input type="number" min="0.01" step="0.01" id="otrosi-valor" placeholder="Ej: 1000000" value="${otrosi?.valor_adicional || ""}" />
-                        <span class="hint" style="font-size:0.75rem;color:var(--color-text-muted);">
-                            Se sumará al valor actual.
-                        </span>
-                    `;
-                } else if (tipo === "modificacion") {
-                    wrap.innerHTML = `
-                        <label>Nueva descripción del servicio *</label>
-                        <textarea id="otrosi-nueva-desc" placeholder="Texto que reemplazará la descripción actual">${escapeHtml(otrosi?.nueva_descripcion_servicio || "")}</textarea>
-                    `;
-                } else {
-                    wrap.innerHTML = `<p class="hint" style="font-size:0.8rem;color:var(--color-text-muted);margin-top:18px;">
-                        Sólo se registrará el otrosí en el historial (no modifica campos del contrato).
-                    </p>`;
-                }
-            }
-
             function wireOtrosiForm(c) {
                 if (c.estado !== "activo") return;
-                const tipoSel = document.getElementById("otrosi-tipo");
-                if (!tipoSel) return;
+                const chkP = document.getElementById("chk-prorroga");
+                const chkA = document.getElementById("chk-adicion");
+                if (!chkP || !chkA) return;
                 const submitBtn = document.getElementById("btn-aplicar-otrosi");
                 const otrosiPendienteId = submitBtn?.dataset.otrosiPendienteId;
-                const otrosiPendiente = otrosiPendienteId
-                    ? (c.otrosies || []).find((o) => String(o.id) === String(otrosiPendienteId))
-                    : null;
 
-                renderOtrosiExtraField(tipoSel.value, c, otrosiPendiente);
-                tipoSel.addEventListener("change", () =>
-                    renderOtrosiExtraField(tipoSel.value, c, otrosiPendiente)
-                );
+                function syncBloques() {
+                    document.getElementById("block-prorroga").classList.toggle("off", !chkP.checked);
+                    document.getElementById("block-adicion").classList.toggle("off", !chkA.checked);
+                    const plazo = document.getElementById("otrosi-plazo");
+                    if (plazo) plazo.disabled = !chkP.checked;
+                    const valor = document.getElementById("otrosi-valor");
+                    if (valor) valor.disabled = !chkA.checked;
+                }
+                syncBloques();
+                chkP.addEventListener("change", syncBloques);
+                chkA.addEventListener("change", syncBloques);
 
                 submitBtn.addEventListener("click", async () => {
-                    const tipo = tipoSel.value;
+                    const incP = chkP.checked;
+                    const incA = chkA.checked;
+                    const tipo = incP && incA ? "prorroga_adicion" : incP ? "prorroga" : incA ? "adicion" : "";
+                    if (!tipo) {
+                        showError("Debes dejar al menos una: prórroga o adición.");
+                        return;
+                    }
                     const descripcion = document.getElementById("otrosi-descripcion").value.trim();
                     if (!descripcion) {
                         showError("La descripción / motivo del otrosí es obligatoria.");
@@ -999,30 +1184,22 @@
                     const fd = new FormData();
                     fd.append("tipo", tipo);
                     fd.append("descripcion", descripcion);
-                    if (tipo === "prorroga") {
-                        if (esJuridica) {
-                            const v = document.getElementById("otrosi-plazo")?.value;
-                            if (!v || Number(v) <= 0) {
-                                showError("Debes indicar el plazo adicional (mayor a 0).");
-                                return;
-                            }
-                            fd.append("plazo_adicional_cantidad", v);
-                        }
+                    if (incP && esJuridica) {
                         // Compras solo solicita; Jurídica define el plazo al finalizar.
-                    } else if (tipo === "adicion") {
+                        const v = document.getElementById("otrosi-plazo")?.value;
+                        if (!v || Number(v) <= 0) {
+                            showError("Debes indicar el plazo adicional (mayor a 0).");
+                            return;
+                        }
+                        fd.append("plazo_adicional_cantidad", v);
+                    }
+                    if (incA) {
                         const v = document.getElementById("otrosi-valor")?.value;
                         if (!v || Number(v) <= 0) {
                             showError("Debes indicar el valor adicional (mayor a 0).");
                             return;
                         }
                         fd.append("valor_adicional", v);
-                    } else if (tipo === "modificacion") {
-                        const v = document.getElementById("otrosi-nueva-desc")?.value.trim();
-                        if (!v) {
-                            showError("Debes escribir la nueva descripción del servicio.");
-                            return;
-                        }
-                        fd.append("nueva_descripcion_servicio", v);
                     }
                     const file = document.getElementById("otrosi-archivo")?.files[0];
                     if (otrosiPendienteId && !file) {
@@ -1069,7 +1246,7 @@
                         fecha_inicio: document.getElementById("edit-fecha-inicio").value || null,
                         fecha_fin: document.getElementById("edit-fecha-fin").value || null,
                         fecha_proxima_notificacion: document.getElementById("edit-fecha-proxima-notificacion").value || null,
-                        hora_proxima_notificacion: document.getElementById("edit-hora-proxima-notificacion").value || "00:10",
+                        hora_proxima_notificacion: document.getElementById("edit-hora-proxima-notificacion").value || "07:30",
                     };
                     if (!payload.proveedor_contratista || !payload.nit_proveedor || !payload.descripcion_servicio) {
                         showError("Completa proveedor, NIT y descripción.");
@@ -1085,19 +1262,28 @@
                     }
                 });
 
-                document.getElementById("btn-save-estado").addEventListener("click", async () => {
+                const guardarEstado = async ({ cerrar = false } = {}) => {
                     const estado = document.getElementById("select-estado").value;
+                    const observacion = document.getElementById("obs-estado")?.value.trim() || "";
+                    if (estado === c.estado) return;
                     try {
-                        const updated = await api.put(`/contratos/${c.id}/estado`, { estado });
+                        const updated = await api.put(`/contratos/${c.id}/estado`, { estado, observacion });
                         showSuccess(`Estado actualizado a "${ESTADO_LABEL[updated.estado]}".`);
-                        modal.classList.remove("show");
                         load();
+                        if (cerrar) {
+                            modal.classList.remove("show");
+                        } else {
+                            await openDetail(c.id);
+                        }
                     } catch (err) {
                         showError(err.message);
                     }
-                });
+                };
 
-                document.getElementById("btn-upload-poliza").addEventListener("click", async () => {
+                // El estado se guarda automáticamente al elegirlo (ya no hay botón "Guardar estado").
+                document.getElementById("select-estado").addEventListener("change", () => guardarEstado());
+
+                document.getElementById("btn-upload-poliza")?.addEventListener("click", async () => {
                     const file = document.getElementById("file-poliza").files[0];
                     if (!file) { showError("Selecciona el archivo de la póliza."); return; }
                     const fd = new FormData();
@@ -1148,6 +1334,27 @@
                         showError(err.message);
                     }
                 });
+
+                document.getElementById("btn-enviar-anticipo")?.addEventListener("click", async () => {
+                    const fd = new FormData();
+                    const obs = document.getElementById("obs-estado")?.value.trim() || "";
+                    if (obs) fd.append("observacion", obs);
+                    try {
+                        await api.postForm(`/contratos/${c.id}/anticipo/enviar-contabilidad`, fd);
+                        showSuccess("Anticipo enviado a Contabilidad.");
+                        modal.classList.remove("show");
+                        load();
+                    } catch (err) {
+                        showError(err.message);
+                    }
+                });
+
+                // Mientras el anticipo está en Contabilidad/Tesorería, Jurídica no cambia
+                // el estado manualmente (evita retroceder el flujo).
+                const enAnticipo =
+                    c.estado === "anticipo_contabilidad" || c.estado === "anticipo_tesoreria";
+                const selEstado = document.getElementById("select-estado");
+                if (selEstado) selEstado.disabled = enAnticipo;
             }
 
             document.getElementById("btn-detail-close").addEventListener("click", () =>

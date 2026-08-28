@@ -15,15 +15,18 @@ from app.domain.entities.contrato import (
     normalizar_tipo_codigo,
 )
 from app.domain.entities.otrosi import Otrosi
+from app.domain.entities.solicitud_informacion import SolicitudInformacion
 from app.domain.value_objects.estado_aprobacion import EstadoAprobacion
 from app.domain.value_objects.estado_contrato import EstadoContrato
 from app.domain.value_objects.moneda import Moneda
 from app.domain.value_objects.tipo_otrosi import TipoOtrosi
+from app.domain.value_objects.tipo_precio import TipoPrecio
 from app.domain.value_objects.unidad_plazo import UnidadPlazo
 from app.infrastructure.database.models import (
     ArchivoContratoModel,
     ContratoModel,
     OtrosiContratoModel,
+    SolicitudInformacionContratoModel,
 )
 
 
@@ -54,6 +57,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             mime_type=m.mime_type,
             tamano_bytes=m.tamano_bytes,
             subido_por_id=m.subido_por_id,
+            solicitud_informacion_id=getattr(m, "solicitud_informacion_id", None),
             created_at=m.created_at,
         )
 
@@ -89,9 +93,13 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             tipo_codigo=getattr(model, "tipo_codigo", "") or "C",
             solicitud_gestion_id=getattr(model, "solicitud_gestion_id", None),
             solicitud_gestion_codigo=getattr(model, "solicitud_gestion_codigo", "") or "",
+            creado_por_username=(
+                model.creado_por.username if getattr(model, "creado_por", None) else ""
+            ),
             compania=model.compania,
             proveedor_contratista=model.proveedor_contratista,
             nit_proveedor=model.nit_proveedor,
+            proveedor_email=getattr(model, "proveedor_email", "") or "",
             descripcion_servicio=model.descripcion_servicio,
             obligaciones_colbeef=model.obligaciones_colbeef,
             obligaciones_proveedor=model.obligaciones_proveedor,
@@ -102,6 +110,18 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             renovacion_automatica=model.renovacion_automatica,
             condiciones_recibido_satisfactorio=model.condiciones_recibido_satisfactorio,
             requiere_poliza=model.requiere_poliza,
+            tipo_precio=TipoPrecio(getattr(model, "tipo_precio", None) or TipoPrecio.MAS_IVA.value),
+            forma_pago=getattr(model, "forma_pago", "") or "",
+            centro_costos=getattr(model, "centro_costos", "") or "",
+            supervisor_id=getattr(model, "supervisor_id", None),
+            supervisor_username=(
+                model.supervisor.username if getattr(model, "supervisor", None) else ""
+            ),
+            requiere_anticipo=bool(getattr(model, "requiere_anticipo", False)),
+            porcentaje_anticipo=getattr(model, "porcentaje_anticipo", None),
+            monto_anticipo=getattr(model, "monto_anticipo", None),
+            observaciones_anticipo=getattr(model, "observaciones_anticipo", "") or "",
+            anticipo_pagado=bool(getattr(model, "anticipo_pagado", False)),
             correo_lider_proceso=model.correo_lider_proceso,
             correo_gerencia=model.correo_gerencia,
             estado_aprobacion=EstadoAprobacion(model.estado_aprobacion),
@@ -109,6 +129,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             fecha_inicio=model.fecha_inicio,
             fecha_inicio_original=getattr(model, "fecha_inicio_original", None),
             fecha_fin=model.fecha_fin,
+            fecha_limite_elaboracion=getattr(model, "fecha_limite_elaboracion", None),
             fecha_proxima_notificacion=model.fecha_proxima_notificacion,
             hora_proxima_notificacion=cls._normalizar_hora(
                 getattr(model, "hora_proxima_notificacion", None)
@@ -138,6 +159,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             compania=contrato.compania,
             proveedor_contratista=contrato.proveedor_contratista,
             nit_proveedor=contrato.nit_proveedor,
+            proveedor_email=contrato.proveedor_email or "",
             descripcion_servicio=contrato.descripcion_servicio,
             obligaciones_colbeef=contrato.obligaciones_colbeef,
             obligaciones_proveedor=contrato.obligaciones_proveedor,
@@ -148,6 +170,15 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             renovacion_automatica=contrato.renovacion_automatica,
             condiciones_recibido_satisfactorio=contrato.condiciones_recibido_satisfactorio,
             requiere_poliza=contrato.requiere_poliza,
+            tipo_precio=contrato.tipo_precio.value,
+            forma_pago=contrato.forma_pago or "",
+            centro_costos=contrato.centro_costos or "",
+            supervisor_id=contrato.supervisor_id,
+            requiere_anticipo=bool(contrato.requiere_anticipo),
+            porcentaje_anticipo=contrato.porcentaje_anticipo,
+            monto_anticipo=contrato.monto_anticipo,
+            observaciones_anticipo=contrato.observaciones_anticipo or "",
+            anticipo_pagado=bool(getattr(contrato, "anticipo_pagado", False)),
             correo_lider_proceso=contrato.correo_lider_proceso,
             correo_gerencia=contrato.correo_gerencia,
             estado_aprobacion=contrato.estado_aprobacion.value,
@@ -155,6 +186,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             fecha_inicio=contrato.fecha_inicio,
             fecha_inicio_original=contrato.fecha_inicio_original,
             fecha_fin=contrato.fecha_fin,
+            fecha_limite_elaboracion=contrato.fecha_limite_elaboracion,
             fecha_proxima_notificacion=contrato.fecha_proxima_notificacion,
             hora_proxima_notificacion=contrato.hora_proxima_notificacion,
             fecha_ultima_notificacion_vencimiento=contrato.fecha_ultima_notificacion_vencimiento,
@@ -209,6 +241,8 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             .options(
                 selectinload(ContratoModel.archivos),
                 selectinload(ContratoModel.otrosies),
+                selectinload(ContratoModel.creado_por),
+                selectinload(ContratoModel.supervisor),
             )
             .filter(ContratoModel.id == contrato.id)
             .one_or_none()
@@ -224,6 +258,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         model.fecha_inicio = contrato.fecha_inicio
         model.fecha_inicio_original = contrato.fecha_inicio_original
         model.fecha_fin = contrato.fecha_fin
+        model.fecha_limite_elaboracion = contrato.fecha_limite_elaboracion
         model.fecha_proxima_notificacion = contrato.fecha_proxima_notificacion
         model.hora_proxima_notificacion = contrato.hora_proxima_notificacion
         model.fecha_ultima_notificacion_vencimiento = (
@@ -235,12 +270,22 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         model.descripcion_servicio = contrato.descripcion_servicio
         model.proveedor_contratista = contrato.proveedor_contratista
         model.nit_proveedor = contrato.nit_proveedor
+        model.proveedor_email = contrato.proveedor_email or ""
         model.obligaciones_colbeef = contrato.obligaciones_colbeef
         model.obligaciones_proveedor = contrato.obligaciones_proveedor
         model.moneda = contrato.moneda.value
         model.renovacion_automatica = contrato.renovacion_automatica
         model.condiciones_recibido_satisfactorio = contrato.condiciones_recibido_satisfactorio
         model.requiere_poliza = contrato.requiere_poliza
+        model.tipo_precio = contrato.tipo_precio.value
+        model.forma_pago = contrato.forma_pago or ""
+        model.centro_costos = contrato.centro_costos or ""
+        model.supervisor_id = contrato.supervisor_id
+        model.requiere_anticipo = bool(contrato.requiere_anticipo)
+        model.porcentaje_anticipo = contrato.porcentaje_anticipo
+        model.monto_anticipo = contrato.monto_anticipo
+        model.observaciones_anticipo = contrato.observaciones_anticipo or ""
+        model.anticipo_pagado = bool(getattr(contrato, "anticipo_pagado", False))
         model.correo_lider_proceso = contrato.correo_lider_proceso
         model.correo_gerencia = contrato.correo_gerencia
 
@@ -357,6 +402,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
             mime_type=archivo.mime_type,
             tamano_bytes=archivo.tamano_bytes,
             subido_por_id=archivo.subido_por_id,
+            solicitud_informacion_id=archivo.solicitud_informacion_id,
         )
         self._db.add(model)
         self._db.commit()
@@ -367,6 +413,8 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         return self._db.query(ContratoModel).options(
             selectinload(ContratoModel.archivos),
             selectinload(ContratoModel.otrosies),
+            selectinload(ContratoModel.creado_por),
+            selectinload(ContratoModel.supervisor),
         )
 
     def get_by_id(self, contrato_id: int) -> Optional[Contrato]:
@@ -428,6 +476,7 @@ class SqlAlchemyContratoRepository(ContratoRepository):
         query: Optional[str] = None,
         estado: Optional[EstadoContrato] = None,
         creador_id: Optional[int] = None,
+        supervisor_id: Optional[int] = None,
         solo_aprobados: bool = False,
         incluir_eliminados: bool = False,
     ) -> list[Contrato]:
@@ -444,14 +493,124 @@ class SqlAlchemyContratoRepository(ContratoRepository):
                     ContratoModel.codigo.like(patron),
                     ContratoModel.proveedor_contratista.like(patron),
                     ContratoModel.nit_proveedor.like(patron),
+                    ContratoModel.solicitud_gestion_codigo.like(patron),
                 )
             )
         if estado is not None:
             q = q.filter(ContratoModel.estado == estado.value)
         if creador_id is not None:
             q = q.filter(ContratoModel.creado_por_id == creador_id)
+        if supervisor_id is not None:
+            q = q.filter(ContratoModel.supervisor_id == supervisor_id)
         if solo_aprobados:
             q = q.filter(ContratoModel.estado_aprobacion == EstadoAprobacion.APROBADO.value)
 
         models = q.order_by(ContratoModel.id.desc()).all()
         return [self._to_entity(m) for m in models]
+
+    # --- solicitudes de información faltante ---
+    def _solicitud_info_to_entity(self, m: SolicitudInformacionContratoModel) -> SolicitudInformacion:
+        archivos_models = (
+            self._db.query(ArchivoContratoModel)
+            .filter(ArchivoContratoModel.solicitud_informacion_id == m.id)
+            .order_by(ArchivoContratoModel.id.asc())
+            .all()
+        )
+        return SolicitudInformacion(
+            id=m.id,
+            contrato_id=m.contrato_id,
+            solicitado_por_id=m.solicitado_por_id,
+            solicitado_por_username=(
+                m.solicitado_por.username if getattr(m, "solicitado_por", None) else ""
+            ),
+            mensaje=m.mensaje,
+            fecha_limite_respuesta=m.fecha_limite_respuesta,
+            estado=m.estado,
+            respuesta=m.respuesta or "",
+            respondido_por_id=m.respondido_por_id,
+            respondido_por_username=(
+                m.respondido_por.username if getattr(m, "respondido_por", None) else ""
+            ),
+            respondido_at=m.respondido_at,
+            created_at=m.created_at,
+            archivos=[self._archivo_to_entity(a) for a in archivos_models],
+        )
+
+    def _solicitud_info_query(self):
+        return self._db.query(SolicitudInformacionContratoModel).options(
+            selectinload(SolicitudInformacionContratoModel.solicitado_por),
+            selectinload(SolicitudInformacionContratoModel.respondido_por),
+        )
+
+    def crear_solicitud_informacion(
+        self, solicitud: SolicitudInformacion
+    ) -> SolicitudInformacion:
+        model = SolicitudInformacionContratoModel(
+            contrato_id=solicitud.contrato_id,
+            solicitado_por_id=solicitud.solicitado_por_id,
+            mensaje=solicitud.mensaje,
+            fecha_limite_respuesta=solicitud.fecha_limite_respuesta,
+            estado=solicitud.estado,
+            respuesta=solicitud.respuesta or "",
+        )
+        self._db.add(model)
+        self._db.commit()
+        self._db.refresh(model)
+        return self.get_solicitud_informacion(model.id)
+
+    def get_solicitud_informacion(
+        self, solicitud_id: int
+    ) -> Optional[SolicitudInformacion]:
+        model = (
+            self._solicitud_info_query()
+            .filter(SolicitudInformacionContratoModel.id == solicitud_id)
+            .one_or_none()
+        )
+        return self._solicitud_info_to_entity(model) if model else None
+
+    def actualizar_solicitud_informacion(
+        self, solicitud: SolicitudInformacion
+    ) -> SolicitudInformacion:
+        model = (
+            self._db.query(SolicitudInformacionContratoModel)
+            .filter(SolicitudInformacionContratoModel.id == solicitud.id)
+            .one_or_none()
+        )
+        if model is None:
+            raise ValueError(f"Solicitud de información {solicitud.id} no existe.")
+        model.mensaje = solicitud.mensaje
+        model.fecha_limite_respuesta = solicitud.fecha_limite_respuesta
+        model.estado = solicitud.estado
+        model.respuesta = solicitud.respuesta or ""
+        model.respondido_por_id = solicitud.respondido_por_id
+        model.respondido_at = solicitud.respondido_at
+        self._db.commit()
+        self._db.refresh(model)
+        return self.get_solicitud_informacion(model.id)
+
+    def list_solicitudes_informacion_by_contrato(
+        self, contrato_id: int
+    ) -> list[SolicitudInformacion]:
+        models = (
+            self._solicitud_info_query()
+            .filter(SolicitudInformacionContratoModel.contrato_id == contrato_id)
+            .order_by(SolicitudInformacionContratoModel.id.desc())
+            .all()
+        )
+        return [self._solicitud_info_to_entity(m) for m in models]
+
+    def list_solicitudes_informacion_pendientes(
+        self,
+    ) -> list[tuple[Contrato, SolicitudInformacion]]:
+        models = (
+            self._solicitud_info_query()
+            .filter(SolicitudInformacionContratoModel.estado == "pendiente")
+            .order_by(SolicitudInformacionContratoModel.id.desc())
+            .all()
+        )
+        resultado: list[tuple[Contrato, SolicitudInformacion]] = []
+        for m in models:
+            contrato = self.get_by_id(m.contrato_id)
+            if contrato is not None:
+                resultado.append((contrato, self._solicitud_info_to_entity(m)))
+        return resultado

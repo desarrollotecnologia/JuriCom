@@ -25,6 +25,7 @@ from app.application.use_cases.users import (
     UpdateUser,
 )
 from app.domain.entities.user import User
+from app.domain.value_objects.roles import Role
 from app.domain.exceptions import (
     UnauthorizedError,
     UserAlreadyExistsError,
@@ -54,6 +55,7 @@ def _to_public(u: User) -> UserPublic:
         id=u.id,
         username=u.username,
         role=u.role,
+        nombre=u.nombre or "",
         email=u.email or "",
         lider_catalog_id=u.lider_catalog_id or "",
         is_active=u.is_active,
@@ -68,6 +70,23 @@ def list_users(
     users: UserRepository = Depends(get_user_repository),
 ) -> list[UserPublic]:
     items = ListUsers(users).execute(actor=admin)
+    return [_to_public(u) for u in items]
+
+
+@router.get("/supervisores", response_model=list[UserPublic])
+def list_supervisores(
+    _: User = Depends(get_current_user),
+    users: UserRepository = Depends(get_user_repository),
+) -> list[UserPublic]:
+    """Usuarios con rol Supervisor (solicitante) activos, para asignarlos
+    como encargados de un contrato. Cualquier usuario autenticado puede
+    consultarlos porque sólo expone id/username."""
+    items = [
+        u
+        for u in users.list_all()
+        if u.is_active and u.role == Role.SOLICITANTE
+    ]
+    items.sort(key=lambda u: u.username.lower())
     return [_to_public(u) for u in items]
 
 
@@ -86,6 +105,7 @@ def create_user(
             role=payload.role,
             email=payload.email,
             lider_catalog_id=payload.lider_catalog_id,
+            nombre=payload.nombre,
         )
     except UserAlreadyExistsError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
@@ -110,6 +130,7 @@ def update_user(
             new_is_active=payload.is_active,
             new_email=payload.email,
             new_lider_catalog_id=payload.lider_catalog_id,
+            new_nombre=payload.nombre,
         )
     except UserNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

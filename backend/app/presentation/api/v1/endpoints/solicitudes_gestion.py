@@ -14,6 +14,7 @@ from app.application.interfaces.file_storage import FileStorage
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
+from app.application.services.indicadores_compras import calcular_indicadores_compras
 from app.application.services.solicitud_gestion_notificaciones import (
     NotificadorSolicitudGestion,
 )
@@ -22,6 +23,10 @@ from app.application.use_cases.solicitudes_gestion import (
     ArchivoEntradaSolicitud,
     CerrarSolicitudConPendientes,
     EnviarCotizacionSolicitud,
+    EnviarCotizacionProyectos,
+    ResolverComiteTecnico,
+    ResponderRevisionProyectos,
+    ListarPanelProyectos,
     GuardarGestionServiciosSolicitud,
     GetSolicitudGestion,
     GestionarAnticipoSolicitud,
@@ -46,6 +51,8 @@ from app.application.use_cases.solicitudes_gestion import (
     NotificarEvidenciaCierreServiciosSolicitud,
     CerrarServicioSolicitud,
     SolicitarRecotizacionSolicitud,
+    SolicitarRevisionSolicitud,
+    ResponderRevisionSolicitud,
 )
 from app.domain.entities.solicitud_gestion import (
     SolicitudGestion,
@@ -77,6 +84,7 @@ from app.presentation.api.v1.dependencies import (
     get_solicitud_gestion_repository,
 )
 from app.presentation.api.v1.schemas.solicitud_gestion_schemas import (
+    IndicadoresComprasResponse,
     RechazarAnticipoBody,
     RechazarSolicitudGestionBody,
     SolicitudGestionArchivoResponse,
@@ -92,6 +100,49 @@ from app.presentation.api.v1.schemas.solicitud_gestion_schemas import (
 )
 
 router = APIRouter(prefix="/solicitudes-gestion", tags=["solicitudes-gestion"])
+
+
+def _parse_cotizaciones_meta(raw: str) -> list[dict]:
+    texto = (raw or "").strip() or "[]"
+    try:
+        parsed = json.loads(texto)
+    except json.JSONDecodeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El formato de cotizaciones_meta no es válido.",
+        ) from e
+    if not isinstance(parsed, list):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="cotizaciones_meta debe ser una lista.",
+        )
+    return [item if isinstance(item, dict) else {} for item in parsed]
+
+
+def _entrada_cotizacion(upload: UploadFile, contenido: bytes, meta: dict) -> ArchivoEntradaSolicitud:
+    from app.application.use_cases.solicitudes_gestion.registrar_tramite_oc_solicitud import (
+        _parse_porcentaje,
+        _parse_valor_tramite,
+    )
+
+    valor = _parse_valor_tramite(str(meta.get("valor") or ""))
+    requiere = bool(meta.get("requiere_anticipo"))
+    pct = None
+    if requiere:
+        pct = _parse_porcentaje(str(meta.get("porcentaje_anticipo") or ""))
+    moneda = str(meta.get("moneda") or "COP").strip().upper()
+    if moneda not in ("COP", "USD", "EUR"):
+        moneda = "COP"
+    return ArchivoEntradaSolicitud(
+        nombre_original=upload.filename or "cotizacion",
+        mime_type=upload.content_type or "application/octet-stream",
+        contenido=contenido,
+        valor_cotizacion=valor,
+        moneda_cotizacion=moneda,
+        requiere_anticipo=requiere,
+        porcentaje_anticipo=pct,
+        propuesta=bool(meta.get("propuesta")),
+    )
 
 
 async def _archivos_desde_uploads(
@@ -188,7 +239,12 @@ def _to_producto_item(p) -> SolicitudGestionProductoResponse:
 
 
 def _actor_ve_estado_interno(actor: User) -> bool:
-    return actor.is_admin() or actor.is_compras()
+    return (
+        actor.is_admin()
+        or actor.is_compras()
+        or actor.is_juridica()
+        or actor.is_proyectos()
+    )
 
 
 def _estado_vista(s: SolicitudGestion, actor: User) -> tuple[EstadoSolicitudGestion, str]:
@@ -264,6 +320,10 @@ def _to_list_item(s: SolicitudGestion, actor: User) -> SolicitudGestionListItem:
         creado_por_username=s.creado_por_username,
         gestor_id=s.gestor_id,
         gestor_username=s.gestor_username,
+        proyectista_id=s.proyectista_id,
+        comite_supervisor_ok=bool(s.comite_supervisor_ok),
+        comite_proyectos_ok=bool(s.comite_proyectos_ok),
+        requiere_comite_tecnico=bool(getattr(s, "requiere_comite_tecnico", False)),
         requiere_anticipo=s.requiere_anticipo,
         porcentaje_anticipo=float(s.porcentaje_anticipo)
         if s.porcentaje_anticipo is not None
@@ -298,6 +358,18 @@ def _to_archivo_item(a) -> SolicitudGestionArchivoResponse:
         categoria=a.categoria,
         observacion_id=getattr(a, "observacion_id", None),
         created_at=a.created_at,
+        valor_cotizacion=float(a.valor_cotizacion)
+        if getattr(a, "valor_cotizacion", None) is not None
+        else None,
+        moneda_cotizacion=getattr(a, "moneda_cotizacion", None) or "COP",
+        requiere_anticipo=bool(getattr(a, "requiere_anticipo", False)),
+        porcentaje_anticipo=float(a.porcentaje_anticipo)
+        if getattr(a, "porcentaje_anticipo", None) is not None
+        else None,
+        monto_anticipo=float(a.monto_anticipo)
+        if getattr(a, "monto_anticipo", None) is not None
+        else None,
+        propuesta=bool(getattr(a, "propuesta", False)),
     )
 
 
@@ -361,6 +433,7 @@ def _to_response(
         observaciones=s.observaciones,
         observaciones_texto=s.observaciones_texto,
         requiere_visita=s.requiere_visita,
+        requiere_comite_tecnico=s.requiere_comite_tecnico,
         servicio_programado=s.servicio_programado,
         fecha_servicio_programado=s.fecha_servicio_programado,
         descripcion_servicio=s.descripcion_servicio or "",
@@ -376,6 +449,9 @@ def _to_response(
         lider_segunda_aprobacion_label=s.lider_segunda_aprobacion_label,
         gestor_id=s.gestor_id,
         gestor_username=s.gestor_username,
+        proyectista_id=s.proyectista_id,
+        comite_supervisor_ok=bool(s.comite_supervisor_ok),
+        comite_proyectos_ok=bool(s.comite_proyectos_ok),
         requiere_anticipo=s.requiere_anticipo,
         porcentaje_anticipo=float(s.porcentaje_anticipo)
         if s.porcentaje_anticipo is not None
@@ -494,6 +570,54 @@ def listar_panel_gestion(
     except UnauthorizedError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     return [_to_list_item(s, current) for s in items]
+
+
+@router.get("/panel-proyectos", response_model=list[SolicitudGestionListItem])
+def listar_panel_proyectos(
+    q: Optional[str] = Query(None, description="Buscar por código, título o solicitante."),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> list[SolicitudGestionListItem]:
+    try:
+        items = ListarPanelProyectos(repo).execute(current, query=q)
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    return [_to_list_item(s, current) for s in items]
+
+
+@router.get("/indicadores", response_model=IndicadoresComprasResponse)
+def obtener_indicadores_compras(
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> IndicadoresComprasResponse:
+    if not (current.is_admin() or current.is_compras()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sólo Compras o Admin pueden consultar los indicadores.",
+        )
+    solicitudes = repo.list_all()
+    ind = calcular_indicadores_compras(solicitudes)
+    return IndicadoresComprasResponse(
+        mes=ind.mes,
+        recibidas_mes=ind.recibidas_mes,
+        gestionadas_mes=ind.gestionadas_mes,
+        tiempo_resolucion_dias=ind.tiempo_resolucion_dias,
+        valor_servicios=ind.valor_servicios,
+        serie=[
+            {"mes": p.mes, "recibidas": p.recibidas, "gestionadas": p.gestionadas}
+            for p in ind.serie
+        ],
+        por_estado=ind.por_estado,
+        por_tipo=ind.por_tipo,
+        areas_gasto=[
+            {"etiqueta": r.etiqueta, "valor": r.valor, "detalles": r.detalles}
+            for r in ind.areas_gasto
+        ],
+        proveedores_frecuentes=[
+            {"etiqueta": r.etiqueta, "valor": r.valor, "detalles": r.detalles}
+            for r in ind.proveedores_frecuentes
+        ],
+    )
 
 
 @router.get("/{solicitud_id}/archivos/{archivo_id}")
@@ -675,6 +799,7 @@ async def registrar_solicitud_salidas_almacen(
 async def registrar_solicitud_servicios(
     titulo: str = Form(...),
     requiere_visita: bool = Form(...),
+    requiere_comite_tecnico: bool = Form(False),
     servicio_programado: bool = Form(...),
     fecha_servicio_programado: Optional[str] = Form(None),
     descripcion_servicio: str = Form(""),
@@ -726,6 +851,7 @@ async def registrar_solicitud_servicios(
             actor=current,
             titulo=titulo,
             requiere_visita=requiere_visita,
+            requiere_comite_tecnico=requiere_comite_tecnico,
             servicio_programado=servicio_programado,
             fecha_servicio_programado=fecha_programada,
             descripcion_servicio=descripcion_servicio,
@@ -759,6 +885,7 @@ async def aprobar_solicitud(
     tipo_aprobacion: str = Form("total"),
     productos_aprobados: str = Form("[]"),
     productos_cantidades: str = Form("{}"),
+    cotizacion_elegida_id: str = Form(""),
     adjuntos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
@@ -827,6 +954,9 @@ async def aprobar_solicitud(
             tipo_aprobacion=tipo_aprobacion,
             productos_aprobados_ids=productos_ids,
             productos_cantidades=cantidades_por_id or None,
+            cotizacion_elegida_id=int(cotizacion_elegida_id)
+            if (cotizacion_elegida_id or "").strip().isdigit()
+            else None,
         )
     except ContratoNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -895,6 +1025,116 @@ async def solicitar_recotizacion_solicitud(
             observacion_texto=observacion_texto,
             archivos=entradas,
             storage=storage,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/solicitar-revision", response_model=SolicitudGestionResponse)
+async def solicitar_revision_solicitud(
+    solicitud_id: int,
+    observacion: str = Form(""),
+    observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud = SolicitarRevisionSolicitud(repo, notificador).execute(
+            current,
+            solicitud_id,
+            observacion=observacion,
+            observacion_texto=observacion_texto,
+            archivos=entradas,
+            storage=storage,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/responder-revision", response_model=SolicitudGestionResponse)
+async def responder_revision_solicitud(
+    solicitud_id: int,
+    observacion: str = Form(""),
+    observacion_texto: str = Form(""),
+    titulo: str = Form(""),
+    proveedor_sugerido: str = Form(""),
+    descripcion_servicio: str = Form(""),
+    descripcion_servicio_texto: str = Form(""),
+    observaciones: str = Form(""),
+    observaciones_texto: str = Form(""),
+    centro_costo_area: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in adjuntos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud = ResponderRevisionSolicitud(repo, notificador).execute(
+            current,
+            solicitud_id,
+            observacion=observacion,
+            observacion_texto=observacion_texto,
+            archivos=entradas,
+            storage=storage,
+            titulo=titulo or None,
+            proveedor_sugerido=proveedor_sugerido if proveedor_sugerido != "" else None,
+            descripcion_servicio=descripcion_servicio or None,
+            descripcion_servicio_texto=descripcion_servicio_texto or None,
+            observaciones=observaciones if observaciones != "" else None,
+            observaciones_texto=observaciones_texto if observaciones_texto != "" else None,
+            centro_costo_area=centro_costo_area or None,
         )
         historial = repo.get_historial(solicitud_id)
     except ContratoNotFoundError as e:
@@ -1197,9 +1437,9 @@ async def enviar_cotizacion_solicitud(
     nueva_observacion: str = Form(""),
     nueva_observacion_texto: str = Form(""),
     justificacion: str = Form(""),
-    lider_segunda_aprobacion_id: str = Form(...),
+    lider_segunda_aprobacion_id: str = Form(""),
     lider_segunda_aprobacion_label: str = Form(""),
-    visitas_json: str = Form("[]"),
+    cotizaciones_meta: str = Form("[]"),
     cotizaciones: list[UploadFile] = File(default=[]),
     adjuntos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
@@ -1208,6 +1448,8 @@ async def enviar_cotizacion_solicitud(
     notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
 ) -> SolicitudGestionResponse:
     entradas: list[ArchivoEntradaSolicitud] = []
+    metas = _parse_cotizaciones_meta(cotizaciones_meta)
+    meta_idx = 0
     for upload in cotizaciones:
         if not upload.filename:
             continue
@@ -1217,13 +1459,12 @@ async def enviar_cotizacion_solicitud(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=f"El archivo '{upload.filename}' supera el límite permitido.",
             )
-        entradas.append(
-            ArchivoEntradaSolicitud(
-                nombre_original=upload.filename,
-                mime_type=upload.content_type or "application/octet-stream",
-                contenido=contenido,
-            )
-        )
+        meta = metas[meta_idx] if meta_idx < len(metas) else {}
+        meta_idx += 1
+        try:
+            entradas.append(_entrada_cotizacion(upload, contenido, meta))
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
     adjuntos_entradas: list[ArchivoEntradaSolicitud] = []
     for upload in adjuntos:
@@ -1254,7 +1495,165 @@ async def enviar_cotizacion_solicitud(
             lider_segunda_aprobacion_label=lider_segunda_aprobacion_label,
             cotizaciones=entradas,
             archivos_observacion=adjuntos_entradas,
-            visitas_json=visitas_json,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/revisar-proyectos", response_model=SolicitudGestionResponse)
+async def revisar_proyectos_solicitud(
+    solicitud_id: int,
+    observacion: str = Form(""),
+    observacion_texto: str = Form(""),
+    titulo: str | None = Form(None),
+    proveedor_sugerido: str | None = Form(None),
+    descripcion_servicio: str | None = Form(None),
+    descripcion_servicio_texto: str | None = Form(None),
+    observaciones: str | None = Form(None),
+    observaciones_texto: str | None = Form(None),
+    centro_costo_area: str | None = Form(None),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    adjuntos_entradas = await _archivos_desde_uploads(adjuntos, categoria="observacion")
+    try:
+        solicitud = ResponderRevisionProyectos(repo, storage, notificador).execute(
+            current,
+            solicitud_id,
+            observacion=observacion,
+            observacion_texto=observacion_texto,
+            archivos=adjuntos_entradas,
+            titulo=titulo,
+            proveedor_sugerido=proveedor_sugerido,
+            descripcion_servicio=descripcion_servicio,
+            descripcion_servicio_texto=descripcion_servicio_texto,
+            observaciones=observaciones,
+            observaciones_texto=observaciones_texto,
+            centro_costo_area=centro_costo_area,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/cotizar-proyectos", response_model=SolicitudGestionResponse)
+async def cotizar_proyectos_solicitud(
+    solicitud_id: int,
+    nueva_observacion: str = Form(""),
+    nueva_observacion_texto: str = Form(""),
+    enviar: bool = Form(False),
+    cotizaciones_meta: str = Form("[]"),
+    cotizaciones: list[UploadFile] = File(default=[]),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    entradas: list[ArchivoEntradaSolicitud] = []
+    metas = _parse_cotizaciones_meta(cotizaciones_meta)
+    meta_idx = 0
+    for upload in cotizaciones:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        meta = metas[meta_idx] if meta_idx < len(metas) else {}
+        meta_idx += 1
+        try:
+            entradas.append(_entrada_cotizacion(upload, contenido, meta))
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    adjuntos_entradas = await _archivos_desde_uploads(adjuntos, categoria="observacion")
+
+    try:
+        solicitud = EnviarCotizacionProyectos(repo, storage, notificador).execute(
+            current,
+            solicitud_id,
+            cotizaciones=entradas,
+            nueva_observacion=nueva_observacion,
+            nueva_observacion_texto=nueva_observacion_texto,
+            archivos_observacion=adjuntos_entradas,
+            enviar=enviar,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/comite/aceptar", response_model=SolicitudGestionResponse)
+async def aceptar_comite_tecnico(
+    solicitud_id: int,
+    observacion: str = Form(""),
+    observacion_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    adjuntos_entradas = await _archivos_desde_uploads(adjuntos, categoria="observacion")
+    try:
+        solicitud = ResolverComiteTecnico(repo, storage, notificador).aceptar(
+            current,
+            solicitud_id,
+            observacion=observacion,
+            observacion_texto=observacion_texto,
+            archivos=adjuntos_entradas,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/comite/recotizar", response_model=SolicitudGestionResponse)
+async def recotizar_comite_tecnico(
+    solicitud_id: int,
+    motivo: str = Form(""),
+    motivo_texto: str = Form(""),
+    adjuntos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    adjuntos_entradas = await _archivos_desde_uploads(adjuntos, categoria="observacion")
+    try:
+        solicitud = ResolverComiteTecnico(repo, storage, notificador).recotizar(
+            current,
+            solicitud_id,
+            motivo=motivo,
+            motivo_texto=motivo_texto,
+            archivos=adjuntos_entradas,
         )
         historial = repo.get_historial(solicitud_id)
     except ContratoNotFoundError as e:
