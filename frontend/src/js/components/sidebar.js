@@ -109,6 +109,8 @@ const NAV_BY_ROLE = {
     ],
     proyectos: [
         { href: PANEL_PROYECTOS_HREF, label: "Panel de cotizaciones" },
+        { href: NUEVA_SOLICITUD_HREF, label: "Nueva solicitud" },
+        { href: MIS_SOLICITUDES_GESTION_HREF, label: "Mis solicitudes" },
     ],
     contabilidad: [
         { href: PANEL_CONTABILIDAD_HREF, label: "Anticipos por gestionar" },
@@ -126,7 +128,18 @@ export function renderSidebar(containerId = "sidebar") {
     if (!container) return;
 
     const path = window.location.pathname;
-    const navItems = (NAV_BY_ROLE[user.role] || [])
+    const roles = session.getRoles();
+    const seenHrefs = new Set();
+    const mergedNav = [];
+    roles.forEach((r) => {
+        (NAV_BY_ROLE[r] || []).forEach((item) => {
+            if (!seenHrefs.has(item.href)) {
+                seenHrefs.add(item.href);
+                mergedNav.push(item);
+            }
+        });
+    });
+    const navItems = mergedNav
         .map((item) => {
             let active = path === item.href;
             if (item.href === GESTION_COMPRAS_HREF && GESTION_COMPRAS_PATHS.has(path)) {
@@ -166,7 +179,7 @@ export function renderSidebar(containerId = "sidebar") {
                 item.href === GESTION_JURIDICA_HREF &&
                 (GESTION_JURIDICA_PATHS.has(path) ||
                     (path === "/app/compras/mis-solicitudes.html" &&
-                        (user.role === "juridica" || user.role === "admin")))
+                        (roles.includes("juridica") || roles.includes("admin"))))
             ) {
                 active = true;
             }
@@ -182,7 +195,7 @@ export function renderSidebar(containerId = "sidebar") {
         <nav>${navItems}</nav>
         <div class="user-box">
             <div class="username">${escapeHtml(user.username)}</div>
-            <div class="role">${ROLE_LABEL[user.role] || user.role}</div>
+            <div class="role">${roles.map((r) => ROLE_LABEL[r] || r).join(" · ")}</div>
             <button class="btn btn-sm logout-btn" id="logout-btn">Cerrar sesión</button>
         </div>
     `;

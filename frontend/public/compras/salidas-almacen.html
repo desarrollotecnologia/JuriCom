@@ -158,7 +158,7 @@
             import { initSalidasAlmacenForm } from "/static/js/compras/salidas-almacen-form.js?v=1";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin", "solicitante"]);
+            session.requireRole(["compras", "admin", "solicitante", "proyectos"]);
             renderSidebar();
             initSalidasAlmacenForm();
         </script>

@@ -55,6 +55,7 @@ def _to_public(u: User) -> UserPublic:
         id=u.id,
         username=u.username,
         role=u.role,
+        roles=u.roles(),
         nombre=u.nombre or "",
         email=u.email or "",
         lider_catalog_id=u.lider_catalog_id or "",
@@ -84,7 +85,7 @@ def list_supervisores(
     items = [
         u
         for u in users.list_all()
-        if u.is_active and u.role == Role.SOLICITANTE
+        if u.is_active and u.tiene_rol(Role.SOLICITANTE)
     ]
     items.sort(key=lambda u: u.username.lower())
     return [_to_public(u) for u in items]

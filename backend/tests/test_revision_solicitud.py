@@ -46,6 +46,7 @@ def _actor(*, rol, actor_id=1):
         username=f"user{actor_id}",
         role=SimpleNamespace(value=rol),
         is_admin=lambda: rol == "admin",
+        is_juridica=lambda: rol == "juridica",
         is_lider_aprobador=lambda: rol == "lider_aprobador",
         puede_aprobar_solicitudes_gestion=lambda: rol in ("admin", "lider_aprobador"),
         ve_solo_propias_solicitudes_gestion=lambda: rol == "solicitante",

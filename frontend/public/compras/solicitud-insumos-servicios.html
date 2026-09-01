@@ -240,7 +240,7 @@
             import { initSolicitudServiciosForm } from "/static/js/compras/solicitud-servicios-form.js?v=10";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin", "solicitante"]);
+            session.requireRole(["compras", "admin", "solicitante", "proyectos"]);
             renderSidebar();
             initSolicitudServiciosForm();
         </script>

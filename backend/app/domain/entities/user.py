@@ -10,7 +10,7 @@ Son objetos planos con reglas de negocio.
 
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from datetime import datetime
 
@@ -46,6 +46,9 @@ class User:
 
     lider_catalog_id: str = ""
 
+    # Roles adicionales (multi-rol). `role` es el rol principal; estos se suman.
+    extra_roles: list[Role] = field(default_factory=list)
+
     id: Optional[int] = None
 
     is_active: bool = True
@@ -58,66 +61,88 @@ class User:
 
 
 
+    def roles(self) -> list[Role]:
+        """Todos los roles activos del usuario (principal + adicionales, sin duplicar)."""
+        vistos: list[Role] = []
+        for r in [self.role, *self.extra_roles]:
+            if r not in vistos:
+                vistos.append(r)
+        return vistos
+
+    def tiene_rol(self, rol: Role) -> bool:
+        return rol == self.role or rol in self.extra_roles
+
     def is_admin(self) -> bool:
 
-        return self.role == Role.ADMIN
+        return self.tiene_rol(Role.ADMIN)
 
 
 
     def is_juridica(self) -> bool:
 
-        return self.role == Role.JURIDICA
+        return self.tiene_rol(Role.JURIDICA)
 
 
 
     def is_compras(self) -> bool:
 
-        return self.role == Role.COMPRAS
+        return self.tiene_rol(Role.COMPRAS)
 
 
 
     def is_solicitante(self) -> bool:
 
-        return self.role == Role.SOLICITANTE
+        return self.tiene_rol(Role.SOLICITANTE)
 
 
 
     def is_anticipos(self) -> bool:
 
-        return self.role == Role.ANTICIPOS
+        return self.tiene_rol(Role.ANTICIPOS)
 
 
 
     def is_lider_aprobador(self) -> bool:
 
-        return self.role == Role.LIDER_APROBADOR
+        return self.tiene_rol(Role.LIDER_APROBADOR)
 
 
 
     def is_proyectos(self) -> bool:
 
-        return self.role == Role.PROYECTOS
+        return self.tiene_rol(Role.PROYECTOS)
 
 
 
     def is_contabilidad(self) -> bool:
 
-        return self.role == Role.CONTABILIDAD
+        return self.tiene_rol(Role.CONTABILIDAD)
 
 
 
     def is_tesoreria(self) -> bool:
 
-        return self.role == Role.TESORERIA
+        return self.tiene_rol(Role.TESORERIA)
 
 
 
     def puede_crear_solicitudes_gestion(self) -> bool:
-        return self.is_admin() or self.is_compras() or self.is_solicitante() or self.is_anticipos()
+        return (
+            self.is_admin()
+            or self.is_compras()
+            or self.is_solicitante()
+            or self.is_anticipos()
+            or self.is_proyectos()
+        )
 
     def ve_solo_propias_solicitudes_gestion(self) -> bool:
         return (
-            (self.is_compras() or self.is_solicitante() or self.is_anticipos())
+            (
+                self.is_compras()
+                or self.is_solicitante()
+                or self.is_anticipos()
+                or self.is_proyectos()
+            )
             and not self.is_admin()
         )
 

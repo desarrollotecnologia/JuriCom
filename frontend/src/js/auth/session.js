@@ -36,9 +36,17 @@ export const session = {
         }
         return true;
     },
-    requireRole(roles, redirectTo = "/app/dashboard.html") {
+    getRoles() {
         const user = this.getUser();
-        if (!user || !roles.includes(user.role)) {
+        if (!user) return [];
+        return user.roles?.length ? user.roles : [user.role];
+    },
+    hasRole(...roles) {
+        const mine = this.getRoles();
+        return roles.some((r) => mine.includes(r));
+    },
+    requireRole(roles, redirectTo = "/app/dashboard.html") {
+        if (!this.hasRole(...roles)) {
             window.location.href = redirectTo;
             return false;
         }

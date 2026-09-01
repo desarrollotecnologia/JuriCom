@@ -15,12 +15,35 @@ class SqlAlchemyUserRepository(UserRepository):
         self._db = db
 
     @staticmethod
-    def _to_entity(model: UserModel) -> User:
+    def _parse_extra_roles(valor: str, principal: Role) -> list[Role]:
+        """`"juridica,compras"` -> [Role...] sin duplicar el principal ni inválidos."""
+        extras: list[Role] = []
+        for parte in (valor or "").split(","):
+            parte = parte.strip()
+            if not parte:
+                continue
+            try:
+                r = Role(parte)
+            except ValueError:
+                continue
+            if r != principal and r not in extras:
+                extras.append(r)
+        return extras
+
+    @staticmethod
+    def _serialize_extra_roles(user: User) -> str:
+        return ",".join(r.value for r in user.roles()[1:])
+
+    @classmethod
+    def _to_entity(cls, model: UserModel) -> User:
+        principal = Role(model.role)
+        extras = cls._parse_extra_roles(getattr(model, "extra_roles", "") or "", principal)
         return User(
             id=model.id,
             username=model.username,
             password_hash=model.password_hash,
-            role=Role(model.role),
+            role=principal,
+            extra_roles=extras,
             nombre=getattr(model, "nombre", "") or "",
             email=getattr(model, "email", "") or "",
             lider_catalog_id=getattr(model, "lider_catalog_id", "") or "",
@@ -51,6 +74,7 @@ class SqlAlchemyUserRepository(UserRepository):
             username=user.username,
             password_hash=user.password_hash,
             role=user.role.value,
+            extra_roles=self._serialize_extra_roles(user),
             nombre=(user.nombre or "").strip(),
             email=(user.email or "").strip(),
             lider_catalog_id=(user.lider_catalog_id or "").strip(),
@@ -72,6 +96,7 @@ class SqlAlchemyUserRepository(UserRepository):
         model.username = user.username
         model.password_hash = user.password_hash
         model.role = user.role.value
+        model.extra_roles = self._serialize_extra_roles(user)
         model.nombre = (user.nombre or "").strip()
         model.email = (user.email or "").strip()
         model.lider_catalog_id = (user.lider_catalog_id or "").strip()

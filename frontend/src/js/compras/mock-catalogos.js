@@ -24,8 +24,17 @@ export const UNIDADES_MEDIDA = [
     { id: "PQ", label: "Paquete (PQ)" },
 ];
 
-/** Lista oficial Líderes Colbeef 2026 (misma que Radicar Solicitud). */
-export const LIDERES_AREA = LIDERES_COLBEEF;
+/**
+ * Aprobadores del "Líder de Área" (1.ª aprobación): solo directores
+ * (cargo DIRECTOR/DIRECTORA). Se excluye a Diego Serrano (id 13542263) porque
+ * siempre es la 2.ª aprobación (gerencia financiera).
+ * El catálogo completo sigue en LIDERES_COLBEEF para resolver etiquetas de
+ * solicitudes existentes.
+ */
+const DIEGO_SERRANO_ID = "13542263";
+export const LIDERES_AREA = LIDERES_COLBEEF.filter(
+    (l) => /\bdirectora?\b/i.test(l.label) && l.id !== DIEGO_SERRANO_ID
+);
 
 export function buildSelectOptions(items, placeholder = "Selecciona una opción") {
     const opts = [`<option value="">${placeholder}</option>`];

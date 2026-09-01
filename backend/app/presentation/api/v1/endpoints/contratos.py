@@ -1262,6 +1262,14 @@ def anticipo_enviar_contabilidad(
         "Anticipo recibido para gestión",
         "Jurídica envió un anticipo para que lo gestiones.",
     )
+    background_tasks.add_task(
+        _notificar_estado_supervisor,
+        contrato,
+        notifier,
+        users,
+        titulo="Anticipo en Contabilidad",
+        mensaje="Tu contrato pasó a Contabilidad para gestionar el anticipo.",
+    )
     return _to_contrato_response(contrato)
 
 
@@ -1308,6 +1316,14 @@ def anticipo_gestionar_contabilidad(
         Role.TESORERIA,
         "Anticipo listo para pago",
         "Contabilidad gestionó un anticipo y queda pendiente tu revisión y pago.",
+    )
+    background_tasks.add_task(
+        _notificar_estado_supervisor,
+        contrato,
+        notifier,
+        users,
+        titulo="Anticipo en Tesorería",
+        mensaje="El anticipo de tu contrato pasó a Tesorería para el pago.",
     )
     return _to_contrato_response(contrato)
 
@@ -1430,6 +1446,14 @@ def cierre_gestionar_contabilidad(
         "Cierre listo para pago final",
         "Contabilidad gestionó el cierre de un contrato y queda pendiente tu pago final.",
     )
+    background_tasks.add_task(
+        _notificar_estado_supervisor,
+        contrato,
+        notifier,
+        users,
+        titulo="Cierre en Tesorería",
+        mensaje="El cierre de tu contrato pasó a Tesorería para el pago final.",
+    )
     return _to_contrato_response(contrato)
 
 
@@ -1547,6 +1571,14 @@ def finalizar_contrato(
             Role.CONTABILIDAD,
             "Cierre de contrato para gestión",
             "El supervisor finalizó un contrato. Gestiona el cierre y envíalo a Tesorería.",
+        )
+        background_tasks.add_task(
+            _notificar_estado_supervisor,
+            contrato,
+            notifier,
+            users,
+            titulo="Cierre en Contabilidad",
+            mensaje="Tu contrato pasó a Contabilidad para gestionar el cierre y el pago final.",
         )
     else:
         # Contrato > umbral: el informe quedó entregado; Jurídica debe elaborar el acta.
@@ -1775,6 +1807,46 @@ def _notificar_cambio_estado_supervisor(
     notifier.send(
         EmailMessage(
             asunto=f"[JURICOM_BEEF] Estado actualizado — {contrato.codigo}",
+            destinatarios=[supervisor.email],
+            cuerpo_html=html,
+            cuerpo_texto=texto,
+        )
+    )
+
+
+def _notificar_estado_supervisor(
+    contrato,
+    notifier: EmailNotifier,
+    users: UserRepository,
+    *,
+    titulo: str,
+    mensaje: str,
+) -> None:
+    """Aviso simple al supervisor de que su contrato entró a una etapa
+    (p. ej. «tu contrato está en Contabilidad»)."""
+    if not contrato or not contrato.supervisor_id or not notifier.disponible:
+        return
+    supervisor = users.get_by_id(contrato.supervisor_id)
+    if not supervisor or not supervisor.email:
+        return
+    codigo = escape(contrato.codigo or f"#{contrato.id}")
+    proveedor = escape(contrato.proveedor_contratista or "")
+    url = "/app/compras/finalizar-contrato.html"
+    if contrato.codigo:
+        url = f"/app/compras/finalizar-contrato.html?codigo={contrato.codigo}"
+    html = (
+        f"<p>{escape(mensaje)}</p>"
+        f"<p><b>Contrato:</b> {codigo} ({proveedor})</p>"
+        f"<p>Puedes seguir la trazabilidad en "
+        f"<a href=\"{escape(url)}\">Finalizar contrato</a>.</p>"
+    )
+    texto = (
+        f"{mensaje} Contrato {contrato.codigo} "
+        f"({contrato.proveedor_contratista or ''})."
+    )
+    notifier.send(
+        EmailMessage(
+            asunto=f"[JURICOM_BEEF] {titulo} — {contrato.codigo}",
             destinatarios=[supervisor.email],
             cuerpo_html=html,
             cuerpo_texto=texto,

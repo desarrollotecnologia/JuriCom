@@ -822,6 +822,8 @@ def run_all() -> None:
     migrar_users_email()
     migrar_users_nombre()
     migrar_users_lider_catalog_id()
+    migrar_users_role_varchar()
+    migrar_users_extra_roles()
     migrar_solicitudes_creado_por_email()
     migrar_productos_cantidad_entregada()
     migrar_valor_tramite_oc()
@@ -1698,6 +1700,34 @@ def _varchar_length(tabla: str, columna: str) -> int | None:
         if c["name"] == columna:
             return getattr(c["type"], "length", None)
     return None
+
+
+def migrar_users_role_varchar() -> None:
+    """Multi-rol: amplía `role` (defensivo) por si guardó datos largos."""
+    if not _tabla_existe("users") or not _columna_existe("users", "role"):
+        return
+    length = _varchar_length("users", "role")
+    if length is not None and length >= 100:
+        return
+    with engine.begin() as conn:
+        logger.info("Ampliando users.role a VARCHAR(100)...")
+        conn.execute(text("ALTER TABLE users MODIFY COLUMN role VARCHAR(100) NOT NULL"))
+
+
+def migrar_users_extra_roles() -> None:
+    """Multi-rol: columna aparte para roles adicionales (retrocompatible:
+    el código antiguo sigue leyendo sólo `role`)."""
+    if not _tabla_existe("users"):
+        return
+    if not _columna_existe("users", "extra_roles"):
+        with engine.begin() as conn:
+            logger.info("Agregando columna 'extra_roles' a users...")
+            conn.execute(
+                text(
+                    "ALTER TABLE users "
+                    "ADD COLUMN extra_roles VARCHAR(200) NOT NULL DEFAULT '' AFTER role"
+                )
+            )
 
 
 def migrar_plazo_unidad_varchar() -> None:

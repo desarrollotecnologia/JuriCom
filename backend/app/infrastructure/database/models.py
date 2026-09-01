@@ -34,7 +34,9 @@ class UserModel(Base):
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     nombre: Mapped[str] = mapped_column(String(150), nullable=False, default="")
-    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    role: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Roles adicionales (multi-rol), separados por coma. Vacío = solo `role`.
+    extra_roles: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     email: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     lider_catalog_id: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

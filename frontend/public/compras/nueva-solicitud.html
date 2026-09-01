@@ -77,7 +77,7 @@
             import { renderSidebar } from "/static/js/components/sidebar.js";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin", "solicitante"]);
+            session.requireRole(["compras", "admin", "solicitante", "proyectos"]);
             renderSidebar();
             const volver = document.querySelector(".page-header .btn-secondary");
             if (volver && session.getUser()?.role === "solicitante") {
