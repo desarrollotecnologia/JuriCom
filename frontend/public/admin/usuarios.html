@@ -240,7 +240,7 @@
                                 isSelf ? ' <span class="muted">(tú)</span>' : ""
                             }</td>
                                 <td>${u.nombre ? escapeHtml(u.nombre) : '<span class="muted">—</span>'}</td>
-                                <td>${ROLE_BADGE[u.role] || u.role}</td>
+                                <td>${((u.roles && u.roles.length ? u.roles : [u.role]).map((r) => ROLE_BADGE[r] || r).join(" "))}</td>
                                 <td>
                                     ${
                                         u.is_active
