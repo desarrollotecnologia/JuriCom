@@ -1,9 +1,9 @@
+import { LIDERES_AREA } from "./mock-catalogos.js";
 import {
-    AREAS_CONSUMO,
-    LIDERES_AREA,
-    buildSelectOptions,
-} from "./mock-catalogos.js";
-import { opcionesCentrosCostosHtml } from "../catalogos/centros-costos.js";
+    opcionesAreasConsumoHtml,
+    opcionesCentrosCostosHtml,
+    vincularAreaCentroCosto,
+} from "../catalogos/centros-costos.js";
 import { api, ApiError } from "../api/client.js";
 import { createObservacionConAdjuntos } from "../components/observacion-editor.js";
 import { createSearchableSelect } from "../components/searchable-select.js";
@@ -100,7 +100,7 @@ export function initSalidasAlmacenForm() {
             </td>
             <td>
                 <select class="input-table" name="area_consumo_${rowId}" required>
-                    ${buildSelectOptions(AREAS_CONSUMO, "Área consumo")}
+                    ${opcionesAreasConsumoHtml("Área consumo")}
                 </select>
             </td>
             <td>
@@ -122,6 +122,10 @@ export function initSalidasAlmacenForm() {
         tr.querySelector(".btn-remove-row").addEventListener("click", () => removeRow(tr));
         const desc = tr.querySelector("textarea[name^='descripcion_']");
         if (desc) setupAutoGrowTextarea(desc);
+        vincularAreaCentroCosto(
+            tr.querySelector('select[name^="area_consumo_"]'),
+            tr.querySelector('select[name^="centro_costo_"]')
+        );
         tbody.appendChild(tr);
         updateRemoveButtons();
     }

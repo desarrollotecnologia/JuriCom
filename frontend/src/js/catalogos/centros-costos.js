@@ -83,6 +83,104 @@ export function valorCentro(cc, sc, nombre) {
     return `${cc}-${sc} ${nombre}`;
 }
 
+/** Clave corta CC-SC (ej. "212-3"). */
+export function claveCentroCosto(cc, sc) {
+    return `${cc}-${sc}`;
+}
+
+/** Parsea un valor almacenado de centro de costo. */
+export function parseValorCentroCosto(valor) {
+    const m = String(valor || "").trim().match(/^(\d+)-(\d+)\s+(.+)$/);
+    if (!m) return null;
+    return { cc: m[1], sc: m[2], nombre: m[3].trim() };
+}
+
+/** Busca un centro por clave CC-SC. */
+export function centroCostoPorClave(clave) {
+    const m = String(clave || "").trim().match(/^(\d+)-(\d+)$/);
+    if (!m) return null;
+    for (const grupo of CENTROS_COSTOS) {
+        if (grupo.cc !== m[1]) continue;
+        for (const [sc, nombre] of grupo.items) {
+            if (String(sc) === m[2]) {
+                return {
+                    cc: grupo.cc,
+                    sc,
+                    nombre,
+                    clave: claveCentroCosto(grupo.cc, sc),
+                    valor: valorCentro(grupo.cc, sc, nombre),
+                };
+            }
+        }
+    }
+    return null;
+}
+
+/** Busca un centro por valor almacenado completo. */
+export function centroCostoPorValor(valor) {
+    const parsed = parseValorCentroCosto(valor);
+    if (!parsed) return null;
+    return centroCostoPorClave(claveCentroCosto(parsed.cc, parsed.sc));
+}
+
+/**
+ * Opciones de área de consumo alineadas al catálogo de centros de costo.
+ * value = nombre del subcentro; data-clave = CC-SC para sincronizar selects.
+ */
+export function opcionesAreasConsumoHtml(placeholder = "Área consumo") {
+    const escapar = (t) =>
+        String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const partes = [`<option value="">${escapar(placeholder)}</option>`];
+    for (const grupo of CENTROS_COSTOS) {
+        partes.push(`<optgroup label="${escapar(`${grupo.cc} · ${grupo.depto}`)}">`);
+        for (const [sc, nombre] of grupo.items) {
+            const clave = claveCentroCosto(grupo.cc, sc);
+            const valorCentroFull = escapar(valorCentro(grupo.cc, sc, nombre));
+            partes.push(
+                `<option value="${escapar(nombre)}" data-clave="${escapar(clave)}" data-centro="${valorCentroFull}">` +
+                    `${escapar(nombre)}` +
+                    `</option>`
+            );
+        }
+        partes.push("</optgroup>");
+    }
+    return partes.join("");
+}
+
+/**
+ * Sincroniza bidireccionalmente área de consumo ↔ centro de costo en una fila.
+ */
+export function vincularAreaCentroCosto(areaSelect, centroSelect) {
+    if (!areaSelect || !centroSelect) return;
+
+    let sincronizando = false;
+
+    const setCentroDesdeArea = () => {
+        if (sincronizando) return;
+        const opt = areaSelect.selectedOptions[0];
+        const centroValor = opt?.dataset?.centro || "";
+        if (!centroValor) return;
+        sincronizando = true;
+        centroSelect.value = centroValor;
+        sincronizando = false;
+    };
+
+    const setAreaDesdeCentro = () => {
+        if (sincronizando) return;
+        const centro = centroCostoPorValor(centroSelect.value);
+        if (!centro) return;
+        sincronizando = true;
+        const match = [...areaSelect.options].find(
+            (o) => o.dataset?.clave === centro.clave || o.value === centro.nombre
+        );
+        if (match) areaSelect.value = match.value;
+        sincronizando = false;
+    };
+
+    areaSelect.addEventListener("change", setCentroDesdeArea);
+    centroSelect.addEventListener("change", setAreaDesdeCentro);
+}
+
 /**
  * Items para un buscador (searchable-select): permite filtrar por número
  * (cc, sc) o por nombre/departamento. El `id` conserva el valor almacenado.
