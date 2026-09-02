@@ -97,6 +97,9 @@ class ResolverComiteTecnico:
                 "Sólo el supervisor de la SRV o Proyectos pueden aceptar el comité."
             )
 
+        ya_supervisor = solicitud.comite_supervisor_ok
+        ya_proyectos = solicitud.comite_proyectos_ok
+
         if es_supervisor:
             solicitud.comite_supervisor_ok = True
         if es_proyectos:
@@ -104,6 +107,17 @@ class ResolverComiteTecnico:
         if actor.is_admin() and not es_supervisor and not es_proyectos:
             solicitud.comite_supervisor_ok = True
             solicitud.comite_proyectos_ok = True
+
+        # ponytail: si este lado ya estaba en ✓ y nada cambió, no re-registramos
+        # el historial (evita el duplicado "a la espera del otro participante").
+        sin_cambio = (
+            (es_supervisor and ya_supervisor and not es_proyectos)
+            or (es_proyectos and ya_proyectos and not es_supervisor)
+        )
+        if sin_cambio and not (
+            solicitud.comite_supervisor_ok and solicitud.comite_proyectos_ok
+        ):
+            return solicitud
 
         self._guardar_observacion(
             actor, solicitud_id, observacion, observacion_texto, archivos

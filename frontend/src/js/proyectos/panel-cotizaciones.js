@@ -73,7 +73,9 @@ function render() {
             const estado = ESTADO_LABEL[s.estado] || s.estado_label || s.estado;
             const accion =
                 s.estado === "comite"
-                    ? "Ver comité"
+                    ? s.comite_proyectos_ok
+                        ? "Esperando supervisor"
+                        : "Ver comité"
                     : s.estado === "revision_proyectos"
                     ? "Revisar solicitud"
                     : s.estado === "programacion_visita"
@@ -175,7 +177,21 @@ function renderDetalle(s) {
     if (s.estado === "comite") {
         return cabecera + traza + renderComite(s);
     }
-    return cabecera + traza + renderFormCotizacion(s);
+    if (s.estado === "cotizacion_proyectos") {
+        return cabecera + traza + renderFormCotizacion(s);
+    }
+    // Estados terminales/de contrato (contrato_completado, finalizado, cancelado…):
+    // la SRV ya no admite acciones de Proyectos, solo lectura.
+    return (
+        cabecera +
+        traza +
+        `<div class="sg-detail-panel">
+            <p class="muted">
+                Esta solicitud ya está cerrada (el contrato finalizó su ciclo).
+                No hay acciones pendientes para Proyectos.
+            </p>
+        </div>`
+    );
 }
 
 function documentosSolicitud(s) {
@@ -394,7 +410,12 @@ function renderComite(s) {
                     <dd>${proyOk ? "✓ De acuerdo" : "Pendiente"}</dd>
                 </div>
             </dl>
-            <div class="field" style="margin-top:12px">
+            ${
+                proyOk
+                    ? `<p class="muted" style="margin-top:12px">
+                        Ya registraste tu acuerdo. Esperando la aceptación del supervisor.
+                    </p>`
+                    : `<div class="field" style="margin-top:12px">
                 <label for="comite-observacion">Acta / observación (opcional)</label>
                 <textarea id="comite-observacion" rows="2"
                     placeholder="Lo hablado en la reunión..."></textarea>
@@ -410,7 +431,8 @@ function renderComite(s) {
                 <button type="button" class="btn btn-primary" id="btn-aceptar-comite">
                     Estoy de acuerdo
                 </button>
-            </div>
+            </div>`
+            }
         </div>`;
 }
 
@@ -427,14 +449,15 @@ function conectarFormulario(s) {
         return;
     }
     if (s.estado === "comite") {
-        document
-            .getElementById("btn-aceptar-comite")
-            .addEventListener("click", () => aceptarComite(s.id));
-        document
-            .getElementById("btn-recotizar")
-            .addEventListener("click", () => recotizarComite(s.id));
+        const btnAceptar = document.getElementById("btn-aceptar-comite");
+        const btnRecotizar = document.getElementById("btn-recotizar");
+        if (btnAceptar)
+            btnAceptar.addEventListener("click", () => aceptarComite(s.id));
+        if (btnRecotizar)
+            btnRecotizar.addEventListener("click", () => recotizarComite(s.id));
         return;
     }
+    if (s.estado !== "cotizacion_proyectos") return; // SRV cerrada: sin formulario
     const rows = document.getElementById("cot-rows");
     let cotSeq = 0;
     const renumerar = () => {

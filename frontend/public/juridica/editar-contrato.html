@@ -723,7 +723,19 @@
                         `Acta cargada. El contrato ${current.codigo} quedó finalizado.`
                     );
                 } catch (err) {
-                    showError(err.message || "No se pudo cargar el acta de liquidación.");
+                    const msg = err.message || "";
+                    if (/cierre|finaliz/i.test(msg)) {
+                        // El acta ya se había cargado y el contrato avanzó: sincronizamos.
+                        try {
+                            current = await api.get(`/contratos/${current.id}`);
+                            renderContrato(current);
+                        } catch (_) {}
+                        showSuccess(
+                            "El acta ya estaba cargada; el contrato avanzó a Cierre en Contabilidad."
+                        );
+                    } else {
+                        showError(msg || "No se pudo cargar el acta de liquidación.");
+                    }
                 } finally {
                     if (btn) btn.disabled = false;
                 }
