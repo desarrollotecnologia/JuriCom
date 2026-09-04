@@ -1,4 +1,4 @@
-"""Plantillas HTML y texto plano para los correos del sistema JURICOM_BEEF."""
+"""Plantillas HTML y texto plano para los correos del sistema JURICOM."""
 
 from datetime import datetime
 from html import escape
@@ -106,7 +106,7 @@ h2 {{ color: {_BRAND_DARK}; font-size: 18px; margin: 0 0 16px; }}
 
 
 def _shell(titulo: str, contenido_html: str) -> str:
-    """Envuelve el cuerpo del correo con el branding de JURICOM_BEEF."""
+    """Envuelve el cuerpo del correo con el branding de JURICOM."""
     año = datetime.now().year
     return f"""<!DOCTYPE html>
 <html lang="es">
@@ -119,7 +119,7 @@ def _shell(titulo: str, contenido_html: str) -> str:
     <div class="wrap">
         <div class="card">
             <div class="header">
-                <h1>JURICOM_BEEF</h1>
+                <h1>JURICOM</h1>
                 <p>Sistema de gestión de contratos — Colbeef</p>
             </div>
             <div class="content">
@@ -128,7 +128,7 @@ def _shell(titulo: str, contenido_html: str) -> str:
         </div>
         <div class="footer">
             Este es un correo automático — no responder.<br>
-            © {año} Colbeef · JURICOM_BEEF
+            © {año} Colbeef · JURICOM
         </div>
     </div>
 </body>
@@ -241,7 +241,7 @@ def render_aprobacion_lider_texto(
 ) -> str:
     link = _link_revision(contrato.id, "lider", token)
     return (
-        "JURICOM_BEEF — Aprobación líder de proceso\n\n"
+        "JURICOM — Aprobación líder de proceso\n\n"
         f"Radicado por: {radicado_por}\n\n"
         f"{_contrato_resumen_texto(contrato)}\n\n"
         f"Revisar solicitud: {link}\n"
@@ -266,7 +266,7 @@ def render_aprobacion_gerencia_html(contrato: Contrato, token: str) -> str:
 def render_aprobacion_gerencia_texto(contrato: Contrato, token: str) -> str:
     link = _link_revision(contrato.id, "gerencia", token)
     return (
-        "JURICOM_BEEF — Aprobación Gerencia\n\n"
+        "JURICOM — Aprobación Gerencia\n\n"
         f"{_contrato_resumen_texto(contrato)}\n\n"
         f"Revisar solicitud: {link}\n"
     )
@@ -289,7 +289,7 @@ def render_aprobado_juridica_html(contrato: Contrato) -> str:
 
 def render_aprobado_juridica_texto(contrato: Contrato) -> str:
     return (
-        "JURICOM_BEEF — Contrato aprobado y pendiente por revisar\n\n"
+        "JURICOM — Contrato aprobado y pendiente por revisar\n\n"
         f"{_contrato_resumen_texto(contrato)}\n\n"
         f"Abrir contrato: {_link_contrato(contrato.id)}\n"
     )
@@ -316,7 +316,7 @@ def render_seguimiento_lider_juridica_html(contrato: Contrato, token: str) -> st
 def render_seguimiento_lider_juridica_texto(contrato: Contrato, token: str) -> str:
     seguimiento = _link_seguimiento(contrato.codigo or "", token)
     return (
-        "JURICOM_BEEF — Contrato enviado a Jurídica\n\n"
+        "JURICOM — Contrato enviado a Jurídica\n\n"
         "Gerencia aprobó el contrato y ya fue enviado a Jurídica para su trámite.\n\n"
         f"Código: {contrato.codigo}\n"
         f"Proveedor: {contrato.proveedor_contratista}\n"
@@ -377,7 +377,7 @@ def render_solicitud_otrosi_texto(
     contrato: Contrato, otrosi, solicitado_por: str, token: str
 ) -> str:
     return (
-        "JURICOM_BEEF — Solicitud de otrosí registrada\n\n"
+        "JURICOM — Solicitud de otrosí registrada\n\n"
         f"Contrato: {contrato.codigo}\n"
         f"Proveedor: {contrato.proveedor_contratista}\n"
         f"Solicitado por: {solicitado_por}\n"
@@ -412,7 +412,7 @@ def render_aprobacion_gerencia_otrosi_html(contrato: Contrato, otrosi, token: st
 
 def render_aprobacion_gerencia_otrosi_texto(contrato: Contrato, otrosi, token: str) -> str:
     return (
-        "JURICOM_BEEF — Aprobación Gerencia de otrosí\n\n"
+        "JURICOM — Aprobación Gerencia de otrosí\n\n"
         f"Contrato: {contrato.codigo}\n"
         f"Proveedor: {contrato.proveedor_contratista}\n"
         f"Tipo: {otrosi.tipo.label}\n"
@@ -438,7 +438,7 @@ def render_otrosi_pendiente_juridica_html(contrato: Contrato, otrosi) -> str:
 
 def render_otrosi_pendiente_juridica_texto(contrato: Contrato, otrosi) -> str:
     return (
-        "JURICOM_BEEF — Otrosí pendiente para Jurídica\n\n"
+        "JURICOM — Otrosí pendiente para Jurídica\n\n"
         f"Contrato: {contrato.codigo}\n"
         f"Proveedor: {contrato.proveedor_contratista}\n"
         f"Tipo: {otrosi.tipo.label}\n"
@@ -507,7 +507,7 @@ def render_radicacion_texto(contrato: Contrato, radicado_por: str) -> str:
     link = _link_contrato(contrato.id)
     poliza = "SÍ — pendiente de adjuntar" if contrato.requiere_poliza else "No"
     return (
-        f"JURICOM_BEEF — Nuevo contrato radicado\n"
+        f"JURICOM — Nuevo contrato radicado\n"
         f"\n"
         f"Código: {contrato.codigo}\n"
         f"Radicado por: {radicado_por}\n"
@@ -580,15 +580,15 @@ def render_pendientes_html(contratos: Iterable[Contrato]) -> str:
             </a>
         </p>
     """
-    return _shell("Contratos pendientes — JURICOM_BEEF", cuerpo)
+    return _shell("Contratos pendientes — JURICOM", cuerpo)
 
 
 def render_pendientes_texto(contratos: Iterable[Contrato]) -> str:
     contratos = list(contratos)
     if not contratos:
-        return "JURICOM_BEEF\n\nNo hay contratos pendientes en este momento.\n"
+        return "JURICOM\n\nNo hay contratos pendientes en este momento.\n"
     lineas = [
-        "JURICOM_BEEF — Contratos pendientes por finalizar",
+        "JURICOM — Contratos pendientes por finalizar",
         "",
         f"Hay {len(contratos)} contrato(s) en estado 'En proceso'.",
         "",
@@ -662,7 +662,7 @@ def render_entrega_solicitud_texto(
         else "Los ítems de tu solicitud fueron entregados parcialmente."
     )
     lineas = [
-        "JURICOM_BEEF — Entrega de solicitud",
+        "JURICOM — Entrega de solicitud",
         "",
         f"Hola {solicitud.creado_por_username or 'solicitante'},",
         "",
@@ -720,7 +720,7 @@ def render_entrega_parcial_solicitud_texto(
     url = f"{settings.public_url.rstrip('/')}/app/compras/gestion-mis-solicitudes.html"
     lineas_txt = "\n".join(f"- {linea}" for linea in lineas)
     return (
-        "JURICOM_BEEF — Entrega parcial registrada\n\n"
+        "JURICOM — Entrega parcial registrada\n\n"
         f"Hola {solicitud.creado_por_username or 'solicitante'},\n\n"
         "Compras registró una entrega parcial de tu solicitud.\n\n"
         f"Consecutivo: {solicitud.codigo}\n"
@@ -766,7 +766,7 @@ def render_recepcion_insumos_solicitud_texto(
     url = f"{settings.public_url.rstrip('/')}/app/compras/gestion-mis-solicitudes.html"
     lineas_txt = "\n".join(f"- {linea}" for linea in lineas)
     return (
-        "JURICOM_BEEF — Insumos disponibles para reclamar\n\n"
+        "JURICOM — Insumos disponibles para reclamar\n\n"
         f"Hola {solicitud.creado_por_username or 'solicitante'},\n\n"
         "Compras recibió físicamente ítems de tu solicitud. Ya puedes pasar a reclamarlos.\n\n"
         f"Consecutivo: {solicitud.codigo}\n"
@@ -799,7 +799,7 @@ def render_solicitud_gestion_evento_html(
             <a class="btn" href="{escape(url)}">{escape(boton)}</a>
         </p>
     """
-    return _shell(f"JURICOM_BEEF — {titulo}", cuerpo)
+    return _shell(f"JURICOM — {titulo}", cuerpo)
 
 
 def render_solicitud_gestion_evento_texto(
@@ -813,7 +813,7 @@ def render_solicitud_gestion_evento_texto(
 
     mensaje_plano = re.sub(r"<[^>]+>", "", mensaje)
     return (
-        f"JURICOM_BEEF — {titulo}\n\n"
+        f"JURICOM — {titulo}\n\n"
         f"{mensaje_plano}\n\n"
         f"Consecutivo: {solicitud.codigo}\n"
         f"Título: {solicitud.titulo}\n\n"

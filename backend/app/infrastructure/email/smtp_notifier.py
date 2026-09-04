@@ -127,7 +127,7 @@ class SmtpEmailNotifier(EmailNotifier):
         mime["Reply-To"] = self._from_email
         mime["Date"] = formatdate(localtime=True)
         mime["Message-ID"] = make_msgid(domain=self._domain_from_email())
-        mime["X-Mailer"] = "JURICOM_BEEF v0.2"
+        mime["X-Mailer"] = "JURICOM v0.2"
         mime["MIME-Version"] = "1.0"
 
         if message.cuerpo_texto:

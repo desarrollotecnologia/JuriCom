@@ -1,4 +1,4 @@
-# JURICOM_BEEF — Flujo de trabajo completo (Colbeef)
+# JURICOM — Flujo de trabajo completo (Colbeef)
 
 > Documento de referencia del equipo. Describe **todas las funciones** del sistema,
 > cómo fluye el trabajo entre áreas, cómo se descargan los documentos y las **dudas

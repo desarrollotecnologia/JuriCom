@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="JURICOM_BEEF",
+    title="JURICOM",
     description=(
         "Sistema de gestión de contratos para los roles de Jurídica y Compras "
         "de Colbeef. Construido con Clean Architecture."

@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = ""
-    SMTP_FROM_NAME: str = "JURICOM_BEEF"
+    SMTP_FROM_NAME: str = "JURICOM"
 
     # Modo prueba: si tiene un correo, TODOS los envíos se redirigen ahí.
     # Dejar vacío para volver a la normalidad.

@@ -1,6 +1,6 @@
 # Proceso de Radicación de Contratos y Órdenes de Trabajo
 
-**Sistema:** JURICOM_BEEF — Gestión Jurídica de Colbeef
+**Sistema:** JURICOM — Gestión Jurídica de Colbeef
 **Ámbito:** Ciclo de vida de una solicitud de contrato, desde su radicación por Compras hasta su activación por Jurídica.
 **Última actualización:** documento vivo, alinear con el código fuente ante cualquier cambio.
 

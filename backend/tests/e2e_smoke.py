@@ -1,4 +1,4 @@
-"""Prueba end-to-end del flujo completo de JURICOM_BEEF.
+"""Prueba end-to-end del flujo completo de JURICOM.
 
 NO es un pytest — es un script que asume que el servidor está corriendo en
 http://localhost:8000 y ejerce TODA la cadena:

@@ -1,4 +1,4 @@
-# Despliegue de JURICOM_BEEF en el servidor
+# Despliegue de JURICOM en el servidor
 
 Guía para dejar el sistema corriendo en el servidor (Windows). El backend
 (FastAPI) sirve también el frontend, así que **no necesitas nginx ni otro

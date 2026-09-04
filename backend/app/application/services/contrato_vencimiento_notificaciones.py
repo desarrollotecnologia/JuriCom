@@ -109,7 +109,7 @@ def enviar_notificaciones_vencimiento(
     """
     cuerpo_texto = "\n".join(
         [
-            "JURICOM_BEEF - Recordatorios de contratos programados por Jurídica",
+            "JURICOM - Recordatorios de contratos programados por Jurídica",
             "",
             *[
                 f"- {c.codigo} | {c.proveedor_contratista} | notificar {c.fecha_proxima_notificacion} {(c.hora_proxima_notificacion or HORA_NOTIFICACION_DEFAULT).strftime('%H:%M')} | vence {c.fecha_fin or 'sin definir'} | faltan {dias if dias is not None else 'sin definir'} día(s)"
@@ -120,7 +120,7 @@ def enviar_notificaciones_vencimiento(
 
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] {len(por_vencer)} recordatorio(s) de contrato",
+            asunto=f"[JURICOM] {len(por_vencer)} recordatorio(s) de contrato",
             destinatarios=destinatarios,
             cuerpo_html=cuerpo_html,
             cuerpo_texto=cuerpo_texto,

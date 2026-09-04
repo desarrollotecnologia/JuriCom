@@ -37,7 +37,7 @@ class NotificarRadicacion:
             self._notifier.send(
                 EmailMessage(
                     asunto=(
-                        f"[JURICOM_BEEF] Aprobar solicitud de contrato — "
+                        f"[JURICOM] Aprobar solicitud de contrato — "
                         f"{contrato.codigo}"
                     ),
                     destinatarios=destinatarios,

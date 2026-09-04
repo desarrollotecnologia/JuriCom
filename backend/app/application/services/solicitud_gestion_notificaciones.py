@@ -181,7 +181,7 @@ class NotificadorSolicitudGestion:
     ) -> None:
         tipo = _tipo_legible(solicitud)
         codigo = solicitud.codigo or ""
-        asunto_base = f"[JURICOM_BEEF] {codigo} — Solicitud registrada"
+        asunto_base = f"[JURICOM] {codigo} — Solicitud registrada"
 
         sol = resolver_email_solicitante(solicitud, self._users)
         if sol:
@@ -202,7 +202,7 @@ class NotificadorSolicitudGestion:
         if lideres:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Pendiente de aprobación",
+                asunto=f"[JURICOM] {codigo} — Pendiente de aprobación",
                 titulo="Nueva solicitud pendiente",
                 mensaje=(
                     f"Tienes una nueva solicitud <strong>{codigo}</strong> "
@@ -225,7 +225,7 @@ class NotificadorSolicitudGestion:
         if sol:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Primera aprobación",
+                asunto=f"[JURICOM] {codigo} — Primera aprobación",
                 titulo="Primera aprobación",
                 mensaje=(
                     f"Su líder aprobó la primera aprobación de la solicitud "
@@ -238,7 +238,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Solicitud aprobada",
+                asunto=f"[JURICOM] {codigo} — Solicitud aprobada",
                 titulo="Nueva solicitud aprobada",
                 mensaje=(
                     f"La solicitud <strong>{codigo}</strong> fue aprobada en primera "
@@ -261,7 +261,7 @@ class NotificadorSolicitudGestion:
         if sol:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Segunda aprobación",
+                asunto=f"[JURICOM] {codigo} — Segunda aprobación",
                 titulo="Segunda aprobación",
                 mensaje=(
                     f"Su líder aprobó la segunda aprobación de la solicitud "
@@ -274,7 +274,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Segunda aprobación registrada",
+                asunto=f"[JURICOM] {codigo} — Segunda aprobación registrada",
                 titulo="Segunda aprobación",
                 mensaje=(
                     f"La solicitud <strong>{codigo}</strong> completó la segunda "
@@ -297,7 +297,7 @@ class NotificadorSolicitudGestion:
         if sol:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Solicitud rechazada",
+                asunto=f"[JURICOM] {codigo} — Solicitud rechazada",
                 titulo="Solicitud rechazada",
                 mensaje=(
                     f"El líder aprobador rechazó o canceló la solicitud "
@@ -310,7 +310,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Solicitud rechazada",
+                asunto=f"[JURICOM] {codigo} — Solicitud rechazada",
                 titulo="Solicitud rechazada",
                 mensaje=(
                     f"La solicitud <strong>{codigo}</strong> fue rechazada o cancelada "
@@ -333,7 +333,7 @@ class NotificadorSolicitudGestion:
             return
         self._enviar_evento(
             solicitud,
-            asunto=f"[JURICOM_BEEF] {codigo} — Ajustes solicitados",
+            asunto=f"[JURICOM] {codigo} — Ajustes solicitados",
             titulo="Tu solicitud necesita ajustes",
             mensaje=(
                 f"El aprobador te pide ajustar la solicitud <strong>{codigo}</strong> "
@@ -360,7 +360,7 @@ class NotificadorSolicitudGestion:
         if lideres:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Reenviada tras ajustes",
+                asunto=f"[JURICOM] {codigo} — Reenviada tras ajustes",
                 titulo="Solicitud ajustada y reenviada",
                 mensaje=(
                     f"El solicitante ajustó la solicitud <strong>{codigo}</strong> "
@@ -387,7 +387,7 @@ class NotificadorSolicitudGestion:
         if sol:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Cotizaciones enviadas",
+                asunto=f"[JURICOM] {codigo} — Cotizaciones enviadas",
                 titulo="Seguimiento de solicitud",
                 mensaje=(
                     f"Compras adjuntó cotizaciones para la solicitud "
@@ -400,7 +400,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Cotizaciones registradas",
+                asunto=f"[JURICOM] {codigo} — Cotizaciones registradas",
                 titulo="Cotizaciones enviadas",
                 mensaje=(
                     f"Se registró el envío de cotizaciones de la solicitud "
@@ -413,7 +413,7 @@ class NotificadorSolicitudGestion:
         if lideres:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Pendiente segunda aprobación",
+                asunto=f"[JURICOM] {codigo} — Pendiente segunda aprobación",
                 titulo="Segunda aprobación pendiente",
                 mensaje=(
                     f"Compras adjuntó cotizaciones para la solicitud "
@@ -435,7 +435,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Cotizaciones de Proyectos",
+                asunto=f"[JURICOM] {codigo} — Cotizaciones de Proyectos",
                 titulo="Cotizaciones de Proyectos",
                 mensaje=(
                     f"Proyectos envió cotizaciones para la solicitud "
@@ -462,7 +462,7 @@ class NotificadorSolicitudGestion:
         if sup:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Comité técnico",
+                asunto=f"[JURICOM] {codigo} — Comité técnico",
                 titulo="Comité técnico",
                 mensaje=mensaje,
                 url=self._url_mis_solicitudes(),
@@ -472,7 +472,7 @@ class NotificadorSolicitudGestion:
         if proy:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Comité técnico",
+                asunto=f"[JURICOM] {codigo} — Comité técnico",
                 titulo="Comité técnico",
                 mensaje=mensaje,
                 url=self._url_panel_proyectos(),
@@ -497,7 +497,7 @@ class NotificadorSolicitudGestion:
         if sup:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Falta tu aceptación",
+                asunto=f"[JURICOM] {codigo} — Falta tu aceptación",
                 titulo="Comité técnico",
                 mensaje=mensaje,
                 url=self._url_mis_solicitudes(),
@@ -507,7 +507,7 @@ class NotificadorSolicitudGestion:
         if proy:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Falta tu aceptación",
+                asunto=f"[JURICOM] {codigo} — Falta tu aceptación",
                 titulo="Comité técnico",
                 mensaje=mensaje,
                 url=self._url_panel_proyectos(),
@@ -529,7 +529,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Comité aprobado",
+                asunto=f"[JURICOM] {codigo} — Comité aprobado",
                 titulo="Comité técnico aprobado",
                 mensaje=(
                     f"El comité de la solicitud <strong>{codigo}</strong> fue aceptado "
@@ -546,7 +546,7 @@ class NotificadorSolicitudGestion:
             if dest:
                 self._enviar_evento(
                     solicitud,
-                    asunto=f"[JURICOM_BEEF] {codigo} — Comité aprobado",
+                    asunto=f"[JURICOM] {codigo} — Comité aprobado",
                     titulo="Comité técnico aprobado",
                     mensaje=(
                         f"El comité de la solicitud <strong>{codigo}</strong> quedó "
@@ -570,7 +570,7 @@ class NotificadorSolicitudGestion:
         if proy:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Recotizar (comité)",
+                asunto=f"[JURICOM] {codigo} — Recotizar (comité)",
                 titulo="Comité: recotización",
                 mensaje=(
                     f"El comité de la solicitud <strong>{codigo}</strong> no llegó a "
@@ -583,7 +583,7 @@ class NotificadorSolicitudGestion:
         if sup:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Recotizar (comité)",
+                asunto=f"[JURICOM] {codigo} — Recotizar (comité)",
                 titulo="Comité: recotización",
                 mensaje=(
                     f"El comité de la solicitud <strong>{codigo}</strong> se devolvió "
@@ -610,7 +610,7 @@ class NotificadorSolicitudGestion:
         if sol:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Recotización solicitada",
+                asunto=f"[JURICOM] {codigo} — Recotización solicitada",
                 titulo="Seguimiento de solicitud",
                 mensaje=(
                     f"Se solicitó una nueva cotización para la solicitud "
@@ -623,7 +623,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Nueva recotización",
+                asunto=f"[JURICOM] {codigo} — Nueva recotización",
                 titulo="Recotización solicitada",
                 mensaje=(
                     f"Hay una nueva solicitud de recotización para "
@@ -636,7 +636,7 @@ class NotificadorSolicitudGestion:
         if lideres:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Recotización solicitada",
+                asunto=f"[JURICOM] {codigo} — Recotización solicitada",
                 titulo="Recotización",
                 mensaje=(
                     f"Se solicitó recotización para la solicitud "
@@ -661,7 +661,7 @@ class NotificadorSolicitudGestion:
         if sol:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Trámite OC registrado",
+                asunto=f"[JURICOM] {codigo} — Trámite OC registrado",
                 titulo="Trámite OC",
                 mensaje=f"Compras registró el trámite OC de su solicitud <strong>{codigo}</strong>.{extra}",
                 url=self._url_mis_solicitudes(),
@@ -671,7 +671,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Trámite OC registrado",
+                asunto=f"[JURICOM] {codigo} — Trámite OC registrado",
                 titulo="Trámite OC registrado",
                 mensaje=f"Se registró trámite OC para la solicitud <strong>{codigo}</strong>.{extra}",
                 url=self._url_panel(),
@@ -694,7 +694,7 @@ class NotificadorSolicitudGestion:
         if lideres:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo pendiente de aprobación",
+                asunto=f"[JURICOM] {codigo} — Anticipo pendiente de aprobación",
                 titulo="Aprobación de anticipo",
                 mensaje=(
                     f"Hay un anticipo pendiente de aprobación para la solicitud "
@@ -707,7 +707,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo enviado a aprobación",
+                asunto=f"[JURICOM] {codigo} — Anticipo enviado a aprobación",
                 titulo="Anticipo en aprobación",
                 mensaje=(
                     f"Se solicitó aprobación de anticipo para <strong>{codigo}</strong>."
@@ -730,7 +730,7 @@ class NotificadorSolicitudGestion:
         if sol:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo aprobado",
+                asunto=f"[JURICOM] {codigo} — Anticipo aprobado",
                 titulo="Anticipo aprobado",
                 mensaje=f"El anticipo de la solicitud <strong>{codigo}</strong> fue aprobado.",
                 url=self._url_mis_solicitudes(),
@@ -740,7 +740,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo aprobado",
+                asunto=f"[JURICOM] {codigo} — Anticipo aprobado",
                 titulo="Anticipo aprobado",
                 mensaje=f"Anticipo aprobado para la solicitud <strong>{codigo}</strong>.",
                 url=self._url_panel(),
@@ -750,7 +750,7 @@ class NotificadorSolicitudGestion:
         if anticipos:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo para gestionar",
+                asunto=f"[JURICOM] {codigo} — Anticipo para gestionar",
                 titulo="Nuevo anticipo",
                 mensaje=(
                     f"Hay un anticipo aprobado pendiente de gestión para "
@@ -767,7 +767,7 @@ class NotificadorSolicitudGestion:
         if lideres:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo aprobado",
+                asunto=f"[JURICOM] {codigo} — Anticipo aprobado",
                 titulo="Anticipo aprobado",
                 mensaje=f"El anticipo de la solicitud <strong>{codigo}</strong> fue aprobado.",
                 url=self._url_aprobar(),
@@ -792,7 +792,7 @@ class NotificadorSolicitudGestion:
         if sol:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo gestionado",
+                asunto=f"[JURICOM] {codigo} — Anticipo gestionado",
                 titulo="Anticipo gestionado",
                 mensaje=f"El anticipo de la solicitud <strong>{codigo}</strong> fue gestionado.",
                 url=self._url_mis_solicitudes(),
@@ -802,7 +802,7 @@ class NotificadorSolicitudGestion:
         if compras:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo gestionado",
+                asunto=f"[JURICOM] {codigo} — Anticipo gestionado",
                 titulo="Anticipo gestionado",
                 mensaje=f"Gestión de anticipo completada para <strong>{codigo}</strong>.",
                 url=self._url_panel(),
@@ -812,7 +812,7 @@ class NotificadorSolicitudGestion:
         if anticipos:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo gestionado",
+                asunto=f"[JURICOM] {codigo} — Anticipo gestionado",
                 titulo="Anticipo gestionado",
                 mensaje=f"Se completó la gestión del anticipo de <strong>{codigo}</strong>.",
                 url=self._url_anticipos(),
@@ -822,7 +822,7 @@ class NotificadorSolicitudGestion:
         if lideres:
             self._enviar_evento(
                 solicitud,
-                asunto=f"[JURICOM_BEEF] {codigo} — Anticipo gestionado",
+                asunto=f"[JURICOM] {codigo} — Anticipo gestionado",
                 titulo="Anticipo gestionado",
                 mensaje=f"El anticipo de <strong>{codigo}</strong> fue gestionado por Anticipos.",
                 url=self._url_aprobar(),
@@ -841,7 +841,7 @@ class NotificadorSolicitudGestion:
             return
         self._enviar_evento(
             solicitud,
-            asunto=f"[JURICOM_BEEF] {codigo} — Adjuntar evidencia de cierre",
+            asunto=f"[JURICOM] {codigo} — Adjuntar evidencia de cierre",
             titulo="Evidencia requerida para cierre",
             mensaje=(
                 f"El gestor de tu solicitud de servicios <strong>{codigo}</strong> "
@@ -868,7 +868,7 @@ class NotificadorSolicitudGestion:
             enviado = (
                 self._send(
                     [sol],
-                    f"[JURICOM_BEEF] Solicitud {codigo} — {estado.label}",
+                    f"[JURICOM] Solicitud {codigo} — {estado.label}",
                     tpl.render_entrega_solicitud_html(solicitud, estado, actor.username),
                     tpl.render_entrega_solicitud_texto(solicitud, estado, actor.username),
                 )
@@ -878,7 +878,7 @@ class NotificadorSolicitudGestion:
             enviado = (
                 self._enviar_evento(
                     solicitud,
-                    asunto=f"[JURICOM_BEEF] {codigo} — Entrega registrada",
+                    asunto=f"[JURICOM] {codigo} — Entrega registrada",
                     titulo="Entrega registrada",
                     mensaje=(
                         f"Se registró entrega para la solicitud "
@@ -907,7 +907,7 @@ class NotificadorSolicitudGestion:
             enviado = (
                 self._send(
                     [sol],
-                    f"[JURICOM_BEEF] Solicitud {codigo} — Entrega parcial",
+                    f"[JURICOM] Solicitud {codigo} — Entrega parcial",
                     tpl.render_entrega_parcial_solicitud_html(
                         solicitud, actor.username, lineas
                     ),
@@ -921,7 +921,7 @@ class NotificadorSolicitudGestion:
             enviado = (
                 self._enviar_evento(
                     solicitud,
-                    asunto=f"[JURICOM_BEEF] {codigo} — Entrega parcial",
+                    asunto=f"[JURICOM] {codigo} — Entrega parcial",
                     titulo="Entrega parcial",
                     mensaje=f"Entrega parcial registrada para <strong>{codigo}</strong>.",
                     url=self._url_panel(),
@@ -947,7 +947,7 @@ class NotificadorSolicitudGestion:
             enviado = (
                 self._send(
                     [sol],
-                    f"[JURICOM_BEEF] Solicitud {codigo} — Recepción de insumos",
+                    f"[JURICOM] Solicitud {codigo} — Recepción de insumos",
                     tpl.render_recepcion_insumos_solicitud_html(
                         solicitud, actor.username, lineas
                     ),
@@ -961,7 +961,7 @@ class NotificadorSolicitudGestion:
             enviado = (
                 self._enviar_evento(
                     solicitud,
-                    asunto=f"[JURICOM_BEEF] {codigo} — Recepción de insumos",
+                    asunto=f"[JURICOM] {codigo} — Recepción de insumos",
                     titulo="Recepción registrada",
                     mensaje=f"Recepción de insumos registrada para <strong>{codigo}</strong>.",
                     url=self._url_panel(),
@@ -990,7 +990,7 @@ class NotificadorSolicitudGestion:
             enviado = (
                 self._send(
                     [sol],
-                    f"[JURICOM_BEEF] Solicitud {codigo} — Cerrada con pendientes",
+                    f"[JURICOM] Solicitud {codigo} — Cerrada con pendientes",
                     tpl.render_entrega_solicitud_html(
                         solicitud, EstadoSolicitudGestion.ENTREGADO, actor.username
                     ),
@@ -1005,7 +1005,7 @@ class NotificadorSolicitudGestion:
             enviado = (
                 self._enviar_evento(
                     solicitud,
-                    asunto=f"[JURICOM_BEEF] {codigo} — Cerrada con pendientes",
+                    asunto=f"[JURICOM] {codigo} — Cerrada con pendientes",
                     titulo="Cierre con pendientes",
                     mensaje=(
                         f"La solicitud <strong>{codigo}</strong> se cerró con ítems pendientes."

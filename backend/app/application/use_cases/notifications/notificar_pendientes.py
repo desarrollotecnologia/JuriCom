@@ -48,9 +48,9 @@ class NotificarPendientes:
         )
 
         asunto = (
-            f"[JURICOM_BEEF] {len(pendientes)} contrato(s) en proceso pendientes"
+            f"[JURICOM] {len(pendientes)} contrato(s) en proceso pendientes"
             if pendientes
-            else "[JURICOM_BEEF] Sin contratos pendientes"
+            else "[JURICOM] Sin contratos pendientes"
         )
         try:
             self._notifier.send(

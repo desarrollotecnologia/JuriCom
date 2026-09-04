@@ -259,8 +259,8 @@ export function generarExcelContratos(resumen, tipo = "mes") {
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:html="http://www.w3.org/TR/REC-html40">
  <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
-  <Title>Dashboard de radicaciones · JURICOM_BEEF</Title>
-  <Author>JURICOM_BEEF</Author>
+  <Title>Dashboard de radicaciones · JURICOM</Title>
+  <Author>JURICOM</Author>
   <Created>${new Date().toISOString()}</Created>
  </DocumentProperties>
  <Styles>
@@ -394,7 +394,7 @@ export function generarExcelContratos(resumen, tipo = "mes") {
   <Table>
    ${anchos.map((ancho) => `<Column ss:AutoFitWidth="0" ss:Width="${ancho * 7}"/>`).join("\n   ")}
    <Row ss:Height="28">
-    <Cell ss:MergeAcross="13" ss:StyleID="Titulo"><Data ss:Type="String">JURICOM_BEEF · Dashboard de radicaciones</Data></Cell>
+    <Cell ss:MergeAcross="13" ss:StyleID="Titulo"><Data ss:Type="String">JURICOM · Dashboard de radicaciones</Data></Cell>
    </Row>
    <Row>
     <Cell ss:MergeAcross="13" ss:StyleID="Subtitulo"><Data ss:Type="String">${escapeXml(periodo)}</Data></Cell>

@@ -189,7 +189,7 @@ export function renderSidebar(containerId = "sidebar") {
 
     container.innerHTML = `
         <div class="brand">
-            <div class="brand-name">JURICOM_BEEF</div>
+            <div class="brand-name">JURICOM</div>
             <div class="brand-sub">Colbeef</div>
         </div>
         <nav>${navItems}</nav>

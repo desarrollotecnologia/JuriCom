@@ -707,7 +707,7 @@ def revisar_solicitud_por_correo(
         <body>
             <div class="wrap">
                 <div class="header">
-                    <h1>JURICOM_BEEF</h1>
+                    <h1>JURICOM</h1>
                     <p>Revisión de solicitud por {escape(paso_label)}</p>
                 </div>
                 <div class="content">
@@ -893,7 +893,7 @@ def aprobar_por_correo(
         <html lang="es">
         <head><meta charset="UTF-8"><title>Contrato aprobado</title></head>
         <body style="font-family: Arial, sans-serif; padding: 32px;">
-            <h1 style="color:#1f4e8a;">JURICOM_BEEF</h1>
+            <h1 style="color:#1f4e8a;">JURICOM</h1>
             <h2>{mensaje}</h2>
             <p>Contrato <strong>{contrato.codigo}</strong> - {contrato.proveedor_contratista}</p>
             <p>Ya puedes cerrar esta ventana.</p>
@@ -938,7 +938,7 @@ def rechazar_por_correo(
         <html lang="es">
         <head><meta charset="UTF-8"><title>Solicitud rechazada</title></head>
         <body style="font-family: Arial, sans-serif; padding: 32px;">
-            <h1 style="color:#1f4e8a;">JURICOM_BEEF</h1>
+            <h1 style="color:#1f4e8a;">JURICOM</h1>
             <h2>{escape(mensaje)}</h2>
             <p>Contrato <strong>{escape(contrato.codigo or '')}</strong> - {escape(contrato.proveedor_contratista)}</p>
             <p>La solicitud quedó marcada como <strong>rechazada</strong> y no pasará a Jurídica.</p>
@@ -966,7 +966,7 @@ def _html_aprobacion_ya_procesada(contrato, paso: str, detalle: str) -> HTMLResp
         <html lang="es">
         <head><meta charset="UTF-8"><title>Aprobación ya procesada</title></head>
         <body style="font-family: Arial, sans-serif; padding: 32px;">
-            <h1 style="color:#1f4e8a;">JURICOM_BEEF</h1>
+            <h1 style="color:#1f4e8a;">JURICOM</h1>
             <h2>{escape(mensaje)}</h2>
             <p>Contrato <strong>{escape(contrato.codigo or '')}</strong> - {escape(contrato.proveedor_contratista)}</p>
             <p>Ya puedes cerrar esta ventana.</p>
@@ -987,7 +987,7 @@ def _notificar_gerencia_aprobacion(contrato, notifier: EmailNotifier) -> None:
     token = _approval_token(contrato.id, "gerencia")
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Aprobación Gerencia — {contrato.codigo}",
+            asunto=f"[JURICOM] Aprobación Gerencia — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=render_aprobacion_gerencia_html(contrato, token),
             cuerpo_texto=render_aprobacion_gerencia_texto(contrato, token),
@@ -1006,7 +1006,7 @@ def _notificar_juridica_aprobado(contrato, notifier: EmailNotifier) -> None:
 
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Contrato pendiente por revisar — {contrato.codigo}",
+            asunto=f"[JURICOM] Contrato pendiente por revisar — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=render_aprobado_juridica_html(contrato),
             cuerpo_texto=render_aprobado_juridica_texto(contrato),
@@ -1025,7 +1025,7 @@ def _notificar_lider_contrato_en_juridica(contrato, notifier: EmailNotifier) -> 
     token = _approval_token(contrato.id, "lider")
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Contrato en Jurídica — {contrato.codigo}",
+            asunto=f"[JURICOM] Contrato en Jurídica — {contrato.codigo}",
             destinatarios=[contrato.correo_lider_proceso],
             cuerpo_html=render_seguimiento_lider_juridica_html(contrato, token),
             cuerpo_texto=render_seguimiento_lider_juridica_texto(contrato, token),
@@ -1175,7 +1175,7 @@ def _notificar_anticipo_rol(contrato, notifier, users, rol, titulo, cuerpo) -> N
     texto = f"{cuerpo} Contrato {contrato.codigo} ({contrato.proveedor_contratista or ''})."
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] {titulo} — {contrato.codigo}",
+            asunto=f"[JURICOM] {titulo} — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -1210,7 +1210,7 @@ def _notificar_anticipo_pagado(contrato, notifier, users: UserRepository) -> Non
     )
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Anticipo pagado — {contrato.codigo}",
+            asunto=f"[JURICOM] Anticipo pagado — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -1394,7 +1394,7 @@ def _notificar_contrato_completado(
     )
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Contrato completado — {contrato.codigo}",
+            asunto=f"[JURICOM] Contrato completado — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -1697,7 +1697,7 @@ def _notificar_pendiente_acta_liquidacion(
     )
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Falta acta de liquidación — {contrato.codigo}",
+            asunto=f"[JURICOM] Falta acta de liquidación — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -1730,7 +1730,7 @@ def _notificar_acta_a_supervisor(
     )
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Acta de liquidación — {contrato.codigo}",
+            asunto=f"[JURICOM] Acta de liquidación — {contrato.codigo}",
             destinatarios=[supervisor.email],
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -1768,7 +1768,7 @@ def _notificar_contrato_finalizado(
     )
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Contrato finalizado — {contrato.codigo}",
+            asunto=f"[JURICOM] Contrato finalizado — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -1806,7 +1806,7 @@ def _notificar_cambio_estado_supervisor(
     )
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Estado actualizado — {contrato.codigo}",
+            asunto=f"[JURICOM] Estado actualizado — {contrato.codigo}",
             destinatarios=[supervisor.email],
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -1846,7 +1846,7 @@ def _notificar_estado_supervisor(
     )
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] {titulo} — {contrato.codigo}",
+            asunto=f"[JURICOM] {titulo} — {contrato.codigo}",
             destinatarios=[supervisor.email],
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -1881,7 +1881,7 @@ def _notificar_solicitud_informacion(
     )
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Información faltante — {contrato.codigo}",
+            asunto=f"[JURICOM] Información faltante — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -1907,7 +1907,7 @@ def _notificar_respuesta_informacion(contrato, solicitud, notifier: EmailNotifie
     )
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Información recibida — {contrato.codigo}",
+            asunto=f"[JURICOM] Información recibida — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=html,
             cuerpo_texto=texto,
@@ -2314,7 +2314,7 @@ def aprobar_otrosi_por_correo(
         f"""<!DOCTYPE html>
         <html lang="es"><head><meta charset="UTF-8"><title>Otrosí aprobado</title></head>
         <body style="font-family:Arial;padding:32px;">
-            <h2>JURICOM_BEEF</h2>
+            <h2>JURICOM</h2>
             <p>{escape(mensaje)}</p>
             <p>Contrato: <strong>{escape(contrato.codigo or '')}</strong></p>
         </body></html>"""
@@ -2344,7 +2344,7 @@ def rechazar_otrosi_por_correo(
         f"""<!DOCTYPE html>
         <html lang="es"><head><meta charset="UTF-8"><title>Otrosí rechazado</title></head>
         <body style="font-family:Arial;padding:32px;">
-            <h2>JURICOM_BEEF</h2>
+            <h2>JURICOM</h2>
             <p>Solicitud de otrosí rechazada por {escape(paso)}.</p>
             <p>Contrato: <strong>{escape(contrato.codigo or '')}</strong></p>
         </body></html>"""
@@ -2498,7 +2498,7 @@ def _notificar_solicitud_otrosi(contrato, otrosi, current: User, notifier: Email
 
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Solicitud de otrosí — {contrato.codigo}",
+            asunto=f"[JURICOM] Solicitud de otrosí — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=render_solicitud_otrosi_html(
                 contrato, otrosi, current.username, token
@@ -2522,7 +2522,7 @@ def _notificar_gerencia_otrosi(contrato, otrosi, notifier: EmailNotifier) -> Non
     token = _otrosi_approval_token(contrato.id, otrosi.id, "gerencia")
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Aprobación Gerencia otrosí — {contrato.codigo}",
+            asunto=f"[JURICOM] Aprobación Gerencia otrosí — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=render_aprobacion_gerencia_otrosi_html(contrato, otrosi, token),
             cuerpo_texto=render_aprobacion_gerencia_otrosi_texto(contrato, otrosi, token),
@@ -2541,7 +2541,7 @@ def _notificar_juridica_otrosi_pendiente(contrato, otrosi, notifier: EmailNotifi
 
     notifier.send(
         EmailMessage(
-            asunto=f"[JURICOM_BEEF] Otrosí pendiente Jurídica — {contrato.codigo}",
+            asunto=f"[JURICOM] Otrosí pendiente Jurídica — {contrato.codigo}",
             destinatarios=destinatarios,
             cuerpo_html=render_otrosi_pendiente_juridica_html(contrato, otrosi),
             cuerpo_texto=render_otrosi_pendiente_juridica_texto(contrato, otrosi),
