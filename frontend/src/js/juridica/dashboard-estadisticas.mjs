@@ -184,6 +184,7 @@ export function generarExcelContratos(resumen, tipo = "mes") {
         activo: "Activo",
         finalizado: "Finalizado",
         en_proceso: "En proceso",
+        revision: "Revisión",
     };
     const contratos = resumen.contratos || [];
     const periodo = tituloPeriodoExportacion(resumen.inicio, resumen.fin, tipo);
@@ -444,6 +445,7 @@ export function generarCsvContratos(contratos) {
         activo: "Activo",
         finalizado: "Finalizado",
         en_proceso: "En proceso",
+        revision: "Revisión",
     };
     const precios = { mas_iva: "Más IVA", aui: "AUI", no_aplica: "No aplica" };
     const encabezados = [

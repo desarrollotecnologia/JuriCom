@@ -144,6 +144,7 @@ def test_estado_contrato_y_codigo():
     assert normalizar_tipo_codigo("os") == "OS"
     assert set(EstadoContrato.values()) == {
         "en_proceso",
+        "revision",
         "elaborando",
         "revision_polizas",
         "solicitud_firmas",
@@ -157,6 +158,7 @@ def test_estado_contrato_y_codigo():
         "completado",
     }
     assert EstadoContrato.EN_PROCESO.label == "En proceso"
+    assert EstadoContrato.REVISION.label == "Revisión"
     assert EstadoContrato.ELABORANDO.label == "Elaborando contrato"
 
 

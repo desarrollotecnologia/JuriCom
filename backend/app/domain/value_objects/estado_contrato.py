@@ -15,6 +15,7 @@ from enum import Enum
 
 class EstadoContrato(str, Enum):
     EN_PROCESO = "en_proceso"
+    REVISION = "revision"
     ELABORANDO = "elaborando"
     REVISION_POLIZAS = "revision_polizas"
     SOLICITUD_FIRMAS = "solicitud_firmas"
@@ -37,6 +38,7 @@ class EstadoContrato(str, Enum):
     def label(self) -> str:
         return {
             EstadoContrato.EN_PROCESO: "En proceso",
+            EstadoContrato.REVISION: "Revisión",
             EstadoContrato.ELABORANDO: "Elaborando contrato",
             EstadoContrato.REVISION_POLIZAS: "Revisión de pólizas",
             EstadoContrato.SOLICITUD_FIRMAS: "Solicitud de firmas",

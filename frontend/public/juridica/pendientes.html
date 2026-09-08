@@ -197,7 +197,7 @@
                 modalBody.innerHTML = `
                     <p>
                         <span class="codigo-contrato">${escapeHtml(c.codigo)}</span>
-                        <span class="badge badge-en_proceso">${c.estado === "elaborando" ? "Elaborando" : "Pendiente"}</span>
+                        <span class="badge badge-en_proceso">${c.estado === "elaborando" ? "Elaborando" : c.estado === "revision" ? "Revisión" : "Pendiente"}</span>
                         ${
                             c.solicitud_gestion_codigo
                                 ? `<span class="codigo-solicitud">${escapeHtml(c.solicitud_gestion_codigo)}</span>`

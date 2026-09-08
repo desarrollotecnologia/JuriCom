@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 _ESTADO_CONTRATO_UI = {
     "en_proceso": "Pendiente",
+    "revision": "Revisión",
     "elaborando": "Elaborando contrato",
     "revision_polizas": "Revisión de pólizas",
     "solicitud_firmas": "Solicitud de firmas",
@@ -23,6 +24,7 @@ _ESTADO_CONTRATO_UI = {
 
 _ETAPA_HISTORIAL_POR_ESTADO = {
     "en_proceso": EstadoSolicitudGestion.EN_JURIDICA,
+    "revision": EstadoSolicitudGestion.EN_JURIDICA,
     "elaborando": EstadoSolicitudGestion.ELABORANDO_CONTRATO,
     "revision_polizas": EstadoSolicitudGestion.REVISION_POLIZAS,
     "solicitud_firmas": EstadoSolicitudGestion.SOLICITUD_FIRMAS,
