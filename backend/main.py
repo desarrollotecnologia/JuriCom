@@ -100,6 +100,20 @@ app.add_middleware(DisableFrontendCacheMiddleware)
 app.include_router(api_v1_router)
 
 
+@app.get("/app/compras/solicitud-compra.html", include_in_schema=False)
+def redirect_solicitud_compra():
+    """La URL de siempre apunta al formulario con unidades actualizadas."""
+    return RedirectResponse(
+        url="/app/compras/f1-compra.html",
+        status_code=302,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
 FRONTEND_DIR = (Path(__file__).resolve().parents[1] / "frontend" / "public").resolve()
 if FRONTEND_DIR.exists():
     app.mount(
