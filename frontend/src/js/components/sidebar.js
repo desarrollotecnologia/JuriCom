@@ -35,6 +35,7 @@ const GESTION_COMPRAS_PATHS = new Set([
     NUEVA_SOLICITUD_HREF,
     RADICAR_CONTRATO_HREF,
     "/app/compras/solicitud-compra.html",
+    "/app/compras/f1-compra.html",
     "/app/compras/salidas-almacen.html",
     "/app/compras/solicitud-insumos-servicios.html",
     MIS_SOLICITUDES_GESTION_HREF,
@@ -47,6 +48,7 @@ const GESTION_COMPRAS_PATHS = new Set([
 const GESTION_SOLICITANTE_PATHS = new Set([
     NUEVA_SOLICITUD_HREF,
     "/app/compras/solicitud-compra.html",
+    "/app/compras/f1-compra.html",
     "/app/compras/salidas-almacen.html",
     "/app/compras/solicitud-insumos-servicios.html",
     MIS_SOLICITUDES_GESTION_HREF,
@@ -55,6 +57,7 @@ const GESTION_SOLICITANTE_PATHS = new Set([
 const GESTION_ANTICIPOS_PATHS = new Set([
     GESTION_ANTICIPO_HREF,
     "/app/compras/solicitud-compra.html",
+    "/app/compras/f1-compra.html",
     MIS_SOLICITUDES_GESTION_HREF,
 ]);
 
@@ -100,7 +103,7 @@ const NAV_BY_ROLE = {
     anticipos: [
         { href: "/app/dashboard.html", label: "Inicio" },
         { href: GESTION_ANTICIPO_HREF, label: "Gestión de anticipos" },
-        { href: "/app/compras/solicitud-compra.html?v=4", label: "Solicitud de compra" },
+        { href: "/app/compras/f1-compra.html", label: "Solicitud de compra" },
         { href: MIS_SOLICITUDES_GESTION_HREF, label: "Mis solicitudes" },
     ],
     lider_aprobador: [
@@ -158,7 +161,7 @@ export function renderSidebar(containerId = "sidebar") {
                 active = true;
             }
             if (
-                item.href === "/app/compras/solicitud-compra.html" &&
+                item.href === "/app/compras/f1-compra.html" &&
                 GESTION_ANTICIPOS_PATHS.has(path)
             ) {
                 active = true;
