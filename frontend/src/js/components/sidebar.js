@@ -100,7 +100,7 @@ const NAV_BY_ROLE = {
     anticipos: [
         { href: "/app/dashboard.html", label: "Inicio" },
         { href: GESTION_ANTICIPO_HREF, label: "Gestión de anticipos" },
-        { href: "/app/compras/solicitud-compra.html", label: "Solicitud de compra" },
+        { href: "/app/compras/solicitud-compra.html?v=4", label: "Solicitud de compra" },
         { href: MIS_SOLICITUDES_GESTION_HREF, label: "Mis solicitudes" },
     ],
     lider_aprobador: [

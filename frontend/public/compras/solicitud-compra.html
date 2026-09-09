@@ -2,6 +2,9 @@
 <html lang="es">
     <head>
         <meta charset="UTF-8" />
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta http-equiv="Pragma" content="no-cache" />
+        <meta http-equiv="Expires" content="0" />
         <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Solicitud de Compra · JURICOM</title>
@@ -184,7 +187,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSolicitudCompraForm } from "/static/js/compras/solicitud-compra-form.js?v=3";
+            import { initSolicitudCompraForm } from "/static/js/compras/solicitud-compra-form.js?v=4";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante", "anticipos", "proyectos"]);

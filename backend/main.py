@@ -13,6 +13,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 from app.infrastructure.config import settings
 from app.infrastructure.database.bootstrap import init_database, seed_admin_user
@@ -77,6 +79,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class DisableFrontendCacheMiddleware(BaseHTTPMiddleware):
+    """Evita que el navegador reutilice HTML/JS estático desactualizado."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/app/") or path.startswith("/static/"):
+            response.headers["Cache-Control"] = (
+                "no-store, no-cache, must-revalidate, max-age=0"
+            )
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+
+app.add_middleware(DisableFrontendCacheMiddleware)
 
 app.include_router(api_v1_router)
 
