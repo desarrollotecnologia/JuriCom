@@ -13,7 +13,7 @@ EMAILS_LIDERES_COLBEEF: dict[str, str] = {
     "1098660251": "gerencia.comercial@colbeef.com",
     "91477701": "desposte@colbeef.com",
     "1098763171": "siso@colbeef.com",
-    "1056908061": "gerencia.calidad@colbeef.com",
+    "1056908061": "director.planta@colbeef.com",
     "1098661407": "coordinacion.gestionhumana@colbeef.com",
     "63560912": "coordinacion.calidad@colbeef.com",
     "1102387740": "coordinacion.tesoreria@colbeef.com",

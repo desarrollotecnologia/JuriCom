@@ -16,7 +16,7 @@ export const LIDERES_COLBEEF = [
     { id: "1098660251", label: "ARENAS SARMIENTO FAUSTO ANDRES - LIDER CRECIMIENTO COMERCIAL", email: "gerencia.comercial@colbeef.com" },
     { id: "91477701", label: "VARGAS DURAN ROBINSON - LIDER DE DESPOSTE", email: "desposte@colbeef.com" },
     { id: "1098763171", label: "SUAREZ QUIÑONES JEFFERSON ALEXANDER - LIDER SST", email: "siso@colbeef.com" },
-    { id: "1056908061", label: "SEGURA BARRERA MARIA FILOMENA - DIRECTORA DE PLANTA", email: "gerencia.calidad@colbeef.com" },
+    { id: "1056908061", label: "SEGURA BARRERA MARIA FILOMENA - DIRECTORA DE PLANTA", email: "director.planta@colbeef.com" },
     { id: "1098661407", label: "VERA MORA CINDY LEOMAR - JEFE DE GESTION HUMANA", email: "coordinacion.gestionhumana@colbeef.com" },
     { id: "63560912", label: "RUBIANO LEMUS YUDY ANDREA - JEFE DE CALIDAD", email: "coordinacion.calidad@colbeef.com" },
     { id: "1102387740", label: "LIZARAZO PARADA DIEGO FERNANDO - LIDER DE PLANILLAJE", email: "coordinacion.tesoreria@colbeef.com" },
