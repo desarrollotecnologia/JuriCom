@@ -1,7 +1,7 @@
 import {
     LIDERES_AREA,
     UNIDADES_MEDIDA,
-} from "./mock-catalogos.js";
+} from "./mock-catalogos.js?v=2";
 import { opcionesCentrosCostosHtml } from "../catalogos/centros-costos.js";
 import { api, ApiError } from "../api/client.js";
 import { createObservacionConAdjuntos } from "../components/observacion-editor.js";

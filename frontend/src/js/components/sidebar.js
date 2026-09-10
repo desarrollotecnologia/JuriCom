@@ -1,6 +1,7 @@
 // Renderiza la barra lateral con navegación según rol.
 
 import { session } from "../auth/session.js";
+import { api, ApiError } from "../api/client.js";
 import { enhancePageHeaderWithLogo } from "./page-header-brand.js";
 
 const ROLE_LABEL = {
@@ -199,6 +200,7 @@ export function renderSidebar(containerId = "sidebar") {
         <div class="user-box">
             <div class="username">${escapeHtml(user.username)}</div>
             <div class="role">${roles.map((r) => ROLE_LABEL[r] || r).join(" · ")}</div>
+            <button class="btn btn-sm" id="change-pass-btn" style="width:100%;margin-bottom:6px;">Cambiar contraseña</button>
             <button class="btn btn-sm logout-btn" id="logout-btn">Cerrar sesión</button>
         </div>
     `;
@@ -208,7 +210,93 @@ export function renderSidebar(containerId = "sidebar") {
         window.location.href = "/app/login.html";
     });
 
+    document
+        .getElementById("change-pass-btn")
+        .addEventListener("click", () => openChangePasswordModal(user.id));
+
     enhancePageHeaderWithLogo();
+}
+
+function openChangePasswordModal(userId) {
+    document.getElementById("sidebar-pass-overlay")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "sidebar-pass-overlay";
+    overlay.style.cssText =
+        "position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;" +
+        "align-items:center;justify-content:center;z-index:9999;padding:16px;";
+    overlay.innerHTML = `
+        <div role="dialog" aria-modal="true" aria-labelledby="sidebar-pass-title"
+            style="background:#fff;border-radius:12px;max-width:400px;width:100%;
+            padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25);">
+            <h2 id="sidebar-pass-title" style="margin:0 0 16px;font-size:18px;color:#163966;">
+                Cambiar contraseña
+            </h2>
+            <div id="sidebar-pass-alert" style="display:none;margin-bottom:12px;padding:10px 12px;
+                border-radius:8px;font-size:13px;"></div>
+            <label style="display:block;font-size:13px;color:#475569;margin-bottom:4px;">
+                Nueva contraseña
+            </label>
+            <input type="password" id="sidebar-pass-new" autocomplete="new-password"
+                style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;
+                border-radius:8px;margin-bottom:12px;font-size:14px;" />
+            <label style="display:block;font-size:13px;color:#475569;margin-bottom:4px;">
+                Confirmar contraseña
+            </label>
+            <input type="password" id="sidebar-pass-confirm" autocomplete="new-password"
+                style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;
+                border-radius:8px;margin-bottom:8px;font-size:14px;" />
+            <p style="font-size:12px;color:#64748b;margin:0 0 16px;">Mínimo 6 caracteres.</p>
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary btn-sm" id="sidebar-pass-cancel">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="sidebar-pass-save">Guardar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const alertBox = overlay.querySelector("#sidebar-pass-alert");
+    const inputNew = overlay.querySelector("#sidebar-pass-new");
+    const inputConfirm = overlay.querySelector("#sidebar-pass-confirm");
+    const btnSave = overlay.querySelector("#sidebar-pass-save");
+
+    const showAlert = (msg, ok = false) => {
+        alertBox.textContent = msg;
+        alertBox.style.display = "block";
+        alertBox.style.background = ok ? "#dcfce7" : "#fee2e2";
+        alertBox.style.color = ok ? "#166534" : "#991b1b";
+    };
+    const close = () => overlay.remove();
+
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) close();
+    });
+    overlay.querySelector("#sidebar-pass-cancel").addEventListener("click", close);
+    inputNew.focus();
+
+    btnSave.addEventListener("click", async () => {
+        const nueva = inputNew.value;
+        const confirmar = inputConfirm.value;
+        if (nueva.length < 6) {
+            showAlert("La contraseña debe tener al menos 6 caracteres.");
+            return;
+        }
+        if (nueva !== confirmar) {
+            showAlert("Las contraseñas no coinciden.");
+            return;
+        }
+        btnSave.disabled = true;
+        try {
+            await api.put(`/users/${userId}/password`, { new_password: nueva });
+            showAlert("Contraseña actualizada correctamente.", true);
+            setTimeout(close, 1200);
+        } catch (err) {
+            btnSave.disabled = false;
+            showAlert(
+                err instanceof ApiError ? err.message : "No se pudo cambiar la contraseña."
+            );
+        }
+    });
 }
 
 function escapeHtml(str) {

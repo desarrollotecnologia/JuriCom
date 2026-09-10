@@ -1,7 +1,7 @@
 import {
     LIDERES_AREA,
     UNIDADES_MEDIDA,
-} from "./mock-catalogos.js";
+} from "./mock-catalogos.js?v=2";
 import {
     opcionesAreasConsumoHtml,
     opcionesCentrosCostosHtml,

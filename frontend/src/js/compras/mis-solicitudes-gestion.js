@@ -101,7 +101,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
 
     function renderTable() {
         if (!Array.isArray(items) || !items.length) {
-            tbody.innerHTML = `<tr><td colspan="5" class="muted text-center">
+            tbody.innerHTML = `<tr><td colspan="6" class="muted text-center">
                 No hay solicitudes registradas en Gestión de Solicitudes a Compras.
                 <br /><a href="/app/compras/nueva-solicitud.html">Crear nueva solicitud</a>
             </td></tr>`;
@@ -116,6 +116,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
                 <td data-label="Consecutivo">
                     <span class="codigo-solicitud">${escapeHtml(s.codigo)}</span>
                 </td>
+                <td data-label="Título">${escapeHtml(s.titulo || "—")}</td>
                 <td data-label="Tipo">${badgeTipo(s.tipo)}</td>
                 <td data-label="Estado">${badgeEstado(s.estado, s)}</td>
                 <td data-label="Fecha">${formatDate(s.created_at)}</td>
@@ -146,7 +147,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
 
     async function load() {
         tbody.innerHTML =
-            '<tr><td colspan="5" class="muted text-center">Cargando...</td></tr>';
+            '<tr><td colspan="6" class="muted text-center">Cargando...</td></tr>';
         try {
             const data = await api.get(buildQuery());
             items = Array.isArray(data) ? data : [];
@@ -156,7 +157,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
                 err instanceof ApiError
                     ? err.message
                     : "No se pudieron cargar las solicitudes.";
-            tbody.innerHTML = `<tr><td colspan="5" class="muted text-center">${escapeHtml(msg)}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="muted text-center">${escapeHtml(msg)}</td></tr>`;
             if (resultCount) resultCount.textContent = "";
             showError(msg);
         }

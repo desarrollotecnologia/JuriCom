@@ -1,6 +1,6 @@
 import {
     LIDERES_AREA,
-} from "./mock-catalogos.js";
+} from "./mock-catalogos.js?v=2";
 import { centrosCostosItems } from "../catalogos/centros-costos.js";
 import { api, ApiError } from "../api/client.js";
 import {

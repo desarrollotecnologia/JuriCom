@@ -49,14 +49,13 @@ export const UNIDADES_MEDIDA = [
 
 /**
  * Aprobadores del "Líder de Área" (1.ª aprobación): solo directores
- * (cargo DIRECTOR/DIRECTORA). Se excluye a Diego Serrano (id 13542263) porque
- * siempre es la 2.ª aprobación (gerencia financiera).
+ * (cargo DIRECTOR/DIRECTORA). Diego Serrano se incluye aunque sea también la
+ * 2.ª aprobación (gerencia financiera): por pedido, puede aprobar en ambos pasos.
  * El catálogo completo sigue en LIDERES_COLBEEF para resolver etiquetas de
  * solicitudes existentes.
  */
-const DIEGO_SERRANO_ID = "13542263";
-export const LIDERES_AREA = LIDERES_COLBEEF.filter(
-    (l) => /\bdirectora?\b/i.test(l.label) && l.id !== DIEGO_SERRANO_ID
+export const LIDERES_AREA = LIDERES_COLBEEF.filter((l) =>
+    /\bdirectora?\b/i.test(l.label)
 );
 
 export function buildSelectOptions(items, placeholder = "Selecciona una opción") {
