@@ -188,6 +188,14 @@
                     </button>
                     <button
                         type="button"
+                        class="btn btn-secondary"
+                        id="btn-panel-avisar-almacen"
+                        hidden
+                    >
+                        Avisar: insumos en almacén
+                    </button>
+                    <button
+                        type="button"
                         class="btn btn-primary"
                         id="btn-panel-confirmar-recepcion"
                         hidden
@@ -265,7 +273,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=57";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=59";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

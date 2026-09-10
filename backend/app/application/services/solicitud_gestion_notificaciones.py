@@ -972,6 +972,29 @@ class NotificadorSolicitudGestion:
             )
         return enviado
 
+    def notificar_insumos_en_almacen(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> bool:
+        """Aviso puntual al solicitante: sus insumos ya están en almacén."""
+        sol = resolver_email_solicitante(solicitud, self._users)
+        if not sol:
+            return False
+        codigo = solicitud.codigo or ""
+        return self._enviar_evento(
+            solicitud,
+            asunto=f"[JURICOM] {codigo} — Tus insumos ya están en almacén",
+            titulo="Tus insumos ya están en almacén",
+            mensaje=(
+                f"Los insumos de tu solicitud <strong>{codigo}</strong> ya se "
+                "encuentran en almacén. Puedes pasar a reclamarlos."
+            ),
+            url=self._url_mis_solicitudes(),
+            boton="Ver mis solicitudes",
+            destinatarios=[sol],
+        )
+
     def notificar_cierre_con_pendientes(
         self,
         solicitud: SolicitudGestion,

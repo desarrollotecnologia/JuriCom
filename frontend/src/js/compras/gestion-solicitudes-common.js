@@ -2560,9 +2560,26 @@ export function renderProductosTableHtml(productos, options = {}) {
            <th class="col-cantidad">Cant. recibida</th>`
         : "";
 
+    const hayEntregado = list.some((p) => Number(p.cantidad_entregada || 0) > 0);
+    const mostrarDescargaPdf =
+        showEntregaInfo &&
+        hayEntregado &&
+        !entregaParcialEditable &&
+        !recepcionParcialEditable &&
+        !selectable &&
+        !cantidadEditable &&
+        !tramiteOcParcialEditable &&
+        !tramiteValorOcParcialEditable;
+    const botonPdf = mostrarDescargaPdf
+        ? `<button type="button" class="btn btn-secondary sg-descargar-productos-pdf" data-titulo="${escapeHtml(titulo)}">Descargar PDF</button>`
+        : "";
+
     return `
         <div class="sg-detail-panel"${panelId ? ` id="${escapeHtml(panelId)}"` : ""}>
-            <h3 class="sg-detail-panel-title">${escapeHtml(titulo)} (${list.length})</h3>
+            <div class="sg-detail-panel-header" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <h3 class="sg-detail-panel-title">${escapeHtml(titulo)} (${list.length})</h3>
+                ${botonPdf}
+            </div>
             <div class="table-responsive">
                 <table class="table-gestion-solicitudes">
                     <thead>
@@ -3333,4 +3350,54 @@ export async function hydrateInlineObservacionImages(container, solicitudId) {
             }
         })
     );
+}
+
+function descargarTablaProductosPdf(tabla, titulo) {
+    const clon = tabla.cloneNode(true);
+    // Los detalles de solo lectura no traen inputs, pero por si acaso los volvemos texto.
+    clon.querySelectorAll("input, select, textarea").forEach((el) => {
+        const span = document.createElement("span");
+        span.textContent = el.value || "";
+        el.replaceWith(span);
+    });
+    const win = window.open("", "_blank", "width=1000,height=700");
+    if (!win) {
+        alert("Habilita las ventanas emergentes para descargar el PDF.");
+        return;
+    }
+    const fecha = new Date().toLocaleString("es-CO");
+    const logo = `${window.location.origin}/app/assets/colbeef-logo.png`;
+    win.document.write(
+        `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">` +
+            `<title>${escapeHtml(titulo)}</title><style>` +
+            `*{font-family:Arial,Helvetica,sans-serif;box-sizing:border-box}` +
+            `body{margin:24px;color:#1f2937}` +
+            `.pdf-header{display:flex;align-items:center;gap:16px;border-bottom:2px solid #e5e7eb;padding-bottom:12px;margin-bottom:16px}` +
+            `.pdf-logo{height:48px;width:auto}h1{font-size:18px;margin:0 0 4px}` +
+            `.meta{font-size:12px;color:#6b7280}` +
+            `table{width:100%;border-collapse:collapse;font-size:12px}` +
+            `th,td{border:1px solid #d1d5db;padding:6px 8px;text-align:left}` +
+            `thead th{background:#f3f4f6}@media print{body{margin:0}}` +
+            `</style></head><body>` +
+            `<div class="pdf-header">` +
+            `<img class="pdf-logo" src="${logo}" alt="Colbeef" onerror="this.style.display='none'">` +
+            `<div><h1>${escapeHtml(titulo)}</h1>` +
+            `<div class="meta">Generado el ${escapeHtml(fecha)}</div></div>` +
+            `</div>` +
+            clon.outerHTML +
+            `<script>window.onload=function(){window.focus();window.print();}<\/script>` +
+            `</body></html>`
+    );
+    win.document.close();
+}
+
+if (typeof document !== "undefined" && !window.__sgPdfListenerBound) {
+    window.__sgPdfListenerBound = true;
+    document.addEventListener("click", (e) => {
+        const btn = e.target.closest?.(".sg-descargar-productos-pdf");
+        if (!btn) return;
+        const tabla = btn.closest(".sg-detail-panel")?.querySelector("table");
+        if (!tabla) return;
+        descargarTablaProductosPdf(tabla, btn.dataset.titulo || "Productos aprobados");
+    });
 }

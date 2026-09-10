@@ -2032,6 +2032,28 @@ async def registrar_recepcion_insumos_solicitud(
     )
 
 
+@router.post("/{solicitud_id}/avisar-insumos-almacen")
+def avisar_insumos_almacen(
+    solicitud_id: int,
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> dict:
+    """Avisa al solicitante, por correo, que sus insumos ya están en almacén."""
+    if not (current.is_compras() or current.is_admin()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para enviar este aviso.",
+        )
+    solicitud = repo.get_by_id(solicitud_id)
+    if solicitud is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No existe la solicitud."
+        )
+    enviado = notificador.notificar_insumos_en_almacen(solicitud, current)
+    return {"enviado": bool(enviado)}
+
+
 @router.post("/{solicitud_id}/entrega-parcial", response_model=EntregaParcialSolicitudResponse)
 async def registrar_entrega_parcial_solicitud(
     solicitud_id: int,

@@ -43,7 +43,7 @@ import {
     solicitudPuedeCerrarConPendientes,
     solicitudTieneOcRegistrada,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=46";
+} from "./gestion-solicitudes-common.js?v=47";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -176,6 +176,7 @@ export function initPanelSolicitudesGestion() {
     const btnConfirmarEntregaParcial = document.getElementById("btn-panel-confirmar-entrega-parcial");
     const btnRegistrarRecepcion = document.getElementById("btn-panel-registrar-recepcion");
     const btnConfirmarRecepcion = document.getElementById("btn-panel-confirmar-recepcion");
+    const btnAvisarAlmacen = document.getElementById("btn-panel-avisar-almacen");
     const modalActionsGestion = document.getElementById("panel-modal-actions-gestion");
     const modalFactura = document.getElementById("modal-panel-factura");
     const facturaTitle = document.getElementById("panel-factura-title");
@@ -1203,9 +1204,11 @@ export function initPanelSolicitudesGestion() {
             setModalBtnHidden(btnConfirmarEntregaParcial, true);
             setModalBtnHidden(btnRegistrarRecepcion, true);
             setModalBtnHidden(btnConfirmarRecepcion, true);
+            setModalBtnHidden(btnAvisarAlmacen, true);
             return;
         }
 
+        setModalBtnHidden(btnAvisarAlmacen, !esEstadoEntregaSolicitante(estado));
         const ocOk = solicitudTieneOcRegistrada(selectedSolicitud);
         const esTramiteOc = estado === "tramitando_oc";
         const esRecepcion = esEstadoRecepcion(estado);
@@ -1261,6 +1264,7 @@ export function initPanelSolicitudesGestion() {
             setModalBtnHidden(btnConfirmarEntregaParcial, true);
             setModalBtnHidden(btnRegistrarRecepcion, true);
             setModalBtnHidden(btnConfirmarRecepcion, true);
+            setModalBtnHidden(btnAvisarAlmacen, true);
         } else {
             setModalBtnHidden(btnGuardarTramite, true);
             setModalBtnHidden(btnEntregado, true);
@@ -1269,6 +1273,7 @@ export function initPanelSolicitudesGestion() {
             setModalBtnHidden(btnConfirmarEntregaParcial, true);
             setModalBtnHidden(btnRegistrarRecepcion, true);
             setModalBtnHidden(btnConfirmarRecepcion, true);
+            setModalBtnHidden(btnAvisarAlmacen, true);
         }
     }
 
@@ -1309,6 +1314,38 @@ export function initPanelSolicitudesGestion() {
                 }
             });
         });
+    }
+
+    async function avisarInsumosEnAlmacen() {
+        if (!selectedSolicitud) return;
+        if (
+            !confirm(
+                "¿Enviar un correo al solicitante avisando que sus insumos ya están en almacén?"
+            )
+        ) {
+            return;
+        }
+        setModalBtnHidden(btnAvisarAlmacen, false);
+        btnAvisarAlmacen.disabled = true;
+        const textoOriginal = btnAvisarAlmacen.textContent;
+        btnAvisarAlmacen.textContent = "Enviando...";
+        try {
+            const res = await api.post(
+                `/solicitudes-gestion/${selectedSolicitud.id}/avisar-insumos-almacen`
+            );
+            showSuccess(
+                res?.enviado
+                    ? "Se avisó al solicitante por correo que sus insumos ya están en almacén."
+                    : "No se pudo enviar el correo (revisa SMTP y el email del solicitante)."
+            );
+        } catch (err) {
+            showError(
+                err instanceof ApiError ? err.message : "No se pudo enviar el aviso."
+            );
+        } finally {
+            btnAvisarAlmacen.disabled = false;
+            btnAvisarAlmacen.textContent = textoOriginal;
+        }
     }
 
     function abrirFormularioRecepcion() {
@@ -2401,6 +2438,7 @@ export function initPanelSolicitudesGestion() {
     btnConfirmarEntregaParcial?.addEventListener("click", confirmarEntregaParcial);
     btnRegistrarRecepcion?.addEventListener("click", abrirFormularioRecepcion);
     btnConfirmarRecepcion?.addEventListener("click", confirmarRecepcionParcial);
+    btnAvisarAlmacen?.addEventListener("click", avisarInsumosEnAlmacen);
     btnFacturaCancel?.addEventListener("click", closeFacturaModal);
     btnFacturaGuardar?.addEventListener("click", guardarFactura);
     btnFacturaDetalleCerrar?.addEventListener("click", closeFacturaDetalleModal);
