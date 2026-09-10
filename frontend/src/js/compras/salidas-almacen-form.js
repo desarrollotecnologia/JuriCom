@@ -1,4 +1,7 @@
-import { LIDERES_AREA } from "./mock-catalogos.js";
+import {
+    LIDERES_AREA,
+    UNIDADES_MEDIDA,
+} from "./mock-catalogos.js";
 import {
     opcionesAreasConsumoHtml,
     opcionesCentrosCostosHtml,
@@ -98,6 +101,9 @@ export function initSalidasAlmacenForm() {
                     aria-label="Cantidad"
                 />
             </td>
+            <td class="cell-unidad">
+                <div class="unidad-search-host" data-unidad-host></div>
+            </td>
             <td>
                 <select class="input-table" name="area_consumo_${rowId}" required>
                     ${opcionesAreasConsumoHtml("Área consumo")}
@@ -122,6 +128,16 @@ export function initSalidasAlmacenForm() {
         tr.querySelector(".btn-remove-row").addEventListener("click", () => removeRow(tr));
         const desc = tr.querySelector("textarea[name^='descripcion_']");
         if (desc) setupAutoGrowTextarea(desc);
+        const unidadHost = tr.querySelector("[data-unidad-host]");
+        createSearchableSelect({
+            container: unidadHost,
+            name: `unidad_${rowId}`,
+            items: UNIDADES_MEDIDA,
+            placeholder: "Buscar unidad...",
+            required: true,
+            inputClass: "input-table",
+            emptyMessage: "No hay unidades con ese texto.",
+        });
         vincularAreaCentroCosto(
             tr.querySelector('select[name^="area_consumo_"]'),
             tr.querySelector('select[name^="centro_costo_"]')
@@ -158,15 +174,17 @@ export function initSalidasAlmacenForm() {
             const codigo = row.querySelector('input[name^="codigo_siimed_"]')?.value.trim() || "";
             const descripcion = row.querySelector('textarea[name^="descripcion_"]')?.value.trim() || "";
             const cantidadRaw = row.querySelector('input[name^="cantidad_"]')?.value ?? "1";
+            const unidad = row.querySelector('input[name^="unidad_"]')?.value || "";
             const areaConsumo = row.querySelector('select[name^="area_consumo_"]')?.value || "";
             const centroCosto = row.querySelector('select[name^="centro_costo_"]')?.value || "";
 
-            if (!descripcion && !codigo && !areaConsumo && !centroCosto) continue;
+            if (!descripcion && !codigo && !unidad && !areaConsumo && !centroCosto) continue;
 
             items.push({
                 codigo_siimed: codigo,
                 descripcion,
                 cantidad: cantidadRaw,
+                unidad,
                 area_consumo: areaConsumo,
                 centro_costo: centroCosto,
             });
@@ -183,6 +201,10 @@ export function initSalidasAlmacenForm() {
             const item = items[i];
             if (!item.descripcion) {
                 showError(`La fila ${i + 1} requiere descripción.`);
+                return false;
+            }
+            if (!item.unidad) {
+                showError(`La fila ${i + 1} requiere unidad de medida.`);
                 return false;
             }
             if (!item.area_consumo) {

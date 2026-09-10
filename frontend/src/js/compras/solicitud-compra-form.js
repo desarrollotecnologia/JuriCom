@@ -1,45 +1,11 @@
 import {
     LIDERES_AREA,
-    buildSelectOptions,
+    UNIDADES_MEDIDA,
 } from "./mock-catalogos.js";
 import { opcionesCentrosCostosHtml } from "../catalogos/centros-costos.js";
 import { api, ApiError } from "../api/client.js";
 import { createObservacionConAdjuntos } from "../components/observacion-editor.js";
 import { createSearchableSelect } from "../components/searchable-select.js";
-
-const UNIDADES_MEDIDA = [
-    { id: "UND", label: "Unidad (UND)" },
-    { id: "KG", label: "Kilogramo (KG)" },
-    { id: "LB", label: "Libra (LB)" },
-    { id: "LT", label: "Litro (LT)" },
-    { id: "GL", label: "Galón (GL)" },
-    { id: "MT", label: "Metro (MT)" },
-    { id: "CJ", label: "Caja (CJ)" },
-    { id: "PQ", label: "Paquete (PQ)" },
-    { id: "LTS", label: "Litros (LTS)" },
-    { id: "GLS", label: "Galones (GLS)" },
-    { id: "MTS", label: "Metros (MTS)" },
-    { id: "CJS", label: "Cajas (CJS)" },
-    { id: "PQS", label: "Paquetes (PQS)" },
-    { id: "LBS", label: "Libras (LBS)" },
-    { id: "KGS", label: "Kilos (KGS)" },
-    { id: "LM", label: "Lámina (LM)" },
-    { id: "LMS", label: "Láminas (LMS)" },
-    { id: "CHP", label: "Chipa (CHP)" },
-    { id: "RL", label: "Rollo (RL)" },
-    { id: "RLS", label: "Rollos (RLS)" },
-    { id: "CM", label: "Centímetros (CM)" },
-    { id: "MM", label: "Milímetros (MM)" },
-    { id: "PAR", label: "Par (PAR)" },
-    { id: "KIT", label: "Kit (KIT)" },
-    { id: "TRM", label: "Tramo (TRM)" },
-    { id: "TRS", label: "Tramos (TRS)" },
-    { id: "CUN", label: "Cuñete (CUN)" },
-    { id: "CUNS", label: "Cuñetes (CUNS)" },
-    { id: "BT", label: "Bulto (BT)" },
-    { id: "BTS", label: "Bultos (BTS)" },
-    { id: "BAL", label: "Bala (BAL)" },
-];
 
 const TRASH_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
 
@@ -111,10 +77,8 @@ export function initSolicitudCompraForm() {
                     inputmode="numeric"
                 />
             </td>
-            <td>
-                <select class="input-table" name="unidad_${rowId}" required>
-                    ${buildSelectOptions(UNIDADES_MEDIDA, "Unidad")}
-                </select>
+            <td class="cell-unidad">
+                <div class="unidad-search-host" data-unidad-host></div>
             </td>
             <td class="cell-descripcion">
                 <textarea
@@ -156,6 +120,15 @@ export function initSolicitudCompraForm() {
         tr.querySelector(".btn-remove-row").addEventListener("click", () => removeRow(tr));
         const desc = tr.querySelector("textarea[name^='descripcion_']");
         if (desc) setupAutoGrowTextarea(desc);
+        createSearchableSelect({
+            container: tr.querySelector("[data-unidad-host]"),
+            name: `unidad_${rowId}`,
+            items: UNIDADES_MEDIDA,
+            placeholder: "Buscar unidad...",
+            required: true,
+            inputClass: "input-table",
+            emptyMessage: "No hay unidades con ese texto.",
+        });
         tbody.appendChild(tr);
         updateRemoveButtons();
     }
@@ -188,7 +161,7 @@ export function initSolicitudCompraForm() {
         const rows = tbody.querySelectorAll("tr");
         for (const row of rows) {
             const codigo = row.querySelector('input[name^="codigo_siimed_"]')?.value.trim() || "";
-            const unidad = row.querySelector('select[name^="unidad_"]')?.value || "";
+            const unidad = row.querySelector('input[name^="unidad_"]')?.value || "";
             const descripcion = row.querySelector('textarea[name^="descripcion_"]')?.value.trim() || "";
             const centroCosto = row.querySelector('select[name^="centro_costo_"]')?.value || "";
             const cantidadRaw = row.querySelector('input[name^="cantidad_"]')?.value ?? "1";

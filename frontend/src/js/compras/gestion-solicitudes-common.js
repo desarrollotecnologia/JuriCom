@@ -2569,7 +2569,7 @@ export function renderProductosTableHtml(productos, options = {}) {
                         <tr>
                             ${checkCol}
                             <th>Código Siimed</th>
-                            ${modoSalidas ? "" : "<th>Unidad</th>"}
+                            <th>Unidad</th>
                             <th>Descripción</th>
                             ${modoSalidas ? "<th>Área consumo</th>" : ""}
                             <th>Centro costo</th>
@@ -2750,7 +2750,7 @@ export function renderProductosTableHtml(productos, options = {}) {
                             <tr class="${rowClass}" data-producto-id="${p.id}">
                                 ${checkCell}
                                 <td class="${cellClass}" data-label="Código Siimed">${escapeHtml(p.codigo_siimed || "—")}</td>
-                                ${modoSalidas ? "" : `<td class="${cellClass}" data-label="Unidad">${escapeHtml(p.unidad)}</td>`}
+                                <td class="${cellClass}" data-label="Unidad">${escapeHtml(p.unidad || "—")}</td>
                                 <td class="${cellClass}" data-label="Descripción">
                                     <span class="${noAprobado && resaltarNoAprobados ? "sg-producto-no-aprobado-text" : ""}">${escapeHtml(p.descripcion)}</span>
                                     ${msgNoAprobado}

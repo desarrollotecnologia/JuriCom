@@ -2235,6 +2235,20 @@ table.clickable-rows tbody tr[data-id]:focus {
     width: 11%;
 }
 
+.table-productos-compra .cell-unidad {
+    overflow: visible;
+    position: relative;
+}
+
+.table-productos-compra .cell-unidad .searchable-select-input.input-table {
+    min-width: 0;
+    width: 100%;
+}
+
+.form-section:has(.table-productos-compra) > .table-editable-wrap {
+    overflow: visible;
+}
+
 .table-productos-compra .col-descripcion {
     width: 32%;
 }
@@ -2254,31 +2268,50 @@ table.clickable-rows tbody tr[data-id]:focus {
 .table-productos-salidas {
     table-layout: fixed;
     width: 100%;
-    min-width: 980px;
+    min-width: 0;
 }
 
 .table-productos-salidas .col-siimed {
-    width: 12%;
+    width: 11%;
 }
 
 .table-productos-salidas .col-descripcion {
-    width: 28%;
+    width: 22%;
 }
 
 .table-productos-salidas .col-cantidad {
-    width: 10%;
+    width: 8%;
+}
+
+.table-productos-salidas .col-unidad {
+    width: 13%;
+}
+
+.table-productos-salidas .cell-unidad {
+    overflow: visible;
+    position: relative;
+}
+
+.table-productos-salidas .cell-unidad .searchable-select-input.input-table {
+    min-width: 0;
+    width: 100%;
 }
 
 .table-productos-salidas .col-area-consumo {
-    width: 18%;
+    width: 16%;
 }
 
 .table-productos-salidas .col-centro-costo {
-    width: 18%;
+    width: 16%;
 }
 
 .table-productos-salidas .col-accion {
     width: 72px;
+}
+
+/* Evita scroll horizontal en salidas; la lista del buscador va en portal fijo */
+.form-section:has(.table-productos-salidas) > .table-editable-wrap {
+    overflow: visible;
 }
 
 .table-editable th {
@@ -2554,6 +2587,11 @@ table.clickable-rows tbody tr[data-id]:focus {
     border: 1px solid var(--color-primary);
     border-top: none;
     border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: var(--shadow-md);
+}
+
+.searchable-select-list.is-portal {
+    right: auto;
     box-shadow: var(--shadow-md);
 }
 

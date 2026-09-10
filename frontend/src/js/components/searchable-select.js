@@ -4,39 +4,53 @@
 
 /**
  * @param {{
- *   containerId: string,
+ *   containerId?: string,
+ *   container?: HTMLElement,
  *   name: string,
  *   items: { id: string, label: string }[],
  *   placeholder?: string,
  *   required?: boolean,
  *   inputId?: string,
+ *   inputClass?: string,
  *   emptyMessage?: string,
  * }} options
  */
 export function createSearchableSelect({
-    containerId,
+    containerId = null,
+    container: containerEl = null,
     name,
     items,
     placeholder = "Escribe para buscar...",
     required = false,
     inputId = null,
+    inputClass = "searchable-select-input",
     emptyMessage = "No hay coincidencias.",
 }) {
-    const container = document.getElementById(containerId);
+    const container =
+        containerEl || (containerId ? document.getElementById(containerId) : null);
     if (!container) {
-        throw new Error(`No se encontró el contenedor #${containerId}`);
+        throw new Error(
+            containerId
+                ? `No se encontró el contenedor #${containerId}`
+                : "No se encontró el contenedor del searchable-select"
+        );
     }
 
-    const uid = containerId.replace(/[^a-zA-Z0-9]/g, "-");
+    const uid = String(containerId || container.id || name || "searchable")
+        .replace(/[^a-zA-Z0-9]+/g, "-");
     const listId = `${uid}-list`;
     const inputIdFinal = inputId || `${uid}-input`;
+    const classes = ["searchable-select-input", inputClass]
+        .filter(Boolean)
+        .filter((c, i, arr) => arr.indexOf(c) === i)
+        .join(" ");
 
     container.innerHTML = `
         <div class="searchable-select" data-searchable-select>
             <input
                 type="text"
                 id="${inputIdFinal}"
-                class="searchable-select-input"
+                class="${escapeAttr(classes)}"
                 placeholder="${escapeAttr(placeholder)}"
                 autocomplete="off"
                 role="combobox"
@@ -75,14 +89,61 @@ export function createSearchableSelect({
         return items.filter((item) => normalize(item.label).includes(q));
     }
 
+    function positionList() {
+        const rect = input.getBoundingClientRect();
+        const minWidth = Math.max(rect.width, 180);
+        const maxHeight = Math.min(260, Math.max(140, window.innerHeight - 24));
+        const spaceBelow = window.innerHeight - rect.bottom - 8;
+        const spaceAbove = rect.top - 8;
+        const openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+
+        list.classList.add("is-portal");
+        list.style.position = "fixed";
+        list.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - minWidth - 8))}px`;
+        list.style.width = `${minWidth}px`;
+        list.style.right = "auto";
+        list.style.zIndex = "1200";
+        list.style.maxHeight = `${maxHeight}px`;
+
+        if (openUp) {
+            list.style.top = "auto";
+            list.style.bottom = `${window.innerHeight - rect.top + 2}px`;
+            list.style.borderRadius = "var(--radius-md) var(--radius-md) 0 0";
+            list.style.borderTop = "1px solid var(--color-primary)";
+            list.style.borderBottom = "none";
+        } else {
+            list.style.top = `${rect.bottom}px`;
+            list.style.bottom = "auto";
+            list.style.borderRadius = "0 0 var(--radius-md) var(--radius-md)";
+            list.style.borderTop = "none";
+            list.style.borderBottom = "1px solid var(--color-primary)";
+        }
+    }
+
     function openList() {
+        if (list.parentElement !== document.body) {
+            document.body.appendChild(list);
+        }
         list.hidden = false;
+        positionList();
         input.setAttribute("aria-expanded", "true");
         root.classList.add("is-open");
     }
 
     function closeList() {
         list.hidden = true;
+        list.classList.remove("is-portal");
+        list.style.position = "";
+        list.style.left = "";
+        list.style.top = "";
+        list.style.bottom = "";
+        list.style.width = "";
+        list.style.right = "";
+        list.style.zIndex = "";
+        list.style.maxHeight = "";
+        list.style.borderRadius = "";
+        list.style.borderTop = "";
+        list.style.borderBottom = "";
         input.setAttribute("aria-expanded", "false");
         root.classList.remove("is-open");
         activeIndex = -1;
@@ -147,11 +208,13 @@ export function createSearchableSelect({
             e.preventDefault();
             activeIndex = Math.min(activeIndex + 1, options.length - 1);
             renderList(filterItems(input.value));
+            positionList();
             options[activeIndex]?.scrollIntoView({ block: "nearest" });
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
             activeIndex = Math.max(activeIndex - 1, 0);
             renderList(filterItems(input.value));
+            positionList();
             options[activeIndex]?.scrollIntoView({ block: "nearest" });
         } else if (e.key === "Enter" && activeIndex >= 0) {
             e.preventDefault();
@@ -172,7 +235,18 @@ export function createSearchableSelect({
     });
 
     document.addEventListener("click", (e) => {
-        if (!root.contains(e.target)) closeList();
+        if (!root.contains(e.target) && !list.contains(e.target)) closeList();
+    });
+
+    window.addEventListener(
+        "scroll",
+        () => {
+            if (!list.hidden) positionList();
+        },
+        true
+    );
+    window.addEventListener("resize", () => {
+        if (!list.hidden) positionList();
     });
 
     function getValue() {

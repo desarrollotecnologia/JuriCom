@@ -88,10 +88,13 @@ class RegistrarSolicitudSalidasAlmacen:
                 raise ValueError(f"Ítem {i}: cantidad inválida.") from e
             if cantidad <= 0:
                 raise ValueError(f"Ítem {i}: la cantidad debe ser mayor a cero.")
+            unidad = str(item.get("unidad") or "").strip()
+            if not unidad:
+                raise ValueError(f"Ítem {i}: la unidad es obligatoria.")
             productos.append(
                 SolicitudGestionProducto(
                     codigo_siimed=str(item.get("codigo_siimed") or "").strip(),
-                    unidad="UND",
+                    unidad=unidad,
                     descripcion=descripcion,
                     area_consumo=area_consumo,
                     centro_costo=centro,

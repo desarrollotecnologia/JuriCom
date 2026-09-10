@@ -5,7 +5,7 @@
         <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Salidas de Almacén · JURICOM</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=10" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=13" />
     </head>
     <body>
         <div class="app-shell">
@@ -99,6 +99,7 @@
                                     <col class="col-siimed" />
                                     <col class="col-descripcion" />
                                     <col class="col-cantidad" />
+                                    <col class="col-unidad" />
                                     <col class="col-area-consumo" />
                                     <col class="col-centro-costo" />
                                     <col class="col-accion" />
@@ -108,6 +109,7 @@
                                         <th>Código Siimed</th>
                                         <th>Descripción</th>
                                         <th>Cantidad</th>
+                                        <th>Unidad</th>
                                         <th>Área Consumo</th>
                                         <th>Centro de Costo</th>
                                         <th>Acción</th>
@@ -155,7 +157,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSalidasAlmacenForm } from "/static/js/compras/salidas-almacen-form.js?v=2";
+            import { initSalidasAlmacenForm } from "/static/js/compras/salidas-almacen-form.js?v=5";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante", "proyectos"]);

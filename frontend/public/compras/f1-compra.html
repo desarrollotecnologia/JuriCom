@@ -8,7 +8,7 @@
         <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Solicitud de Compra · JURICOM</title>
-        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=14" />
     </head>
     <body>
         <template id="tpl-unidades-medida">
@@ -221,7 +221,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSolicitudCompraForm } from "/static/js/compras/f1-compra.js";
+            import { initSolicitudCompraForm } from "/static/js/compras/f1-compra.js?v=2";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante", "anticipos", "proyectos"]);
