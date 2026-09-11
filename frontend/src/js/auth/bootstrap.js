@@ -26,7 +26,9 @@ export async function ensureSessionUser() {
 export async function requireSessionRole(roles, redirectTo = "/app/dashboard.html") {
     const user = await ensureSessionUser();
     if (!user) return null;
-    if (!roles.includes(user.role)) {
+    // Multi-rol: el rol principal (user.role) más los adicionales (user.roles[]).
+    const misRoles = user.roles?.length ? user.roles : [user.role];
+    if (!roles.some((r) => misRoles.includes(r))) {
         window.location.href = redirectTo;
         return null;
     }
