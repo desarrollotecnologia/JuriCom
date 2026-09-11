@@ -44,31 +44,7 @@
                     </div>
                 </div>
 
-                <div class="card">
-                    <h2 class="card-title">Resumen</h2>
-                    <div class="welcome">
-                        <div class="stat">
-                            <div class="label">Contratos totales</div>
-                            <div class="value" id="stat-total">—</div>
-                        </div>
-                        <div class="stat">
-                            <div class="label">En proceso</div>
-                            <div class="value" id="stat-en_proceso">—</div>
-                        </div>
-                        <div class="stat">
-                            <div class="label">Elaborando</div>
-                            <div class="value" id="stat-elaborando">—</div>
-                        </div>
-                        <div class="stat">
-                            <div class="label">Activos</div>
-                            <div class="value" id="stat-activo">—</div>
-                        </div>
-                        <div class="stat">
-                            <div class="label">Finalizados</div>
-                            <div class="value" id="stat-finalizado">—</div>
-                        </div>
-                    </div>
-                </div>
+                <div id="resumen-container"></div>
 
                 <div class="card mt-4" id="card-elaboracion" hidden
                      style="border-left: 4px solid #b45309;">
@@ -104,153 +80,178 @@
             renderSidebar();
 
             const user = session.getUser();
-            document.getElementById("username-greet").textContent = user.username;
-            document.getElementById("role-greet").textContent =
-                user.role === "admin"
-                    ? "Administrador del sistema"
-                    : user.role === "juridica"
-                    ? "Equipo de Jurídica"
-                    : user.role === "solicitante"
-                    ? "Supervisor"
-                    : user.role === "anticipos"
-                    ? "Equipo de Anticipos"
-                    : user.role === "lider_aprobador"
-                    ? "Líder Aprobador"
-                    : "Equipo de Compras";
+            const roles = session.getRoles();
+            const has = (...r) => session.hasRole(...r);
 
+            document.getElementById("username-greet").textContent = user.username;
+            const ROLE_LABEL = {
+                admin: "Administrador del sistema",
+                juridica: "Equipo de Jurídica",
+                compras: "Equipo de Compras",
+                solicitante: "Supervisor",
+                anticipos: "Equipo de Anticipos",
+                lider_aprobador: "Líder Aprobador",
+                proyectos: "Equipo de Proyectos",
+            };
+            document.getElementById("role-greet").textContent = has("admin")
+                ? ROLE_LABEL.admin
+                : roles.map((r) => ROLE_LABEL[r] || r).join(" · ");
+
+            // --- Accesos rápidos por rol (respeta multi-rol) ---
             const quickActions = document.getElementById("quick-actions");
             const actions = [];
-            if (user.role === "admin") {
-                actions.push({
-                    href: "/app/admin/usuarios.html",
-                    label: "Gestionar usuarios",
-                    cls: "btn-primary",
-                });
-                actions.push({
-                    href: "/app/compras/gestion-aprobar-solicitudes.html",
-                    label: "Aprobar solicitudes",
-                    cls: "btn-secondary",
-                });
+            if (has("admin")) {
+                actions.push({ href: "/app/admin/usuarios.html", label: "Gestionar usuarios", cls: "btn-primary" });
+                actions.push({ href: "/app/compras/gestion-aprobar-solicitudes.html", label: "Aprobar solicitudes", cls: "btn-secondary" });
             }
-            if (user.role === "compras" || user.role === "admin") {
-                actions.push({
-                    href: "/app/compras/gestion-solicitudes.html",
-                    label: "Gestión de Solicitudes a Compras",
-                    cls: "btn-primary",
-                });
+            if (has("compras", "admin")) {
+                actions.push({ href: "/app/compras/gestion-solicitudes.html", label: "Gestión de Solicitudes a Compras", cls: "btn-primary" });
             }
-            if (user.role === "solicitante") {
-                actions.push({
-                    href: "/app/compras/nueva-solicitud.html",
-                    label: "Nueva solicitud",
-                    cls: "btn-primary",
-                });
-                actions.push({
-                    href: "/app/compras/gestion-mis-solicitudes.html",
-                    label: "Mis solicitudes",
-                    cls: "btn-secondary",
-                });
-                actions.push({
-                    href: "/app/compras/finalizar-contrato.html",
-                    label: "Finalizar contrato",
-                    cls: "btn-secondary",
-                });
+            if (has("solicitante")) {
+                actions.push({ href: "/app/compras/nueva-solicitud.html", label: "Nueva solicitud", cls: "btn-primary" });
+                actions.push({ href: "/app/compras/gestion-mis-solicitudes.html", label: "Mis solicitudes", cls: "btn-secondary" });
+                actions.push({ href: "/app/compras/finalizar-contrato.html", label: "Finalizar contrato", cls: "btn-secondary" });
             }
-            if (user.role === "anticipos") {
-                actions.push({
-                    href: "/app/compras/gestion-anticipo.html",
-                    label: "Gestión de anticipos",
-                    cls: "btn-primary",
-                });
-                actions.push({
-                    href: "/app/compras/f1-compra.html",
-                    label: "Solicitud de compra",
-                    cls: "btn-secondary",
-                });
-                actions.push({
-                    href: "/app/compras/gestion-mis-solicitudes.html",
-                    label: "Mis solicitudes",
-                    cls: "btn-secondary",
-                });
+            if (has("anticipos")) {
+                actions.push({ href: "/app/compras/gestion-anticipo.html", label: "Gestión de anticipos", cls: "btn-primary" });
             }
-            if (user.role === "lider_aprobador") {
-                actions.push({
-                    href: "/app/compras/gestion-aprobar-solicitudes.html",
-                    label: "Aprobar solicitudes",
-                    cls: "btn-primary",
-                });
+            if (has("lider_aprobador")) {
+                actions.push({ href: "/app/compras/gestion-aprobar-solicitudes.html", label: "Aprobar solicitudes", cls: "btn-primary" });
             }
-            if (user.role === "juridica" || user.role === "admin") {
-                actions.push({
-                    href: "/app/juridica/gestion-juridica.html",
-                    label: "Gestión Jurídica",
-                    cls: "btn-primary",
-                });
+            if (has("proyectos")) {
+                actions.push({ href: "/app/proyectos/panel-cotizaciones.html", label: "Panel de proyectos", cls: "btn-primary" });
             }
-            actions.push({
-                href: "/app/compras/mis-solicitudes.html",
-                label: "Ver contratos",
-                cls: "btn-secondary",
-            });
-            if (user.role === "solicitante" || user.role === "anticipos" || user.role === "lider_aprobador") {
-                actions.pop();
+            if (has("juridica", "admin")) {
+                actions.push({ href: "/app/juridica/gestion-juridica.html", label: "Gestión Jurídica", cls: "btn-primary" });
             }
+            if (has("juridica", "admin", "compras")) {
+                actions.push({ href: "/app/compras/mis-solicitudes.html", label: "Ver contratos", cls: "btn-secondary" });
+            }
+            const vistos = new Set();
             quickActions.innerHTML = actions
-                .map(
-                    (a) =>
-                        `<a href="${a.href}" class="btn ${a.cls}">${a.label}</a>`
-                )
+                .filter((a) => !vistos.has(a.href) && vistos.add(a.href))
+                .map((a) => `<a href="${a.href}" class="btn ${a.cls}">${a.label}</a>`)
                 .join("");
 
+            // --- Resumen por rol ---
+            const cont = document.getElementById("resumen-container");
+            const statCard = (label, value) =>
+                `<div class="stat"><div class="label">${label}</div><div class="value">${value}</div></div>`;
+            const seccion = (titulo, cards) =>
+                `<section class="card mt-4"><h2 class="card-title">${titulo}</h2><div class="welcome">${cards}</div></section>`;
+            const addSeccion = (titulo, cards) => cont.insertAdjacentHTML("beforeend", seccion(titulo, cards));
+
+            const SRV_ENTREGADA = new Set(["entregado", "entregado_parcial"]);
+            const SRV_CANCELADA = new Set(["cancelado", "rechazada"]);
+            const contarSrv = (items) => {
+                const entregadas = items.filter((s) => SRV_ENTREGADA.has(s.estado)).length;
+                const canceladas = items.filter((s) => SRV_CANCELADA.has(s.estado)).length;
+                return {
+                    total: items.length,
+                    enCurso: items.length - entregadas - canceladas,
+                    entregadas,
+                    canceladas,
+                };
+            };
+
+            async function seccionContratos() {
+                const items = await api.get("/contratos");
+                addSeccion(
+                    "Contratos (Jurídica)",
+                    statCard("Contratos totales", items.length) +
+                        statCard("En proceso", items.filter((c) => c.estado === "en_proceso").length) +
+                        statCard("Elaborando", items.filter((c) => c.estado === "elaborando").length) +
+                        statCard("Activos", items.filter((c) => c.estado === "activo").length) +
+                        statCard("Finalizados", items.filter((c) => c.estado === "finalizado").length)
+                );
+
+                const porElaborar = items
+                    .filter((c) => c.dias_para_elaborar !== null && c.dias_para_elaborar !== undefined)
+                    .sort((a, b) => a.dias_para_elaborar - b.dias_para_elaborar);
+                if (porElaborar.length) {
+                    const urgentes = porElaborar.filter((c) => c.alerta_elaboracion).length;
+                    document.getElementById("elaboracion-resumen").textContent =
+                        `${porElaborar.length} contrato${porElaborar.length === 1 ? "" : "s"} en elaboración` +
+                        (urgentes ? ` — ${urgentes} requiere${urgentes === 1 ? "" : "n"} atención inmediata.` : ".");
+                    const fmt = (d) =>
+                        d < 0 ? `Vencido ${Math.abs(d)} Día${Math.abs(d) === 1 ? "" : "s"}`
+                            : d === 0 ? "Hoy"
+                            : d === 1 ? "1 Día" : `${d} Días`;
+                    document.getElementById("elaboracion-lista").innerHTML = porElaborar
+                        .slice(0, 5)
+                        .map((c) => `<li><strong>${c.codigo || "—"}</strong> · ${c.proveedor_contratista} — <em>${fmt(c.dias_para_elaborar)}</em></li>`)
+                        .join("");
+                    document.getElementById("card-elaboracion").hidden = false;
+                }
+            }
+
+            async function seccionCompras() {
+                const [enProceso, gestion, realizadas] = await Promise.all([
+                    api.get("/solicitudes-gestion/panel-gestion?vista=en_proceso"),
+                    api.get("/solicitudes-gestion/panel-gestion?vista=gestion"),
+                    api.get("/solicitudes-gestion/panel-gestion?vista=realizadas"),
+                ]);
+                addSeccion(
+                    "Solicitudes a Compras",
+                    statCard("En proceso", enProceso.length) +
+                        statCard("En gestión", gestion.length) +
+                        statCard("Realizadas", realizadas.length)
+                );
+            }
+
+            async function seccionMisSolicitudes() {
+                const items = await api.get("/solicitudes-gestion");
+                const c = contarSrv(items);
+                addSeccion(
+                    "Mis solicitudes",
+                    statCard("Total", c.total) +
+                        statCard("En curso", c.enCurso) +
+                        statCard("Entregadas", c.entregadas) +
+                        statCard("Canceladas", c.canceladas)
+                );
+            }
+
+            async function seccionAprobaciones() {
+                const items = await api.get("/solicitudes-gestion/pendientes-aprobacion");
+                addSeccion("Aprobaciones pendientes", statCard("Por aprobar", items.length));
+            }
+
+            async function seccionAnticipos() {
+                const [porAprobar, enGestion] = await Promise.all([
+                    api.get("/solicitudes-gestion/pendientes-aprobacion-anticipo"),
+                    api.get("/solicitudes-gestion/gestion-anticipo"),
+                ]);
+                addSeccion(
+                    "Anticipos",
+                    statCard("Por aprobar", porAprobar.length) +
+                        statCard("En gestión", enGestion.length)
+                );
+            }
+
             (async () => {
+                const tareas = [];
+                if (has("juridica", "admin")) tareas.push(seccionContratos());
+                if (has("compras", "admin")) tareas.push(seccionCompras());
+                else if (has("solicitante")) tareas.push(seccionMisSolicitudes());
+                if (has("lider_aprobador")) tareas.push(seccionAprobaciones());
+                if (has("anticipos")) tareas.push(seccionAnticipos());
+                // Cada sección falla de forma aislada (permiso/500) sin tumbar el resto.
+                await Promise.allSettled(tareas);
+
+                if (!cont.children.length) {
+                    cont.innerHTML = seccion("Resumen", statCard("Sin datos para tu rol", "—"));
+                }
+
                 try {
-                    const [items, buzon] = await Promise.all([
-                        api.get("/contratos"),
-                        api.get("/tareas/buzon"),
-                    ]);
-                    document.getElementById("stat-total").textContent = items.length;
-                    document.getElementById("stat-en_proceso").textContent =
-                        items.filter((c) => c.estado === "en_proceso").length;
-                    document.getElementById("stat-elaborando").textContent =
-                        items.filter((c) => c.estado === "elaborando").length;
-                    document.getElementById("stat-activo").textContent =
-                        items.filter((c) => c.estado === "activo").length;
-                    document.getElementById("stat-finalizado").textContent =
-                        items.filter((c) => c.estado === "finalizado").length;
-
-                    if (user.role === "juridica" || user.role === "admin") {
-                        const porElaborar = items
-                            .filter((c) => c.dias_para_elaborar !== null && c.dias_para_elaborar !== undefined)
-                            .sort((a, b) => a.dias_para_elaborar - b.dias_para_elaborar);
-                        if (porElaborar.length) {
-                            const urgentes = porElaborar.filter((c) => c.alerta_elaboracion).length;
-                            document.getElementById("elaboracion-resumen").textContent =
-                                `${porElaborar.length} contrato${porElaborar.length === 1 ? "" : "s"} en elaboración` +
-                                (urgentes ? ` — ${urgentes} requiere${urgentes === 1 ? "" : "n"} atención inmediata.` : ".");
-                            const fmt = (d) =>
-                                d < 0 ? `Vencido ${Math.abs(d)} Día${Math.abs(d) === 1 ? "" : "s"}`
-                                : d === 0 ? "Hoy"
-                                : d === 1 ? "1 Día" : `${d} Días`;
-                            document.getElementById("elaboracion-lista").innerHTML = porElaborar
-                                .slice(0, 5)
-                                .map((c) => `<li><strong>${c.codigo || "—"}</strong> · ${c.proveedor_contratista} — <em>${fmt(c.dias_para_elaborar)}</em></li>`)
-                                .join("");
-                            document.getElementById("card-elaboracion").hidden = false;
-                        }
-                    }
-
+                    const buzon = await api.get("/tareas/buzon");
                     if (buzon.total > 0) {
                         const card = document.getElementById("card-buzon");
                         card.hidden = false;
-                        const modLabel =
-                            buzon.modulos.length === 1 ? "módulo" : "módulos";
+                        const modLabel = buzon.modulos.length === 1 ? "módulo" : "módulos";
                         document.getElementById("buzon-resumen").textContent =
                             `${buzon.total} pendiente${buzon.total === 1 ? "" : "s"} en ${buzon.modulos.length} ${modLabel}` +
-                            (buzon.alta_prioridad
-                                ? ` (${buzon.alta_prioridad} urgente${buzon.alta_prioridad === 1 ? "" : "s"})`
-                                : "");
-                        document.getElementById("btn-buzon").textContent =
-                            `Ir al buzón (${buzon.total})`;
+                            (buzon.alta_prioridad ? ` (${buzon.alta_prioridad} urgente${buzon.alta_prioridad === 1 ? "" : "s"})` : "");
+                        document.getElementById("btn-buzon").textContent = `Ir al buzón (${buzon.total})`;
                     }
                 } catch {
                     /* ignorar */
