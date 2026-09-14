@@ -3313,13 +3313,17 @@ export function attachGestionDownloadHandlers(container, onError) {
             const type = mimeType || blob.type || "application/octet-stream";
             const viewBlob = blob.type ? blob : new Blob([blob], { type });
             const url = URL.createObjectURL(viewBlob);
-            const popup = window.open(url, "_blank", "noopener,noreferrer");
+            // OJO: no usar "noopener" aquí. Chrome/Edge no resuelven una URL blob:
+            // abierta con noopener (contexto aislado) => ERR_FILE_NOT_FOUND.
+            const popup = window.open(url, "_blank");
             if (!popup) {
                 URL.revokeObjectURL(url);
                 throw new Error(
                     "Permite ventanas emergentes en el navegador para visualizar el archivo."
                 );
             }
+            // Liberamos el blob luego de que la pestaña alcance a cargarlo (no de inmediato).
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
         } catch (err) {
             onError?.(err.message || "No se pudo abrir el archivo.");
         }
