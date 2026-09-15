@@ -30,6 +30,12 @@ def _ext_for_subtype(subtype: str) -> str:
     return MIME_TO_EXT.get(key, "png")
 
 
+def html_sin_data_uri(html: str) -> str:
+    """HTML de observaciones sin base64, listo para guardar en columnas TEXT."""
+    cleaned, _ = extract_inline_images(html or "")
+    return cleaned
+
+
 def extract_inline_images(html: str) -> tuple[str, list[InlineImageExtract]]:
     """Reemplaza data URIs por marcadores __PENDING_N__ y devuelve las imágenes decodificadas."""
     images: list[InlineImageExtract] = []

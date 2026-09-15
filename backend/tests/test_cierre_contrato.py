@@ -186,3 +186,20 @@ def test_imagen_inline_se_extrae_y_no_queda_base64_en_contenido():
     guardado = repo.observaciones[1].contenido
     assert "data:image/png;base64" not in guardado  # el base64 salió de la columna
     assert 'data-sg-archivo-id="100"' in guardado  # y quedó referenciando el archivo
+
+
+def test_html_sin_data_uri_no_deja_base64():
+    from app.application.services.observacion_inline_images import html_sin_data_uri
+
+    b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+        "+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+    )
+    html = (
+        f'<p>hola</p><img src="data:image/png;base64,{b64}" '
+        f'alt="Parker PXC.jpg" class="richtext-inline-image">'
+    )
+    cleaned = html_sin_data_uri(html)
+    assert "base64" not in cleaned
+    assert "data:image" not in cleaned
+    assert len(cleaned) < 400

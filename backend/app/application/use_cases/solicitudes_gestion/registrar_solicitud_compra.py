@@ -12,6 +12,7 @@ from app.application.interfaces.solicitud_gestion_repository import (
 from app.application.services.solicitud_gestion_notificaciones import (
     NotificadorSolicitudGestion,
 )
+from app.application.services.observacion_inline_images import html_sin_data_uri
 from app.domain.entities.solicitud_gestion import (
     SolicitudGestion,
     SolicitudGestionArchivo,
@@ -122,7 +123,7 @@ class RegistrarSolicitudCompra:
             centro_costo_area=centro_costo_area.strip(),
             lider_area_id=str(lider_area_id).strip(),
             lider_area_label=(lider_area_label or "").strip(),
-            observaciones=observaciones or "",
+            observaciones=html_sin_data_uri(observaciones or ""),
             observaciones_texto=(observaciones_texto or "").strip(),
             creado_por_id=actor.id,
             creado_por_email=(actor.email or "").strip(),
@@ -172,6 +173,11 @@ class RegistrarSolicitudCompra:
                         if a.id and not a.observacion_id and a.categoria == "solicitud"
                     ]
                     self._solicitudes.link_archivos_observacion(obs.id, archivo_ids)
+            if obs and obs.contenido:
+                actual = self._solicitudes.get_by_id(created.id)
+                if actual:
+                    actual.observaciones = obs.contenido
+                    self._solicitudes.update(actual)
 
         refreshed = self._solicitudes.get_by_id(created.id)
         resultado = refreshed or created
