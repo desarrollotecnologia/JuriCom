@@ -11,7 +11,7 @@ import {
     renderVisitaProgramadaRowHtml,
     attachGestionDownloadHandlers,
     hydrateInlineObservacionImages,
-} from "../compras/gestion-solicitudes-common.js?v=47";
+} from "../compras/gestion-solicitudes-common.js?v=48";
 
 const ESTADO_LABEL = {
     primera_aprobacion: "Primera aprobación",

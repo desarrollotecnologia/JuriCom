@@ -12,7 +12,11 @@ from app.domain.entities.solicitud_gestion import SolicitudGestion
 from app.domain.entities.user import User
 from app.domain.value_objects.estado_solicitud_gestion import EstadoSolicitudGestion
 from app.domain.value_objects.roles import Role
-from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen, es_flujo_servicios
+from app.domain.value_objects.tipo_solicitud_gestion import (
+    es_flujo_salida_consumibles,
+    es_flujo_salidas_almacen,
+    es_flujo_servicios,
+)
 from app.infrastructure.config import settings
 from app.infrastructure.email import templates as tpl
 
@@ -33,6 +37,8 @@ def resolver_email_solicitante(
 
 
 def _tipo_legible(solicitud: SolicitudGestion) -> str:
+    if es_flujo_salida_consumibles(solicitud.tipo):
+        return "salida de consumibles"
     if es_flujo_salidas_almacen(solicitud.tipo):
         return "solicitud de pedido"
     if es_flujo_servicios(solicitud.tipo):
@@ -211,6 +217,92 @@ class NotificadorSolicitudGestion:
                 url=self._url_aprobar(),
                 boton="Aprobar solicitudes",
                 destinatarios=lideres,
+            )
+
+    def notificar_salida_consumibles_creada(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Salida de consumibles: no hay aprobación.
+
+        - Solicitante: confirmación de registro.
+        - Líder elegido: aviso informativo (qué salió del área y quién lo solicitó).
+        - Compras: nueva salida lista para entrega en el panel.
+        """
+        codigo = solicitud.codigo or ""
+        area = (solicitud.centro_costo_area or "").strip() or "su área"
+        quien = (actor.username or solicitud.creado_por_email or "").strip() or "un supervisor"
+
+        def _fmt(cant) -> str:
+            try:
+                d = cant if hasattr(cant, "to_integral_value") else None
+                if d is not None and d == d.to_integral_value():
+                    return str(int(d))
+            except Exception:
+                pass
+            return str(cant)
+
+        items = [
+            f"{(p.descripcion or '').strip()} ({_fmt(p.cantidad)} {(p.unidad or 'UND').strip()})"
+            for p in (solicitud.productos or [])
+        ]
+        items_html = (
+            "<ul>" + "".join(f"<li>{it}</li>" for it in items) + "</ul>"
+            if items
+            else ""
+        )
+
+        sol = resolver_email_solicitante(solicitud, self._users)
+        if sol:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM] {codigo} — Salida de consumibles registrada",
+                titulo="Salida de consumibles registrada",
+                mensaje=(
+                    f"Se registró tu salida de consumibles <strong>{codigo}</strong>. "
+                    "Compras la entregará; te avisaremos cuando esté lista."
+                    + items_html
+                ),
+                url=self._url_mis_solicitudes(),
+                boton="Ver mis solicitudes",
+                destinatarios=[sol],
+            )
+
+        lider_email = email_lider_catalogo(solicitud.lider_area_id)
+        lideres = [lider_email] if lider_email else self._emails_lider_catalogo(
+            solicitud.lider_area_id
+        )
+        if lideres:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM] {codigo} — Salida de consumibles en {area}",
+                titulo="Aviso de salida de consumibles",
+                mensaje=(
+                    f"<strong>{quien}</strong> solicitó una salida de consumibles del área "
+                    f"<strong>{area}</strong> (solicitud {codigo})."
+                    + items_html
+                    + "<p>Es solo un aviso; no requiere tu aprobación.</p>"
+                ),
+                url=self._url_mis_solicitudes(),
+                boton="Ver solicitud",
+                destinatarios=lideres,
+            )
+
+        compras = self._emails_rol(Role.COMPRAS)
+        if compras:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM] {codigo} — Nueva salida de consumibles para entrega",
+                titulo="Nueva salida de consumibles",
+                mensaje=(
+                    f"La salida de consumibles <strong>{codigo}</strong> de <strong>{area}</strong> "
+                    "está lista para entrega en el panel."
+                    + items_html
+                ),
+                url=self._url_panel(),
+                boton="Ir al panel",
+                destinatarios=compras,
             )
 
     def notificar_primera_aprobacion(

@@ -38,6 +38,7 @@ const GESTION_COMPRAS_PATHS = new Set([
     "/app/compras/solicitud-compra.html",
     "/app/compras/f1-compra.html",
     "/app/compras/salidas-almacen.html",
+    "/app/compras/salida-consumibles.html",
     "/app/compras/solicitud-insumos-servicios.html",
     MIS_SOLICITUDES_GESTION_HREF,
     APROBAR_SOLICITUDES_HREF,
@@ -51,6 +52,7 @@ const GESTION_SOLICITANTE_PATHS = new Set([
     "/app/compras/solicitud-compra.html",
     "/app/compras/f1-compra.html",
     "/app/compras/salidas-almacen.html",
+    "/app/compras/salida-consumibles.html",
     "/app/compras/solicitud-insumos-servicios.html",
     MIS_SOLICITUDES_GESTION_HREF,
 ]);

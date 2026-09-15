@@ -42,6 +42,7 @@ from app.application.use_cases.solicitudes_gestion import (
     RegistrarRecepcionInsumosSolicitud,
     RegistrarSolicitudCompra,
     RegistrarSolicitudSalidasAlmacen,
+    RegistrarSolicitudSalidaConsumibles,
     RegistrarSolicitudServicios,
     RegistrarTramiteOcSolicitud,
     ResolverAprobacionAnticipo,
@@ -69,7 +70,7 @@ from app.domain.value_objects.clasificacion_documento_servicio import (
 )
 from app.domain.value_objects.tipo_solicitud_gestion import (
     TipoSolicitudGestion,
-    es_flujo_salidas_almacen,
+    es_entrega_directa,
 )
 from app.domain.value_objects.estado_solicitud_gestion import (
     EstadoSolicitudGestion,
@@ -289,8 +290,8 @@ def _filtrar_historial(
 
 
 def _tramite_oc_vigente(s: SolicitudGestion) -> bool:
-    """Salidas de almacén no requieren OC; el resto sí cuando aplica el flujo de compra."""
-    if es_flujo_salidas_almacen(s.tipo):
+    """Entrega directa (salidas/consumibles) no requiere OC; el resto sí cuando aplica compra."""
+    if es_entrega_directa(s.tipo):
         return True
     return s.tiene_tramite_oc_registrado
 
@@ -776,6 +777,65 @@ async def registrar_solicitud_salidas_almacen(
             actor=current,
             titulo=titulo,
             centro_costo_area=centro_costo_area,
+            lider_area_id=lider_area_id,
+            lider_area_label=lider_area_label,
+            observaciones=observaciones,
+            observaciones_texto=observaciones_texto,
+            productos_json=productos_json,
+            archivos=entradas,
+        )
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    return _to_response(solicitud, None, current)
+
+
+@router.post(
+    "/salida-consumibles",
+    response_model=SolicitudGestionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def registrar_solicitud_salida_consumibles(
+    titulo: str = Form(...),
+    centro_costo_area: str = Form(...),
+    area_consumo: str = Form(""),
+    lider_area_id: str = Form(...),
+    lider_area_label: str = Form(""),
+    observaciones: str = Form(""),
+    observaciones_texto: str = Form(""),
+    productos_json: str = Form(...),
+    archivos: list[UploadFile] = File(default=[]),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    storage: FileStorage = Depends(get_file_storage),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    entradas: list[ArchivoEntradaSolicitud] = []
+    for upload in archivos:
+        if not upload.filename:
+            continue
+        contenido = await upload.read()
+        if len(contenido) > settings.max_upload_size_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"El archivo '{upload.filename}' supera el límite permitido.",
+            )
+        entradas.append(
+            ArchivoEntradaSolicitud(
+                nombre_original=upload.filename,
+                mime_type=upload.content_type or "application/octet-stream",
+                contenido=contenido,
+            )
+        )
+
+    try:
+        solicitud = RegistrarSolicitudSalidaConsumibles(repo, storage, notificador).execute(
+            actor=current,
+            titulo=titulo,
+            centro_costo_area=centro_costo_area,
+            area_consumo=area_consumo,
             lider_area_id=lider_area_id,
             lider_area_label=lider_area_label,
             observaciones=observaciones,

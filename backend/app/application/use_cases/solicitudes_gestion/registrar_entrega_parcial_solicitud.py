@@ -64,7 +64,7 @@ class RegistrarEntregaParcialSolicitud:
                 "o Entrega parcial realizada."
             )
 
-        es_salidas = solicitud.es_salidas_almacen
+        es_salidas = solicitud.es_entrega_directa
 
         if not es_salidas and not solicitud.tiene_tramite_oc_registrado:
             raise ValueError("Debes registrar el trámite OC antes de la entrega.")

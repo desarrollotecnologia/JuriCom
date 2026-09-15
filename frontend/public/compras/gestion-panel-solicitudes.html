@@ -63,6 +63,7 @@
                             <option value="">Todos los tipos</option>
                             <option value="compra">Solicitud de Compra</option>
                             <option value="salidas_almacen">Salidas de Almacén</option>
+                            <option value="salida_consumibles">Salida de Consumibles</option>
                             <option value="insumos_servicios">Solicitud de Servicios</option>
                         </select>
                         <span class="info" id="panel-result-count"></span>
@@ -273,7 +274,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js?v=2";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=60";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=61";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

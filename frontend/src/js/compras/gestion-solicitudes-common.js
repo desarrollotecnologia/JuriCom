@@ -9,12 +9,14 @@ export const TIPO_LABEL = {
     compra: "Solicitud de Compra",
     salidas_almacen: "Salidas de Almacén",
     insumos_servicios: "Solicitud de Servicios",
+    salida_consumibles: "Salida de Consumibles",
 };
 
 export const TIPO_BADGE = {
     compra: "badge-tipo-compra",
     salidas_almacen: "badge-tipo-salidas-almacen",
     insumos_servicios: "badge-tipo-insumos",
+    salida_consumibles: "badge-tipo-salidas-almacen",
 };
 
 const LEGACY_ESTADO = {
@@ -1949,8 +1951,16 @@ export function renderPanelGestionServiciosPostAprobacionHtml(s, lideresOptionsH
         </div>`;
 }
 
+export function esSolicitudSalidaConsumibles(solicitud) {
+    return (solicitud?.tipo || "") === "salida_consumibles";
+}
+
 export function esSolicitudSalidasAlmacen(solicitud) {
-    return (solicitud?.tipo || "") === "salidas_almacen";
+    // Incluye "salida de consumibles": comparte el flujo de entrega directa por
+    // Compras (sin OC ni recepción física). La diferencia es que consumibles nace
+    // sin aprobación, pero el panel/entrega se comportan igual que salidas.
+    const t = solicitud?.tipo || "";
+    return t === "salidas_almacen" || t === "salida_consumibles";
 }
 
 export function esSolicitudServicios(solicitud) {

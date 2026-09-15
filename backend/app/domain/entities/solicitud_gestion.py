@@ -242,7 +242,7 @@ class SolicitudGestion:
 
     @property
     def tiene_tramite_oc_registrado(self) -> bool:
-        if self.es_salidas_almacen:
+        if self.es_entrega_directa:
             return True
         if (self.numero_tramite_oc or "").strip():
             return True
@@ -326,3 +326,18 @@ class SolicitudGestion:
         from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
 
         return es_flujo_salidas_almacen(self.tipo)
+
+    @property
+    def es_salida_consumibles(self) -> bool:
+        from app.domain.value_objects.tipo_solicitud_gestion import (
+            es_flujo_salida_consumibles,
+        )
+
+        return es_flujo_salida_consumibles(self.tipo)
+
+    @property
+    def es_entrega_directa(self) -> bool:
+        """Salidas de almacén y salida de consumibles: entrega directa por Compras."""
+        from app.domain.value_objects.tipo_solicitud_gestion import es_entrega_directa
+
+        return es_entrega_directa(self.tipo)

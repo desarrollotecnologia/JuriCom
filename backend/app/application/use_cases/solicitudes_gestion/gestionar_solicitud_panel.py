@@ -13,7 +13,7 @@ from app.domain.value_objects.estado_solicitud_gestion import (
     normalizar_estado,
 )
 from app.domain.value_objects.tipo_solicitud_gestion import (
-    es_flujo_salidas_almacen,
+    es_entrega_directa,
     es_flujo_servicios,
 )
 
@@ -31,7 +31,7 @@ class GestionarSolicitudPanel:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
 
         estado = normalizar_estado(solicitud.estado)
-        es_salidas = es_flujo_salidas_almacen(solicitud.tipo)
+        es_salidas = es_entrega_directa(solicitud.tipo)
 
         if es_salidas:
             return self._gestionar_salidas_almacen(actor, solicitud_id, solicitud, estado)

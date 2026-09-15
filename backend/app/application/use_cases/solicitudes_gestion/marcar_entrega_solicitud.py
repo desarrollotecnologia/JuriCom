@@ -60,7 +60,7 @@ class MarcarEntregaSolicitud:
                 "La solicitud debe estar en Recepción de Insumos o Entrega parcial realizada."
             )
 
-        es_salidas = solicitud.es_salidas_almacen
+        es_salidas = solicitud.es_entrega_directa
 
         if not es_salidas and not solicitud.tiene_tramite_oc_registrado:
             raise ValueError(
