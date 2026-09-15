@@ -97,7 +97,7 @@ class RegistrarTramiteOcSolicitud:
         if normalizar_estado(solicitud.estado) != EstadoSolicitudGestion.TRAMITANDO_OC:
             raise ValueError("La solicitud debe estar en estado Tramitando OC.")
 
-        if solicitud.gestor_id and solicitud.gestor_id != actor.id and not actor.is_admin():
+        if solicitud.gestor_id and solicitud.gestor_id != actor.id and not actor.puede_gestionar_panel_compras():
             raise UnauthorizedError("Sólo el gestor asignado puede registrar el trámite OC.")
 
         general = (numero_tramite_oc or "").strip()

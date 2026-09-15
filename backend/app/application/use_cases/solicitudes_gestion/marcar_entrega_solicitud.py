@@ -67,7 +67,7 @@ class MarcarEntregaSolicitud:
                 "Debes registrar el trámite OC antes de marcar la entrega."
             )
 
-        if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+        if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
             raise UnauthorizedError("Sólo el gestor asignado puede registrar la entrega.")
 
         productos_entrega = solicitud.productos_para_entrega

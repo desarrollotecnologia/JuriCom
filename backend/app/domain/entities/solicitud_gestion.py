@@ -307,9 +307,15 @@ class SolicitudGestion:
     def tiene_entrega_pendiente(self) -> bool:
         return any(p.cantidad_entregada < p.cantidad for p in self.productos_para_entrega)
 
-    def actor_puede_gestionar(self, actor_id: int, *, is_admin: bool = False) -> bool:
-        """True si el usuario puede operar la solicitud en panel o entrega."""
-        if is_admin:
+    def actor_puede_gestionar(
+        self, actor_id: int, *, is_admin: bool = False, es_compras: bool = False
+    ) -> bool:
+        """True si el usuario puede operar la solicitud en panel o entrega.
+
+        Admin y cualquier usuario de Compras pueden gestionar aunque la solicitud
+        ya tenga otro gestor asignado (equipo de compras compartido).
+        """
+        if is_admin or es_compras:
             return True
         if not self.gestor_id and not self.gestor_anticipo_id:
             return True

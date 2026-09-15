@@ -192,7 +192,9 @@ export function initPanelSolicitudesGestion() {
     const btnFacturaDetalleAgregar = document.getElementById("btn-panel-factura-detalle-agregar");
 
     const currentUser = session.getUser();
-    const isAdmin = currentUser?.role === "admin";
+    // Equipo de compras compartido: cualquier compras (o admin) puede gestionar,
+    // aunque la solicitud ya tenga otro gestor asignado.
+    const puedeGestionarCompras = session.hasRole("compras", "admin");
 
     let alertHideTimer = null;
 
@@ -578,7 +580,7 @@ export function initPanelSolicitudesGestion() {
                 const mostrarVerFactura = !esSalidas && tieneFacturas;
                 const enFlujoFactura = mostrarFactura || mostrarVerFactura;
                 const gestionar =
-                    !enFlujoFactura && puedeGestionar(s, currentUser?.id, isAdmin);
+                    !enFlujoFactura && puedeGestionar(s, currentUser?.id, puedeGestionarCompras);
                 const btnClass = gestionar
                     ? "btn btn-primary btn-icon-view"
                     : "btn btn-secondary btn-icon-view";
@@ -1067,7 +1069,7 @@ export function initPanelSolicitudesGestion() {
             const esLogistica = esGestionEntrega(estado) && estado !== "tramitada_oc";
             const esServiciosGestion =
                 esSolicitudServicios(s) && esGestionServiciosPanelActivo(s);
-            const puedeActuar = puedeGestionar(s, currentUser?.id, isAdmin);
+            const puedeActuar = puedeGestionar(s, currentUser?.id, puedeGestionarCompras);
 
             if ((esLogistica && puedeActuar) || (esServiciosGestion && puedeActuar)) {
                 await abrirGestion(s);

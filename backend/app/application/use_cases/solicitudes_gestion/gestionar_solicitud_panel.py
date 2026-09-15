@@ -40,7 +40,7 @@ class GestionarSolicitudPanel:
             EstadoSolicitudGestion.PROGRAMACION_VISITA,
             EstadoSolicitudGestion.COTIZACION,
         ):
-            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             if not solicitud.gestor_id:
                 solicitud.gestor_id = actor.id
@@ -48,7 +48,7 @@ class GestionarSolicitudPanel:
             return solicitud
 
         if estado == EstadoSolicitudGestion.GESTIONANDO_SERVICIO:
-            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             if not solicitud.gestor_id:
                 solicitud.gestor_id = actor.id
@@ -56,12 +56,12 @@ class GestionarSolicitudPanel:
             return solicitud
 
         if estado == EstadoSolicitudGestion.PENDIENTE_EVIDENCIA_CIERRE:
-            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             return solicitud
 
         if estado == EstadoSolicitudGestion.TRAMITANDO_OC:
-            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             if not solicitud.gestor_id:
                 solicitud.gestor_id = actor.id
@@ -69,12 +69,12 @@ class GestionarSolicitudPanel:
             return solicitud
 
         if estado == EstadoSolicitudGestion.ENTREGADO_PARCIAL:
-            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             return solicitud
 
         if estado == EstadoSolicitudGestion.ITEMS_EN_CAMINO:
-            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             if not solicitud.gestor_id:
                 solicitud.gestor_id = actor.id
@@ -82,12 +82,12 @@ class GestionarSolicitudPanel:
             return solicitud
 
         if estado == EstadoSolicitudGestion.RECEPCION_INSUMOS:
-            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             return solicitud
 
         if estado == EstadoSolicitudGestion.TRAMITADA_OC:
-            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             if not solicitud.gestor_id:
                 solicitud.gestor_id = actor.id
@@ -109,7 +109,7 @@ class GestionarSolicitudPanel:
                 "Esta solicitud requiere comité técnico; primero la cotiza Proyectos."
             )
 
-        if solicitud.gestor_id and solicitud.gestor_id != actor.id and not actor.is_admin():
+        if solicitud.gestor_id and solicitud.gestor_id != actor.id and not actor.puede_gestionar_panel_compras():
             raise UnauthorizedError("Esta solicitud ya fue tomada por otro gestor.")
 
         solicitud.gestor_id = actor.id
@@ -148,7 +148,7 @@ class GestionarSolicitudPanel:
             EstadoSolicitudGestion.RECEPCION_INSUMOS,
             EstadoSolicitudGestion.ENTREGADO_PARCIAL,
         ):
-            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+            if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
                 raise UnauthorizedError("Esta solicitud está siendo gestionada por otro usuario.")
             if not solicitud.gestor_id:
                 solicitud.gestor_id = actor.id
@@ -164,7 +164,7 @@ class GestionarSolicitudPanel:
                 "o durante la entrega de productos."
             )
 
-        if solicitud.gestor_id and solicitud.gestor_id != actor.id and not actor.is_admin():
+        if solicitud.gestor_id and solicitud.gestor_id != actor.id and not actor.puede_gestionar_panel_compras():
             raise UnauthorizedError("Esta solicitud ya fue tomada por otro gestor.")
 
         return self._activar_entrega_salidas_almacen(actor, solicitud_id, solicitud)

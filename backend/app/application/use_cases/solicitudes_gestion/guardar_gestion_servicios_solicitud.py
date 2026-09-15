@@ -81,7 +81,7 @@ class GuardarGestionServiciosSolicitud:
             if (
                 solicitud.gestor_id
                 and solicitud.gestor_id != actor.id
-                and not actor.is_admin()
+                and not actor.puede_gestionar_panel_compras()
             ):
                 raise UnauthorizedError("Sólo el gestor asignado puede agendar la visita.")
 

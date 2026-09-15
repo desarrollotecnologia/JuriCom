@@ -73,7 +73,7 @@ class SolicitarAnticipoServiciosSolicitud:
         if solicitud.anticipo_gestionado:
             raise ValueError("El anticipo de este servicio ya fue gestionado.")
 
-        if solicitud.gestor_id != actor.id and not actor.is_admin():
+        if solicitud.gestor_id != actor.id and not actor.puede_gestionar_panel_compras():
             raise UnauthorizedError("Sólo el gestor asignado puede solicitar el anticipo.")
 
         valor = _parse_valor_tramite(valor_servicio)

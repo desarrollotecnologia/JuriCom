@@ -66,7 +66,7 @@ class NotificarEvidenciaCierreServiciosSolicitud:
                 "gestión de anticipo, antes de notificar evidencia de cierre."
             )
 
-        if solicitud.gestor_id != actor.id and not actor.is_admin():
+        if solicitud.gestor_id != actor.id and not actor.puede_gestionar_panel_compras():
             raise UnauthorizedError("Sólo el gestor asignado puede notificar al solicitante.")
 
         nota_texto = (nueva_observacion_texto or "").strip()

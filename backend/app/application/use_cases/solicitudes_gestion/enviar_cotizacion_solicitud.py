@@ -166,7 +166,7 @@ class EnviarCotizacionSolicitud:
         if normalizar_estado(solicitud.estado) != EstadoSolicitudGestion.COTIZACION:
             raise ValueError("La solicitud debe estar en estado Cotización.")
 
-        if solicitud.gestor_id != actor.id and not actor.is_admin():
+        if solicitud.gestor_id != actor.id and not actor.puede_gestionar_panel_compras():
             raise UnauthorizedError("Sólo el gestor asignado puede enviar la cotización.")
 
         es_srv = es_flujo_servicios(solicitud.tipo)

@@ -64,7 +64,7 @@ class RegistrarValorServicioSolicitud:
                 "El anticipo de este servicio ya fue gestionado; no se puede recalcular el valor."
             )
 
-        if solicitud.gestor_id != actor.id and not actor.is_admin():
+        if solicitud.gestor_id != actor.id and not actor.puede_gestionar_panel_compras():
             raise UnauthorizedError(
                 "Sólo el gestor asignado puede registrar el valor del servicio."
             )

@@ -75,7 +75,7 @@ class CerrarSolicitudConPendientes:
         if not solicitud.es_salidas_almacen and not solicitud.tiene_tramite_oc_registrado:
             raise ValueError("Debes registrar el trámite OC antes de cerrar la solicitud.")
 
-        if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+        if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
             raise UnauthorizedError("Sólo el gestor asignado puede cerrar la solicitud.")
 
         productos = solicitud.productos_para_entrega

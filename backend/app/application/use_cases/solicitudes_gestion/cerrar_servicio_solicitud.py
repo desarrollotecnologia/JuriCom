@@ -92,7 +92,7 @@ class CerrarServicioSolicitud:
                 "La solicitud debe estar pendiente de evidencia de cierre del solicitante."
             )
 
-        if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin()):
+        if not solicitud.actor_puede_gestionar(actor.id, is_admin=actor.is_admin(), es_compras=actor.is_compras()):
             raise UnauthorizedError("Sólo el gestor asignado puede cerrar este servicio.")
 
         solicitud.historial_estados = self._solicitudes.get_historial(solicitud_id)
