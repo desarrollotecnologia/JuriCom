@@ -3,7 +3,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, text
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from app.application.interfaces.solicitud_gestion_repository import (
@@ -214,7 +214,39 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         )
         return int(max_num or 0) + 1
 
+    # ponytail: dedup por (creador+tipo+título) en ventana de tiempo. Techo: si
+    # el usuario crea a propósito dos solicitudes con título idéntico en <3 min,
+    # deberá cambiar el título; upgrade = idempotency-key generada por el cliente.
+    def _codigo_duplicado_reciente(
+        self, solicitud: SolicitudGestion, ventana_segundos: int = 180
+    ) -> Optional[str]:
+        titulo = (solicitud.titulo or "").strip()
+        if not titulo or not solicitud.creado_por_id:
+            return None
+        fila = (
+            self._db.query(SolicitudGestionModel.codigo)
+            .filter(
+                SolicitudGestionModel.creado_por_id == solicitud.creado_por_id,
+                SolicitudGestionModel.tipo == solicitud.tipo.value,
+                func.lower(func.trim(SolicitudGestionModel.titulo)) == titulo.lower(),
+                SolicitudGestionModel.created_at
+                >= func.date_sub(
+                    func.now(), text(f"INTERVAL {int(ventana_segundos)} SECOND")
+                ),
+            )
+            .order_by(SolicitudGestionModel.id.desc())
+            .first()
+        )
+        return fila[0] if fila else None
+
     def create(self, solicitud: SolicitudGestion) -> SolicitudGestion:
+        codigo_dup = self._codigo_duplicado_reciente(solicitud)
+        if codigo_dup:
+            raise ValueError(
+                f"Ya registraste una solicitud idéntica hace instantes ({codigo_dup}). "
+                "Revísala en «Mis solicitudes» antes de volver a enviarla."
+            )
+
         etapa_inicial = normalizar_estado(solicitud.estado)
         numero_consecutivo = self._siguiente_numero_consecutivo(solicitud.tipo)
         codigo = construir_codigo_solicitud(numero_consecutivo, solicitud.tipo)
