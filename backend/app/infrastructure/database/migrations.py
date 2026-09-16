@@ -856,6 +856,26 @@ def run_all() -> None:
     migrar_seed_proveedores()
     migrar_cotizacion_valor_anticipo()
     migrar_plazo_unidad_varchar()
+    migrar_prioridad_solicitud()
+
+
+def migrar_prioridad_solicitud() -> None:
+    """Prioridad de la solicitud (alta/media/baja)."""
+    if not _tabla_existe("solicitudes_gestion"):
+        return
+    if _columna_existe("solicitudes_gestion", "prioridad"):
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE solicitudes_gestion
+                ADD COLUMN prioridad VARCHAR(10) NOT NULL DEFAULT 'media'
+                AFTER centro_costo_area
+                """
+            )
+        )
+    logger.info("Columna prioridad agregada a solicitudes_gestion.")
 
 
 def migrar_correo_proveedor_contratos() -> None:

@@ -214,6 +214,7 @@ export function initSolicitudCompraForm() {
             titulo: form.titulo.value.trim(),
             presupuestado: presupuestado === "si",
             centro_costo_area: form.centro_costo_area.value,
+            prioridad: form.prioridad?.value || "media",
             lider_area_id: form.lider_area_id.value,
             productos: collectProductos(),
             observaciones: observacionesEditor.getHtml(),
@@ -259,6 +260,7 @@ export function initSolicitudCompraForm() {
         formData.append("titulo", payload.titulo);
         formData.append("presupuestado", String(payload.presupuestado));
         formData.append("centro_costo_area", payload.centro_costo_area);
+        formData.append("prioridad", payload.prioridad);
         formData.append("lider_area_id", form.lider_area_id.value);
         formData.append("lider_area_label", lider?.label || "");
         formData.append("observaciones", payload.observaciones);

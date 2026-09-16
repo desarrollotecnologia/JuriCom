@@ -89,10 +89,10 @@ class RegistrarTramiteOcSolicitud:
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
 
-        from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
+        from app.domain.value_objects.tipo_solicitud_gestion import es_entrega_directa
 
-        if es_flujo_salidas_almacen(solicitud.tipo):
-            raise ValueError("Las salidas de almacén no requieren trámite OC.")
+        if es_entrega_directa(solicitud.tipo):
+            raise ValueError("Este tipo de solicitud no requiere trámite OC.")
 
         if normalizar_estado(solicitud.estado) != EstadoSolicitudGestion.TRAMITANDO_OC:
             raise ValueError("La solicitud debe estar en estado Tramitando OC.")

@@ -9,12 +9,14 @@ export const TIPO_LABEL = {
     compra: "Solicitud de Compra",
     salidas_almacen: "Salidas de Almacén",
     insumos_servicios: "Solicitud de Servicios",
+    salida_consumibles: "Salida de Consumibles",
 };
 
 export const TIPO_BADGE = {
     compra: "badge-tipo-compra",
     salidas_almacen: "badge-tipo-salidas-almacen",
     insumos_servicios: "badge-tipo-insumos",
+    salida_consumibles: "badge-tipo-salidas-almacen",
 };
 
 const LEGACY_ESTADO = {
@@ -844,6 +846,20 @@ export function solicitudTieneOcRegistrada(solicitud) {
     if (solicitud.tiene_tramite_oc_registrado) return true;
     if ((solicitud.numero_tramite_oc || "").trim()) return true;
     return (solicitud.productos || []).some((p) => (p.numero_tramite_oc || "").trim());
+}
+
+export function badgePrioridad(prioridad) {
+    const key = String(prioridad || "media").trim().toLowerCase();
+    const conf = {
+        alta: { label: "Alta", bg: "#fee2e2", color: "#b91c1c" },
+        media: { label: "Media", bg: "#fef3c7", color: "#b45309" },
+        baja: { label: "Baja", bg: "#dcfce7", color: "#15803d" },
+    }[key] || { label: "Media", bg: "#fef3c7", color: "#b45309" };
+    return (
+        `<span style="display:inline-block;padding:2px 10px;border-radius:999px;` +
+        `font-size:12px;font-weight:600;background:${conf.bg};color:${conf.color}">` +
+        `${conf.label}</span>`
+    );
 }
 
 export function badgeEstado(estado, solicitud = null) {
@@ -1949,8 +1965,16 @@ export function renderPanelGestionServiciosPostAprobacionHtml(s, lideresOptionsH
         </div>`;
 }
 
+export function esSolicitudSalidaConsumibles(solicitud) {
+    return (solicitud?.tipo || "") === "salida_consumibles";
+}
+
 export function esSolicitudSalidasAlmacen(solicitud) {
-    return (solicitud?.tipo || "") === "salidas_almacen";
+    // Incluye "salida de consumibles": comparte el flujo de entrega directa por
+    // Compras (sin OC ni recepción física). La diferencia es que consumibles nace
+    // sin aprobación, pero el panel/entrega se comportan igual que salidas.
+    const t = solicitud?.tipo || "";
+    return t === "salidas_almacen" || t === "salida_consumibles";
 }
 
 export function esSolicitudServicios(solicitud) {
@@ -2029,6 +2053,10 @@ export function renderInformacionGeneralHtml(s, options = {}) {
                 <div class="sg-detail-field">
                     <dt>Centro de costo</dt>
                     <dd>${escapeHtml(s.centro_costo_area)}</dd>
+                </div>
+                <div class="sg-detail-field">
+                    <dt>Prioridad</dt>
+                    <dd>${badgePrioridad(s.prioridad)}</dd>
                 </div>
                 <div class="sg-detail-field">
                     <dt>${escapeHtml(liderTitulo)}</dt>
@@ -2512,6 +2540,7 @@ export function renderProductosTableHtml(productos, options = {}) {
         showRecepcionInfo = false,
         recepcionParcialEditable = false,
         panelId = null,
+        ocultarBotonPdf = false,
     } = options;
 
     let list = [...(productos || [])];
@@ -2562,6 +2591,7 @@ export function renderProductosTableHtml(productos, options = {}) {
 
     const hayEntregado = list.some((p) => Number(p.cantidad_entregada || 0) > 0);
     const mostrarDescargaPdf =
+        !ocultarBotonPdf &&
         showEntregaInfo &&
         hayEntregado &&
         !entregaParcialEditable &&
@@ -2854,6 +2884,8 @@ export function renderDetalleSolicitudHtml(s, options = {}) {
                         (s.productos || []).some(
                             (p) => Number(p.cantidad_entregada || 0) > 0
                         )),
+                ocultarBotonPdf:
+                    productosOptions.ocultarBotonPdf ?? esSolicitudSalidasAlmacen(s),
             })
             }
 
@@ -3356,15 +3388,8 @@ export async function hydrateInlineObservacionImages(container, solicitudId) {
     );
 }
 
-function descargarTablaProductosPdf(tabla, titulo) {
-    const clon = tabla.cloneNode(true);
-    // Los detalles de solo lectura no traen inputs, pero por si acaso los volvemos texto.
-    clon.querySelectorAll("input, select, textarea").forEach((el) => {
-        const span = document.createElement("span");
-        span.textContent = el.value || "";
-        el.replaceWith(span);
-    });
-    const win = window.open("", "_blank", "width=1000,height=700");
+function _imprimirDocumentoPdf(titulo, contenidoHtml, ventana = null) {
+    const win = ventana || window.open("", "_blank", "width=1000,height=700");
     if (!win) {
         alert("Habilita las ventanas emergentes para descargar el PDF.");
         return;
@@ -3388,11 +3413,54 @@ function descargarTablaProductosPdf(tabla, titulo) {
             `<div><h1>${escapeHtml(titulo)}</h1>` +
             `<div class="meta">Generado el ${escapeHtml(fecha)}</div></div>` +
             `</div>` +
-            clon.outerHTML +
+            contenidoHtml +
             `<script>window.onload=function(){window.focus();window.print();}<\/script>` +
             `</body></html>`
     );
     win.document.close();
+}
+
+export function descargarTablaProductosPdf(tabla, titulo) {
+    const clon = tabla.cloneNode(true);
+    // Los detalles de solo lectura no traen inputs, pero por si acaso los volvemos texto.
+    clon.querySelectorAll("input, select, textarea").forEach((el) => {
+        const span = document.createElement("span");
+        span.textContent = el.value || "";
+        el.replaceWith(span);
+    });
+    _imprimirDocumentoPdf(titulo, clon.outerHTML);
+}
+
+export function descargarProductosPdf(
+    productos,
+    titulo = "Productos aprobados",
+    ventana = null
+) {
+    const list = (productos || []).filter(
+        (p) => (p.estado_aprobacion || "aprobado") !== "no_aprobado"
+    );
+    if (!list.length) {
+        ventana?.close();
+        alert("No hay productos aprobados para descargar.");
+        return;
+    }
+    const filas = list
+        .map(
+            (p) => `<tr>
+                <td>${escapeHtml((p.codigo_siimed || "").trim() || "—")}</td>
+                <td>${escapeHtml((p.descripcion || "").trim())}</td>
+                <td>${escapeHtml((p.unidad || "UND").trim())}</td>
+                <td>${escapeHtml(String(p.cantidad ?? ""))}</td>
+                <td>${escapeHtml((p.centro_costo || "").trim() || "—")}</td>
+            </tr>`
+        )
+        .join("");
+    const tabla =
+        `<table><thead><tr>` +
+        `<th>Código Siimed</th><th>Descripción</th><th>Unidad</th>` +
+        `<th>Cantidad</th><th>Centro de costo</th>` +
+        `</tr></thead><tbody>${filas}</tbody></table>`;
+    _imprimirDocumentoPdf(titulo, tabla, ventana);
 }
 
 if (typeof document !== "undefined" && !window.__sgPdfListenerBound) {

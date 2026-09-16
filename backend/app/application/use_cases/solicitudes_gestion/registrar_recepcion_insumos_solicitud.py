@@ -57,11 +57,11 @@ class RegistrarRecepcionInsumosSolicitud:
         if solicitud is None:
             raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
 
-        from app.domain.value_objects.tipo_solicitud_gestion import es_flujo_salidas_almacen
+        from app.domain.value_objects.tipo_solicitud_gestion import es_entrega_directa
 
-        if es_flujo_salidas_almacen(solicitud.tipo):
+        if es_entrega_directa(solicitud.tipo):
             raise ValueError(
-                "Las salidas de almacén no requieren recepción física; "
+                "Este tipo de solicitud no requiere recepción física; "
                 "registra la entrega directamente."
             )
 

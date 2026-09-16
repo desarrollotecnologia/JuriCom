@@ -2,57 +2,21 @@
 <html lang="es">
     <head>
         <meta charset="UTF-8" />
-        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-        <meta http-equiv="Pragma" content="no-cache" />
-        <meta http-equiv="Expires" content="0" />
         <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Solicitud de Compra · JURICOM</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=14" />
+        <title>Salida de Consumibles · JURICOM</title>
+        <link rel="stylesheet" href="/static/styles/theme.css?v=13" />
     </head>
     <body>
-        <template id="tpl-unidades-medida">
-            <option value="">Unidad</option>
-            <option value="UND">Unidad (UND)</option>
-            <option value="KG">Kilogramo (KG)</option>
-            <option value="LB">Libra (LB)</option>
-            <option value="LT">Litro (LT)</option>
-            <option value="GL">Galón (GL)</option>
-            <option value="MT">Metro (MT)</option>
-            <option value="CJ">Caja (CJ)</option>
-            <option value="PQ">Paquete (PQ)</option>
-            <option value="LTS">Litros (LTS)</option>
-            <option value="GLS">Galones (GLS)</option>
-            <option value="MTS">Metros (MTS)</option>
-            <option value="CJS">Cajas (CJS)</option>
-            <option value="PQS">Paquetes (PQS)</option>
-            <option value="LBS">Libras (LBS)</option>
-            <option value="KGS">Kilos (KGS)</option>
-            <option value="LM">Lámina (LM)</option>
-            <option value="LMS">Láminas (LMS)</option>
-            <option value="CHP">Chipa (CHP)</option>
-            <option value="RL">Rollo (RL)</option>
-            <option value="RLS">Rollos (RLS)</option>
-            <option value="CM">Centímetros (CM)</option>
-            <option value="MM">Milímetros (MM)</option>
-            <option value="PAR">Par (PAR)</option>
-            <option value="KIT">Kit (KIT)</option>
-            <option value="TRM">Tramo (TRM)</option>
-            <option value="TRS">Tramos (TRS)</option>
-            <option value="CUN">Cuñete (CUN)</option>
-            <option value="CUNS">Cuñetes (CUNS)</option>
-            <option value="BT">Bulto (BT)</option>
-            <option value="BTS">Bultos (BTS)</option>
-            <option value="BAL">Bala (BAL)</option>
-        </template>
         <div class="app-shell">
             <aside class="sidebar" id="sidebar"></aside>
             <main class="main">
                 <div class="page-header">
                     <div>
-                        <h1>Solicitud de Compra</h1>
+                        <h1>Salida de Consumibles</h1>
                         <p class="muted">
-                            Completa los datos generales, el detalle de productos y adjunta los soportes.
+                            Elige tu área y los consumibles que necesitas. Se avisa al
+                            líder y pasa directo a Compras para la entrega.
                         </p>
                     </div>
                     <div class="page-header-actions">
@@ -65,14 +29,13 @@
                 <div class="alert alert-error" id="alert-error"></div>
                 <div class="alert alert-success" id="alert-success"></div>
 
-                <form id="form-solicitud-compra" class="card" novalidate>
-                    <!-- 1. Cabecera -->
+                <form id="form-salida-consumibles" class="card" novalidate>
                     <div class="form-section">
                         <h3>1. Datos generales</h3>
 
                         <div class="field">
                             <label for="titulo">
-                                Título o Asunto de la Solicitud
+                                Título de la Solicitud
                                 <span class="required">*</span>
                             </label>
                             <input
@@ -80,37 +43,14 @@
                                 id="titulo"
                                 name="titulo"
                                 required
-                                placeholder="Ej. Compra de insumos de oficina — marzo 2026"
+                                placeholder="Ej. Consumibles de producción — marzo 2026"
                             />
-                        </div>
-
-                        <div class="field">
-                            <label>Presupuestado <span class="required">*</span></label>
-                            <div class="radio-group">
-                                <label class="radio-option">
-                                    <input
-                                        type="radio"
-                                        name="presupuestado"
-                                        value="si"
-                                        required
-                                    />
-                                    Es presupuestado
-                                </label>
-                                <label class="radio-option">
-                                    <input
-                                        type="radio"
-                                        name="presupuestado"
-                                        value="no"
-                                    />
-                                    No es presupuestado
-                                </label>
-                            </div>
                         </div>
 
                         <div class="row-2">
                             <div class="field">
                                 <label for="centro-costo-area">
-                                    Centro de Costo (Área Solicitante)
+                                    Centro de Costo (Mi Área)
                                     <span class="required">*</span>
                                 </label>
                                 <select
@@ -121,12 +61,12 @@
                             </div>
                             <div class="field">
                                 <label for="lider-area-input">
-                                    Líder de Área (Aprobador)
+                                    Líder a notificar
                                     <span class="required">*</span>
                                 </label>
                                 <div id="lider-area-select"></div>
                                 <span class="hint">
-                                    Escribe para filtrar. Lista Líderes Colbeef 2026.
+                                    Solo recibe un aviso; no aprueba nada.
                                 </span>
                             </div>
                         </div>
@@ -143,7 +83,6 @@
                         </div>
                     </div>
 
-                    <!-- 2. Detalle productos -->
                     <div class="form-section">
                         <div
                             style="
@@ -155,43 +94,38 @@
                             "
                         >
                             <h3 style="margin-bottom: 0; border: none; padding: 0">
-                                2. Detalle de la compra
+                                2. Consumibles
                             </h3>
                             <button
                                 type="button"
                                 class="btn btn-secondary btn-sm"
-                                id="btn-agregar-producto"
+                                id="btn-agregar-consumible"
                             >
-                                + Agregar Producto
+                                + Agregar consumible
                             </button>
                         </div>
 
                         <div class="table-editable-wrap">
-                            <table class="table-editable table-productos-compra">
+                            <table class="table-editable">
                                 <colgroup>
-                                    <col class="col-siimed" />
-                                    <col class="col-unidad" />
-                                    <col class="col-descripcion" />
-                                    <col class="col-centro-costo" />
+                                    <col />
                                     <col class="col-cantidad" />
+                                    <col class="col-unidad" />
                                     <col class="col-accion" />
                                 </colgroup>
                                 <thead>
                                     <tr>
-                                        <th>Código Siimed</th>
-                                        <th>Unidad</th>
-                                        <th>Descripción del producto</th>
-                                        <th>Centro de Costo</th>
+                                        <th>Consumible</th>
                                         <th>Cantidad</th>
+                                        <th>Unidad</th>
                                         <th>Acción</th>
                                     </tr>
                                 </thead>
-                                <tbody id="productos-tbody"></tbody>
+                                <tbody id="consumibles-tbody"></tbody>
                             </table>
                         </div>
                     </div>
 
-                    <!-- 3. Pie del formulario -->
                     <div class="form-section">
                         <h3>3. Observaciones y adjuntos</h3>
 
@@ -207,18 +141,13 @@
                             />
                             <ul class="file-list" id="file-list" hidden></ul>
                             <span class="hint">
-                                Usa el clip en la barra del editor para adjuntar archivos
-                                (también puedes arrastrarlos sobre el área de texto).
-                                Usa el botón de imagen para insertar una foto dentro del comentario.
+                                Usa el clip en la barra del editor para adjuntar archivos.
                             </span>
                         </div>
                     </div>
 
                     <div class="form-actions">
-                        <a
-                            href="/app/compras/nueva-solicitud.html"
-                            class="btn btn-secondary"
-                        >
+                        <a href="/app/compras/nueva-solicitud.html" class="btn btn-secondary">
                             Cancelar
                         </a>
                         <button type="submit" class="btn btn-primary" id="btn-submit">
@@ -232,12 +161,12 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSolicitudCompraForm } from "/static/js/compras/f1-compra.js?v=3";
+            import { initSalidaConsumiblesForm } from "/static/js/compras/salida-consumibles-form.js?v=2";
 
             session.requireAuth();
-            session.requireRole(["compras", "admin", "solicitante", "anticipos", "proyectos"]);
+            session.requireRole(["compras", "admin", "solicitante", "proyectos"]);
             renderSidebar();
-            initSolicitudCompraForm();
+            initSalidaConsumiblesForm();
         </script>
     </body>
 </html>

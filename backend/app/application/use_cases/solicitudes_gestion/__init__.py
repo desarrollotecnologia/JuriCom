@@ -37,6 +37,7 @@ from .listar_panel_proyectos import ListarPanelProyectos
 from .registrar_solicitud_compra import ArchivoEntradaSolicitud, RegistrarSolicitudCompra
 
 from .registrar_solicitud_salidas_almacen import RegistrarSolicitudSalidasAlmacen
+from .registrar_solicitud_salida_consumibles import RegistrarSolicitudSalidaConsumibles
 from .registrar_solicitud_servicios import RegistrarSolicitudServicios
 
 
@@ -133,6 +134,8 @@ __all__ = [
     "RegistrarSolicitudCompra",
 
     "RegistrarSolicitudSalidasAlmacen",
+
+    "RegistrarSolicitudSalidaConsumibles",
 
     "RegistrarSolicitudServicios",
 

@@ -49,7 +49,11 @@
                             <option value="">Todos los tipos</option>
                             <option value="compra">Solicitud de Compra</option>
                             <option value="salidas_almacen">Salidas de Almacén</option>
+                            <option value="salida_consumibles">Salida de Consumibles</option>
                             <option value="insumos_servicios">Solicitud de Servicios</option>
+                        </select>
+                        <select id="gestion-filter-estado">
+                            <option value="">Todos los estados</option>
                         </select>
                         <span class="info" id="gestion-result-count"></span>
                     </div>
@@ -118,7 +122,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js?v=2";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=29";
+            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=32";
 
             const user = await requireSessionRole(["compras", "admin", "solicitante", "anticipos"]);
             if (user) {
