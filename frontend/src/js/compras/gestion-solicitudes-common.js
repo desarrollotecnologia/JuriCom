@@ -1,7 +1,7 @@
 import { session } from "../auth/session.js";
 import { api } from "../api/client.js";
 import { LIDERES_COLBEEF } from "../catalogos/lideres-colbeef.js";
-import { renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js";
+import { renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js?v=2";
 import { API_BASE } from "../utils/config.js";
 import { escapeHtml, formatCantidad, formatDate, formatDateOnly, formatFileSize, formatValorTramiteOc, previewValorCotizacion } from "../utils/format.js?v=2";
 
@@ -2240,26 +2240,58 @@ async function _archivoDataUri(solicitudId, archivoId) {
     return _blobToDataUri(await resp.blob());
 }
 
-// Reemplaza <img data-sg-archivo-id="N"> por su imagen real (data URI con token).
-async function _resolverImagenesInline(solicitudId, html) {
+let _membreteCache;
+async function _membreteDataUri() {
+    if (_membreteCache !== undefined) return _membreteCache;
+    try {
+        const resp = await fetch(
+            `${window.location.origin}/app/assets/membrete-colbeef.jpg`
+        );
+        _membreteCache = resp.ok ? await _blobToDataUri(await resp.blob()) : null;
+    } catch {
+        _membreteCache = null;
+    }
+    return _membreteCache;
+}
+
+// Prepara HTML del editor para Word: resuelve imágenes con token y limpia
+// estilos que Word no entiende (font-size en rem, font-family: inherit), que
+// hacen que se pierdan negrita/cursiva/estructura. Conserva el resto del formato.
+async function _prepararHtmlDoc(solicitudId, html) {
     if (!html) return "";
     const tpl = document.createElement("template");
     tpl.innerHTML = html;
-    const imgs = tpl.content.querySelectorAll("img[data-sg-archivo-id]");
-    for (const img of imgs) {
+
+    const imgsToken = tpl.content.querySelectorAll("img[data-sg-archivo-id]");
+    for (const img of imgsToken) {
         const id = img.getAttribute("data-sg-archivo-id");
         const dataUri = id ? await _archivoDataUri(solicitudId, id) : null;
         if (dataUri) img.setAttribute("src", dataUri);
         img.removeAttribute("data-sg-archivo-id");
-        img.style.maxWidth = "600px";
-        img.style.height = "auto";
     }
+
+    tpl.content.querySelectorAll("[style]").forEach((el) => {
+        const limpio = (el.getAttribute("style") || "")
+            .split(";")
+            .map((d) => d.trim())
+            .filter((d) => d && !/^font-(size|family)\s*:/i.test(d))
+            .join("; ");
+        if (limpio) el.setAttribute("style", limpio);
+        else el.removeAttribute("style");
+    });
+
+    tpl.content.querySelectorAll("img").forEach((img) => {
+        img.setAttribute("width", "560");
+        img.style.maxWidth = "560px";
+        img.style.height = "auto";
+    });
+
     return tpl.innerHTML;
 }
 
 async function _descripcionDocHtml(s) {
     if (esSolicitudServicios(s)) {
-        const html = await _resolverImagenesInline(
+        const html = await _prepararHtmlDoc(
             s.id,
             (s.descripcion_servicio || "").trim()
         );
@@ -2307,7 +2339,7 @@ async function _historialObservacionesDocHtml(s) {
             ? new Date(o.created_at).toLocaleString("es-CO")
             : "";
         const autor = [o.autor_nombre, o.autor_etiqueta].filter(Boolean).join(" · ");
-        const contenido = await _resolverImagenesInline(s.id, o.contenido || "");
+        const contenido = await _prepararHtmlDoc(s.id, o.contenido || "");
         const adjuntos = (o.archivos || []).filter(
             (a) => a.categoria !== "observacion_inline" && a.categoria !== "cotizacion"
         );
@@ -2352,9 +2384,41 @@ export async function descargarDocProveedor(solicitudId, { onError } = {}) {
             ${descripcion ? `<h2 style="font-size:15px;">${tituloDesc}</h2>${descripcion}` : ""}
             ${historial}`;
 
-        const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><title>${escapeHtml(s.codigo || "Documento")}</title></head>
-<body style="font-family:Calibri,Arial,sans-serif;font-size:12px;color:#111;">${cuerpo}</body></html>`;
+        const membrete = await _membreteDataUri();
+
+        const estilos = `
+            @page Section1 {
+                size: 8.5in 11.0in;
+                margin: 1.7in 0.9in 1.5in 0.9in;
+                mso-header-margin: 0in;
+                mso-footer-margin: 0in;
+                mso-header: h1;
+                mso-paper-source: 0;
+            }
+            div.Section1 { page: Section1; }
+            body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#111;}
+            h1{font-size:20pt;margin:0 0 12px;}
+            h2{font-size:14pt;margin:14px 0 6px;}
+            b,strong{font-weight:bold;}
+            i,em{font-style:italic;}
+            u{text-decoration:underline;}
+            ul{list-style:disc;margin:6px 0 6px 24px;}
+            ol{list-style:decimal;margin:6px 0 6px 24px;}
+            li{margin:2px 0;}
+            p{margin:6px 0;}
+            table{border-collapse:collapse;}
+            td,th{border:1px solid #999;padding:6px;}
+            img{max-width:520px;height:auto;}`;
+
+        const header = membrete
+            ? `<div style='mso-element:header' id='h1'>
+<p class=MsoHeader style='margin:0'><span style='mso-no-proof:yes'><!--[if gte vml 1]><v:shapetype id="_x0000_t75" coordsize="21600,21600" o:spt="75" o:preferrelative="t" path="m@4@5l@4@11@9@11@9@5xe" filled="f" stroked="f"><v:stroke joinstyle="miter"/><v:formulas><v:f eqn="if lineDrawn pixelLineWidth 0"/><v:f eqn="sum @0 1 0"/><v:f eqn="sum 0 0 @1"/><v:f eqn="prod @2 1 2"/><v:f eqn="prod @3 21600 pixelWidth"/><v:f eqn="prod @3 21600 pixelHeight"/><v:f eqn="sum @0 0 1"/><v:f eqn="prod @6 1 2"/><v:f eqn="prod @7 21600 pixelWidth"/><v:f eqn="sum @8 21600 0"/><v:f eqn="prod @7 21600 pixelHeight"/><v:f eqn="sum @10 21600 0"/></v:formulas><v:path o:extrusionok="f" gradientshapeok="t" o:connecttype="rect"/><o:lock v:ext="edit" aspectratio="t"/></v:shapetype><v:shape id="_x0000_s1026" type="#_x0000_t75" style='position:absolute;margin-left:0;margin-top:0;width:612pt;height:792pt;z-index:-251657216;mso-position-horizontal:center;mso-position-horizontal-relative:page;mso-position-vertical:center;mso-position-vertical-relative:page' o:allowincell="f"><v:imagedata src="${membrete}" o:title="membrete"/></v:shape><![endif]--></span></p>
+</div>`
+            : "";
+
+        const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${escapeHtml(s.codigo || "Documento")}</title><style>${estilos}</style></head>
+<body><div class=Section1>${cuerpo}${header}</div></body></html>`;
 
         const blob = new Blob(["\ufeff", doc], { type: "application/msword" });
         const url = URL.createObjectURL(blob);

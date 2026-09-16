@@ -242,8 +242,14 @@ export function createRichTextEditor({
         }
 
         e.preventDefault();
-        const text = e.clipboardData.getData("text/plain");
-        document.execCommand("insertText", false, text);
+        const html = e.clipboardData.getData("text/html");
+        const limpio = html ? sanitizeClipboardHtml(html) : "";
+        if (limpio) {
+            document.execCommand("insertHTML", false, limpio);
+        } else {
+            const text = e.clipboardData.getData("text/plain");
+            document.execCommand("insertHTML", false, plainTextToHtml(text));
+        }
         syncHidden();
     });
 
@@ -255,4 +261,74 @@ function escapeAttr(str) {
         .replace(/&/g, "&amp;")
         .replace(/"/g, "&quot;")
         .replace(/</g, "&lt;");
+}
+
+// Convierte texto plano a HTML conservando saltos de línea/párrafos.
+function plainTextToHtml(text) {
+    const esc = (s) =>
+        String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+    return (text || "")
+        .replace(/\r\n?/g, "\n")
+        .split(/\n{2,}/)
+        .map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`)
+        .join("");
+}
+
+// Limpia HTML pegado (Word, Google Docs, web): conserva negrita/cursiva/
+// subrayado/listas/párrafos y descarta estilos, clases y basura de Office.
+const PASTE_KEEP = new Set([
+    "B", "STRONG", "I", "EM", "U", "S", "STRIKE", "P", "BR",
+    "UL", "OL", "LI", "DIV", "H1", "H2", "H3", "H4", "A",
+]);
+
+function sanitizeClipboardHtml(html) {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    tpl.content
+        .querySelectorAll("style,script,meta,link,title,o\\:p,xml")
+        .forEach((n) => n.remove());
+
+    const procesar = (parent) => {
+        for (const node of [...parent.childNodes]) {
+            if (node.nodeType !== 1) continue;
+            procesar(node);
+            const st = node.getAttribute("style") || "";
+            const wraps = [];
+            if (/font-weight\s*:\s*(bold(er)?|[6-9]00)/i.test(st)) wraps.push("b");
+            if (/font-style\s*:\s*italic/i.test(st)) wraps.push("i");
+            if (/text-decoration[^;]*underline/i.test(st)) wraps.push("u");
+
+            if (PASTE_KEEP.has(node.tagName)) {
+                for (const a of [...node.attributes]) {
+                    if (!(node.tagName === "A" && a.name === "href")) {
+                        node.removeAttribute(a.name);
+                    }
+                }
+                for (const w of wraps) {
+                    const e = document.createElement(w);
+                    while (node.firstChild) e.appendChild(node.firstChild);
+                    node.appendChild(e);
+                }
+            } else {
+                let frag = document.createDocumentFragment();
+                while (node.firstChild) frag.appendChild(node.firstChild);
+                for (const w of wraps) {
+                    const e = document.createElement(w);
+                    e.appendChild(frag);
+                    frag = document.createDocumentFragment();
+                    frag.appendChild(e);
+                }
+                node.replaceWith(frag);
+            }
+        }
+    };
+    procesar(tpl.content);
+
+    return tpl.innerHTML
+        .replace(/(&nbsp;|\s)+/g, " ")
+        .replace(/<(\w+)>\s*<\/\1>/g, "")
+        .trim();
 }

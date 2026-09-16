@@ -3,7 +3,7 @@ import { session } from "../auth/session.js";
 
 import { escapeHtml, formatDate } from "../utils/format.js?v=2";
 
-import { createObservacionConAdjuntos } from "../components/observacion-editor.js";
+import { createObservacionConAdjuntos } from "../components/observacion-editor.js?v=2";
 
 import {
 
@@ -20,7 +20,7 @@ import {
     renderDetalleSolicitudHtml,
     esSolicitudServicios,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=54";
+} from "./gestion-solicitudes-common.js?v=56";
 
 
 

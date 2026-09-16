@@ -1,7 +1,7 @@
 import { api, ApiError } from "../api/client.js";
 import { session } from "../auth/session.js";
 import { LIDERES_COLBEEF } from "../catalogos/lideres-colbeef.js";
-import { createObservacionConAdjuntos, renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js";
+import { createObservacionConAdjuntos, renderObservacionAdjuntosFieldHtml } from "../components/observacion-editor.js?v=2";
 import { escapeHtml, formatDate, previewValorCotizacion } from "../utils/format.js?v=2";
 import {
     attachGestionDownloadHandlers,
@@ -44,7 +44,7 @@ import {
     solicitudPuedeCerrarConPendientes,
     solicitudTieneOcRegistrada,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=54";
+} from "./gestion-solicitudes-common.js?v=56";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;

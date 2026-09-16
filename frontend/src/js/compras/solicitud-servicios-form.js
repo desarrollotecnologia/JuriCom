@@ -8,7 +8,7 @@ import {
     DETALLE_SERVICIO_ADJUNTOS_ACCEPT,
     DETALLE_SERVICIO_ADJUNTOS_HINT,
     OBSERVACION_ADJUNTOS_HINT,
-} from "../components/observacion-editor.js";
+} from "../components/observacion-editor.js?v=2";
 import { createSearchableSelect } from "../components/searchable-select.js?v=2";
 import { createProveedorPicker } from "../components/proveedor-picker.js";
 import { formatFileSize } from "../utils/format.js";

@@ -2,7 +2,7 @@
  * Editor de observaciones con adjuntos (mismo patrón que registro de solicitud).
  */
 
-import { createRichTextEditor } from "./rich-text-editor.js";
+import { createRichTextEditor } from "./rich-text-editor.js?v=2";
 import { escapeHtml, formatFileSize } from "../utils/format.js";
 
 export const OBSERVACION_ADJUNTOS_HINT =

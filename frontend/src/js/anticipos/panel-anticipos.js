@@ -10,7 +10,7 @@ import {
     attachGestionDownloadHandlers,
     hydrateInlineObservacionImages,
 } from "../compras/gestion-solicitudes-common.js";
-import { createObservacionConAdjuntos } from "../components/observacion-editor.js";
+import { createObservacionConAdjuntos } from "../components/observacion-editor.js?v=2";
 
 // Acciones disponibles por estado del contrato (fase + endpoint + textos).
 const ACCIONES = {
