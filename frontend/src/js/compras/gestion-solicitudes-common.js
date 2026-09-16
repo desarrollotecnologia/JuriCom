@@ -2254,6 +2254,49 @@ async function _membreteDataUri() {
     return _membreteCache;
 }
 
+// Recorta el membrete (imagen carta completa) en banda superior (logo) e
+// inferior (íconos) para usarlas como encabezado/pie reales de Word. Los data
+// URI dentro de <img> sí son portables entre PCs (a diferencia de VML).
+let _membreteBandasCache;
+async function _membreteBandas() {
+    if (_membreteBandasCache !== undefined) return _membreteBandasCache;
+    const src = await _membreteDataUri();
+    if (!src) return (_membreteBandasCache = null);
+    try {
+        const img = await new Promise((res, rej) => {
+            const im = new Image();
+            im.onload = () => res(im);
+            im.onerror = rej;
+            im.src = src;
+        });
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        const recortar = (f0, f1) => {
+            const c = document.createElement("canvas");
+            c.width = w;
+            c.height = Math.round((f1 - f0) * h);
+            const ctx = c.getContext("2d");
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, c.width, c.height);
+            ctx.drawImage(img, 0, Math.round(f0 * h), w, c.height, 0, 0, w, c.height);
+            return { data: c.toDataURL("image/jpeg", 0.92), h: c.height };
+        };
+        const top = recortar(0, 0.17);
+        const bottom = recortar(0.87, 1);
+        // Altura en pulgadas al ancho de contenido (7.5in) manteniendo proporción.
+        const inW = 7.5;
+        _membreteBandasCache = {
+            header: top.data,
+            headerIn: +(inW * (top.h / w)).toFixed(2),
+            footer: bottom.data,
+            footerIn: +(inW * (bottom.h / w)).toFixed(2),
+        };
+    } catch {
+        _membreteBandasCache = null;
+    }
+    return _membreteBandasCache;
+}
+
 // Prepara HTML del editor para Word: resuelve imágenes con token y limpia
 // estilos que Word no entiende (font-size en rem, font-family: inherit), que
 // hacen que se pierdan negrita/cursiva/estructura. Conserva el resto del formato.
@@ -2384,15 +2427,17 @@ export async function descargarDocProveedor(solicitudId, { onError } = {}) {
             ${descripcion ? `<h2 style="font-size:15px;">${tituloDesc}</h2>${descripcion}` : ""}
             ${historial}`;
 
-        const membrete = await _membreteDataUri();
+        const bandas = await _membreteBandas();
+        const topMargin = bandas ? Math.max(1.1, bandas.headerIn + 0.35) : 1;
+        const botMargin = bandas ? Math.max(1.0, bandas.footerIn + 0.3) : 1;
 
         const estilos = `
             @page Section1 {
                 size: 8.5in 11.0in;
-                margin: 1.7in 0.9in 1.5in 0.9in;
-                mso-header-margin: 0in;
-                mso-footer-margin: 0in;
-                mso-header: h1;
+                margin: ${topMargin}in 0.5in ${botMargin}in 0.5in;
+                mso-header-margin: 0.3in;
+                mso-footer-margin: 0.3in;
+                ${bandas ? "mso-header: h1; mso-footer: f1;" : ""}
                 mso-paper-source: 0;
             }
             div.Section1 { page: Section1; }
@@ -2406,19 +2451,19 @@ export async function descargarDocProveedor(solicitudId, { onError } = {}) {
             ol{list-style:decimal;margin:6px 0 6px 24px;}
             li{margin:2px 0;}
             p{margin:6px 0;}
+            p.MsoHeader,p.MsoFooter{margin:0;}
             table{border-collapse:collapse;}
             td,th{border:1px solid #999;padding:6px;}
             img{max-width:520px;height:auto;}`;
 
-        const header = membrete
-            ? `<div style='mso-element:header' id='h1'>
-<p class=MsoHeader style='margin:0'><span style='mso-no-proof:yes'><!--[if gte vml 1]><v:shapetype id="_x0000_t75" coordsize="21600,21600" o:spt="75" o:preferrelative="t" path="m@4@5l@4@11@9@11@9@5xe" filled="f" stroked="f"><v:stroke joinstyle="miter"/><v:formulas><v:f eqn="if lineDrawn pixelLineWidth 0"/><v:f eqn="sum @0 1 0"/><v:f eqn="sum 0 0 @1"/><v:f eqn="prod @2 1 2"/><v:f eqn="prod @3 21600 pixelWidth"/><v:f eqn="prod @3 21600 pixelHeight"/><v:f eqn="sum @0 0 1"/><v:f eqn="prod @6 1 2"/><v:f eqn="prod @7 21600 pixelWidth"/><v:f eqn="sum @8 21600 0"/><v:f eqn="prod @7 21600 pixelHeight"/><v:f eqn="sum @10 21600 0"/></v:formulas><v:path o:extrusionok="f" gradientshapeok="t" o:connecttype="rect"/><o:lock v:ext="edit" aspectratio="t"/></v:shapetype><v:shape id="_x0000_s1026" type="#_x0000_t75" style='position:absolute;margin-left:0;margin-top:0;width:612pt;height:792pt;z-index:-251657216;mso-position-horizontal:center;mso-position-horizontal-relative:page;mso-position-vertical:center;mso-position-vertical-relative:page' o:allowincell="f"><v:imagedata src="${membrete}" o:title="membrete"/></v:shape><![endif]--></span></p>
-</div>`
+        const headerFooter = bandas
+            ? `<div style='mso-element:header' id='h1'><p class=MsoHeader><img src="${bandas.header}" style="width:7.5in;height:${bandas.headerIn}in"/></p></div>
+<div style='mso-element:footer' id='f1'><p class=MsoFooter><img src="${bandas.footer}" style="width:7.5in;height:${bandas.footerIn}in"/></p></div>`
             : "";
 
-        const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+        const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>${escapeHtml(s.codigo || "Documento")}</title><style>${estilos}</style></head>
-<body><div class=Section1>${cuerpo}${header}</div></body></html>`;
+<body><div class=Section1>${cuerpo}${headerFooter}</div></body></html>`;
 
         const blob = new Blob(["\ufeff", doc], { type: "application/msword" });
         const url = URL.createObjectURL(blob);

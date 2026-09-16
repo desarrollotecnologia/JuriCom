@@ -12,7 +12,7 @@ import {
     attachGestionDownloadHandlers,
     hydrateInlineObservacionImages,
     botonDocProveedorHtml,
-} from "../compras/gestion-solicitudes-common.js?v=56";
+} from "../compras/gestion-solicitudes-common.js?v=57";
 
 const ESTADO_LABEL = {
     primera_aprobacion: "Primera aprobación",
