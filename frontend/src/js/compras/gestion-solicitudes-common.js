@@ -2281,8 +2281,8 @@ async function _membreteBandas() {
             ctx.drawImage(img, 0, Math.round(f0 * h), w, c.height, 0, 0, w, c.height);
             return { data: c.toDataURL("image/jpeg", 0.92), h: c.height };
         };
-        const top = recortar(0, 0.17);
-        const bottom = recortar(0.87, 1);
+        const top = recortar(0.03, 0.15);
+        const bottom = recortar(0.88, 1);
         // Altura en pulgadas al ancho de contenido (7.5in) manteniendo proporción.
         const inW = 7.5;
         _membreteBandasCache = {

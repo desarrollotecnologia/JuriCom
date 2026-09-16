@@ -20,7 +20,7 @@ import {
     renderDetalleSolicitudHtml,
     esSolicitudServicios,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=57";
+} from "./gestion-solicitudes-common.js?v=58";
 
 
 
