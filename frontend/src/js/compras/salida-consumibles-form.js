@@ -1,5 +1,5 @@
 import { LIDERES_AREA } from "./mock-catalogos.js?v=2";
-import { opcionesCentrosCostosHtml } from "../catalogos/centros-costos.js";
+import { centrosCostosItems } from "../catalogos/centros-costos.js";
 import { consumiblesItems } from "../catalogos/consumibles.js";
 import { api, ApiError } from "../api/client.js";
 import { createObservacionConAdjuntos } from "../components/observacion-editor.js";
@@ -16,7 +16,7 @@ export function initSalidaConsumiblesForm() {
     const alertError = document.getElementById("alert-error");
     const alertSuccess = document.getElementById("alert-success");
     const submitBtn = document.getElementById("btn-submit");
-    const selectCentroCosto = document.getElementById("centro-costo-area");
+    const prioridadRow = document.getElementById("prioridad-row");
 
     const CATALOGO = consumiblesItems();
 
@@ -31,9 +31,23 @@ export function initSalidaConsumiblesForm() {
     });
     const observacionesEditor = observacionControl.editor;
 
-    selectCentroCosto.innerHTML = opcionesCentrosCostosHtml(
-        "Selecciona tu centro de costo"
-    );
+    const centroCostoSelect = createSearchableSelect({
+        containerId: "centro-costo-select",
+        name: "centro_costo_area",
+        items: centrosCostosItems(),
+        placeholder: "Escribe código o nombre del centro de costo...",
+        required: true,
+        inputId: "centro-costo-input",
+        emptyMessage: "No se encontró ningún centro de costo con ese texto.",
+    });
+    // La prioridad solo aplica para centros de costo de mantenimiento.
+    centroCostoSelect.hiddenInput.addEventListener("change", () => {
+        if (!prioridadRow) return;
+        const label = centroCostoSelect.getSelectedItem()?.label || "";
+        const esMantenimiento = /mantenimiento/i.test(label);
+        prioridadRow.hidden = !esMantenimiento;
+        if (!esMantenimiento && form.prioridad) form.prioridad.value = "media";
+    });
 
     const liderSelect = createSearchableSelect({
         containerId: "lider-area-select",
@@ -182,7 +196,9 @@ export function initSalidaConsumiblesForm() {
 
     function resetForm() {
         form.reset();
+        centroCostoSelect.clear();
         liderSelect.clear();
+        if (prioridadRow) prioridadRow.hidden = true;
         observacionControl.clearAll();
         tbody.innerHTML = "";
         createItemRow();
@@ -194,6 +210,12 @@ export function initSalidaConsumiblesForm() {
         e.preventDefault();
         alertError.classList.remove("show");
         alertSuccess.classList.remove("show");
+
+        if (!centroCostoSelect.getValue()) {
+            showError("Selecciona tu centro de costo.");
+            centroCostoSelect.input.focus();
+            return;
+        }
 
         if (!liderSelect.getValue()) {
             showError("Selecciona un líder para notificar.");

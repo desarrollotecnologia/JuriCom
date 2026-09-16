@@ -49,15 +49,14 @@
 
                         <div class="row-2">
                             <div class="field">
-                                <label for="centro-costo-area">
+                                <label for="centro-costo-input">
                                     Centro de Costo (Mi Área)
                                     <span class="required">*</span>
                                 </label>
-                                <select
-                                    id="centro-costo-area"
-                                    name="centro_costo_area"
-                                    required
-                                ></select>
+                                <div id="centro-costo-select"></div>
+                                <span class="hint">
+                                    Escribe código o nombre para filtrar.
+                                </span>
                             </div>
                             <div class="field">
                                 <label for="lider-area-input">
@@ -71,7 +70,7 @@
                             </div>
                         </div>
 
-                        <div class="row-2">
+                        <div class="row-2" id="prioridad-row" hidden>
                             <div class="field">
                                 <label for="prioridad">Prioridad</label>
                                 <select id="prioridad" name="prioridad">
@@ -161,7 +160,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSalidaConsumiblesForm } from "/static/js/compras/salida-consumibles-form.js?v=2";
+            import { initSalidaConsumiblesForm } from "/static/js/compras/salida-consumibles-form.js?v=4";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante", "proyectos"]);
