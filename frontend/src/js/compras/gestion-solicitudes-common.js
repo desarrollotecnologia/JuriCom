@@ -2240,60 +2240,41 @@ async function _archivoDataUri(solicitudId, archivoId) {
     return _blobToDataUri(await resp.blob());
 }
 
-let _membreteCache;
-async function _membreteDataUri() {
-    if (_membreteCache !== undefined) return _membreteCache;
-    try {
-        const resp = await fetch(
-            `${window.location.origin}/app/assets/membrete-colbeef.jpg`
-        );
-        _membreteCache = resp.ok ? await _blobToDataUri(await resp.blob()) : null;
-    } catch {
-        _membreteCache = null;
-    }
-    return _membreteCache;
-}
-
-// Recorta el membrete (imagen carta completa) en banda superior (logo) e
-// inferior (íconos) para usarlas como encabezado/pie reales de Word. Los data
-// URI dentro de <img> sí son portables entre PCs (a diferencia de VML).
+// Carga las bandas del membrete (logo arriba, íconos abajo) ya pre-generadas en
+// RGB y a tamaño correcto (evita el canvas, que dañaba color/tamaño del JPEG
+// CMYK original). Los data URI dentro de <img> son portables entre PCs.
 let _membreteBandasCache;
 async function _membreteBandas() {
     if (_membreteBandasCache !== undefined) return _membreteBandasCache;
-    const src = await _membreteDataUri();
-    if (!src) return (_membreteBandasCache = null);
-    try {
-        const img = await new Promise((res, rej) => {
-            const im = new Image();
-            im.onload = () => res(im);
-            im.onerror = rej;
-            im.src = src;
-        });
-        const w = img.naturalWidth || img.width;
-        const h = img.naturalHeight || img.height;
-        const recortar = (f0, f1) => {
-            const c = document.createElement("canvas");
-            c.width = w;
-            c.height = Math.round((f1 - f0) * h);
-            const ctx = c.getContext("2d");
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(0, 0, c.width, c.height);
-            ctx.drawImage(img, 0, Math.round(f0 * h), w, c.height, 0, 0, w, c.height);
-            return { data: c.toDataURL("image/jpeg", 0.92), h: c.height };
-        };
-        const top = recortar(0.03, 0.15);
-        const bottom = recortar(0.88, 1);
-        // Altura en pulgadas al ancho de contenido (7.5in) manteniendo proporción.
-        const inW = 7.5;
-        _membreteBandasCache = {
-            header: top.data,
-            headerIn: +(inW * (top.h / w)).toFixed(2),
-            footer: bottom.data,
-            footerIn: +(inW * (bottom.h / w)).toFixed(2),
-        };
-    } catch {
-        _membreteBandasCache = null;
-    }
+    const cargar = async (nombre) => {
+        try {
+            const r = await fetch(`${window.location.origin}/app/assets/${nombre}`);
+            if (!r.ok) return null;
+            const data = await _blobToDataUri(await r.blob());
+            const dims = await new Promise((res) => {
+                const im = new Image();
+                im.onload = () => res({ w: im.naturalWidth, h: im.naturalHeight });
+                im.onerror = () => res(null);
+                im.src = data;
+            });
+            // px a pulgadas a 96 DPI (tamaño natural con que Word renderiza).
+            const inch = dims && dims.w ? +(dims.h / (dims.w / 7.5)).toFixed(2) : 1.15;
+            return { data, in: inch };
+        } catch {
+            return null;
+        }
+    };
+    const [top, bottom] = await Promise.all([
+        cargar("membrete-header.png"),
+        cargar("membrete-footer.png"),
+    ]);
+    if (!top && !bottom) return (_membreteBandasCache = null);
+    _membreteBandasCache = {
+        header: top?.data || null,
+        headerIn: top?.in || 0,
+        footer: bottom?.data || null,
+        footerIn: bottom?.in || 0,
+    };
     return _membreteBandasCache;
 }
 
@@ -2428,8 +2409,10 @@ export async function descargarDocProveedor(solicitudId, { onError } = {}) {
             ${historial}`;
 
         const bandas = await _membreteBandas();
-        const topMargin = bandas ? Math.max(1.1, bandas.headerIn + 0.35) : 1;
-        const botMargin = bandas ? Math.max(1.0, bandas.footerIn + 0.3) : 1;
+        const hayHeader = !!bandas?.header;
+        const hayFooter = !!bandas?.footer;
+        const topMargin = hayHeader ? Math.max(1.1, bandas.headerIn + 0.35) : 1;
+        const botMargin = hayFooter ? Math.max(1.0, bandas.footerIn + 0.3) : 1;
 
         const estilos = `
             @page Section1 {
@@ -2437,7 +2420,8 @@ export async function descargarDocProveedor(solicitudId, { onError } = {}) {
                 margin: ${topMargin}in 0.5in ${botMargin}in 0.5in;
                 mso-header-margin: 0.3in;
                 mso-footer-margin: 0.3in;
-                ${bandas ? "mso-header: h1; mso-footer: f1;" : ""}
+                ${hayHeader ? "mso-header: h1;" : ""}
+                ${hayFooter ? "mso-footer: f1;" : ""}
                 mso-paper-source: 0;
             }
             div.Section1 { page: Section1; }
@@ -2452,14 +2436,18 @@ export async function descargarDocProveedor(solicitudId, { onError } = {}) {
             li{margin:2px 0;}
             p{margin:6px 0;}
             p.MsoHeader,p.MsoFooter{margin:0;}
+            p.MsoHeader img,p.MsoFooter img{width:7.5in;height:auto;max-width:none;}
             table{border-collapse:collapse;}
             td,th{border:1px solid #999;padding:6px;}
             img{max-width:520px;height:auto;}`;
 
-        const headerFooter = bandas
-            ? `<div style='mso-element:header' id='h1'><p class=MsoHeader><img src="${bandas.header}" style="width:7.5in;height:${bandas.headerIn}in"/></p></div>
-<div style='mso-element:footer' id='f1'><p class=MsoFooter><img src="${bandas.footer}" style="width:7.5in;height:${bandas.footerIn}in"/></p></div>`
+        const headerDiv = bandas?.header
+            ? `<div style='mso-element:header' id='h1'><p class=MsoHeader><img src="${bandas.header}" width="720" height="${Math.round(bandas.headerIn * 96)}" alt=""/></p></div>`
             : "";
+        const footerDiv = bandas?.footer
+            ? `<div style='mso-element:footer' id='f1'><p class=MsoFooter><img src="${bandas.footer}" width="720" height="${Math.round(bandas.footerIn * 96)}" alt=""/></p></div>`
+            : "";
+        const headerFooter = headerDiv + footerDiv;
 
         const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
 <head><meta charset="utf-8"><title>${escapeHtml(s.codigo || "Documento")}</title><style>${estilos}</style></head>
