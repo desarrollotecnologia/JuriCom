@@ -11,7 +11,8 @@ import {
     renderVisitaProgramadaRowHtml,
     attachGestionDownloadHandlers,
     hydrateInlineObservacionImages,
-} from "../compras/gestion-solicitudes-common.js?v=50";
+    botonDocProveedorHtml,
+} from "../compras/gestion-solicitudes-common.js?v=54";
 
 const ESTADO_LABEL = {
     primera_aprobacion: "Primera aprobación",
@@ -164,6 +165,7 @@ function renderDetalle(s) {
                     : ""
             }
         </div>
+        ${botonDocProveedorHtml(s)}
         ${panelCots}`;
 
     const traza = renderWorkflowTimelineHtml(s) + renderObservacionesTrazabilidadHtml(s);

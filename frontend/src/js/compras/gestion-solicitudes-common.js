@@ -2189,7 +2189,185 @@ export function renderInformacionGeneralHtml(s, options = {}) {
                         : ""
                 }
             </dl>
+        </div>
+        ${botonDocProveedorHtml(s)}`;
+}
+
+// ---- Documento para proveedor (Word .doc) ----
+// ponytail: genera un .doc abriendo HTML en Word (sin dependencias nuevas). Techo:
+// solo incrusta imágenes; los demás adjuntos (PDF/Excel) se listan por nombre para
+// enviarse aparte. Upgrade path = generar .docx real en backend con python-docx.
+const _ESTADOS_SIN_DOC_PROVEEDOR = new Set(["solicitud", "revision", "cancelado"]);
+
+export function puedeDescargarDocProveedor(s) {
+    const tipo = s?.tipo || "";
+    if (tipo !== "compra" && tipo !== "insumos_servicios") return false;
+    return !_ESTADOS_SIN_DOC_PROVEEDOR.has(normalizarEstado(s?.estado));
+}
+
+export function botonDocProveedorHtml(s) {
+    if (!puedeDescargarDocProveedor(s)) return "";
+    return `
+        <div class="sg-detail-panel sg-doc-proveedor-panel">
+            <button
+                type="button"
+                class="btn btn-secondary sg-doc-proveedor-btn"
+                data-doc-proveedor
+                data-solicitud-id="${s.id}"
+            >📄 Descargar documento para proveedor (Word)</button>
+            <p class="hint" style="margin-top:8px;">
+                Incluye la descripción y los archivos adjuntos: las imágenes se incrustan
+                y los demás archivos se listan para enviarlos aparte.
+            </p>
         </div>`;
+}
+
+function _blobToDataUri(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+async function _archivoDataUri(solicitudId, archivoId) {
+    const resp = await fetch(
+        `${API_BASE}/solicitudes-gestion/${solicitudId}/archivos/${archivoId}`,
+        { headers: { Authorization: `Bearer ${session.getToken()}` } }
+    );
+    if (!resp.ok) return null;
+    return _blobToDataUri(await resp.blob());
+}
+
+// Reemplaza <img data-sg-archivo-id="N"> por su imagen real (data URI con token).
+async function _resolverImagenesInline(solicitudId, html) {
+    if (!html) return "";
+    const tpl = document.createElement("template");
+    tpl.innerHTML = html;
+    const imgs = tpl.content.querySelectorAll("img[data-sg-archivo-id]");
+    for (const img of imgs) {
+        const id = img.getAttribute("data-sg-archivo-id");
+        const dataUri = id ? await _archivoDataUri(solicitudId, id) : null;
+        if (dataUri) img.setAttribute("src", dataUri);
+        img.removeAttribute("data-sg-archivo-id");
+        img.style.maxWidth = "600px";
+        img.style.height = "auto";
+    }
+    return tpl.innerHTML;
+}
+
+async function _descripcionDocHtml(s) {
+    if (esSolicitudServicios(s)) {
+        const html = await _resolverImagenesInline(
+            s.id,
+            (s.descripcion_servicio || "").trim()
+        );
+        return html || escapeHtml((s.descripcion_servicio_texto || "").trim());
+    }
+    const productos = s.productos || [];
+    if (!productos.length) return "";
+    return `
+        <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;">
+            <thead>
+                <tr style="background:#f0f0f0;">
+                    <th align="left">Código</th>
+                    <th align="left">Descripción</th>
+                    <th align="left">Unidad</th>
+                    <th align="right">Cantidad</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${productos
+                    .map(
+                        (p) => `
+                    <tr>
+                        <td>${escapeHtml(p.codigo_siimed || "—")}</td>
+                        <td>${escapeHtml(p.descripcion || "—")}</td>
+                        <td>${escapeHtml(p.unidad || "—")}</td>
+                        <td align="right">${escapeHtml(formatCantidad(p.cantidad))}</td>
+                    </tr>`
+                    )
+                    .join("")}
+            </tbody>
+        </table>`;
+}
+
+async function _historialObservacionesDocHtml(s) {
+    // Se excluyen observaciones con proveedores propuestos/sugeridos: el documento
+    // va dirigido a un proveedor, no debe mostrar a la competencia.
+    const obs = (s.observaciones_trazabilidad || []).filter((o) => {
+        const t = `${o.contenido_texto || ""} ${o.contenido || ""}`.toLowerCase();
+        return !/proveedor(es)?\s+(propuesto|sugerido)/.test(t);
+    });
+    if (!obs.length) return "";
+    const bloques = [];
+    for (const o of obs) {
+        const fecha = o.created_at
+            ? new Date(o.created_at).toLocaleString("es-CO")
+            : "";
+        const autor = [o.autor_nombre, o.autor_etiqueta].filter(Boolean).join(" · ");
+        const contenido = await _resolverImagenesInline(s.id, o.contenido || "");
+        const adjuntos = (o.archivos || []).filter(
+            (a) => a.categoria !== "observacion_inline" && a.categoria !== "cotizacion"
+        );
+        const imgs = [];
+        const otros = [];
+        for (const a of adjuntos) {
+            if ((a.mime_type || "").startsWith("image/")) {
+                const du = await _archivoDataUri(s.id, a.id);
+                if (du)
+                    imgs.push(
+                        `<div style="margin:8px 0;"><img src="${du}" style="max-width:600px;height:auto;" /><div style="font-size:11px;color:#555;">${escapeHtml(
+                            a.nombre_original
+                        )}</div></div>`
+                    );
+            } else {
+                otros.push(`<li>${escapeHtml(a.nombre_original)}</li>`);
+            }
+        }
+        bloques.push(`
+            <div style="margin:14px 0;padding:8px 12px;border-left:3px solid #ccc;">
+                <p style="margin:0 0 6px;color:#555;font-size:11px;"><strong>${escapeHtml(
+                    autor || "Observación"
+                )}</strong>${fecha ? " — " + escapeHtml(fecha) : ""}</p>
+                <div>${contenido || escapeHtml((o.contenido_texto || "").trim())}</div>
+                ${imgs.join("")}
+                ${otros.length ? `<ul>${otros.join("")}</ul>` : ""}
+            </div>`);
+    }
+    return `<h2 style="font-size:15px;">Historial de observaciones</h2>${bloques.join("")}`;
+}
+
+export async function descargarDocProveedor(solicitudId, { onError } = {}) {
+    try {
+        const s = await api.get(`/solicitudes-gestion/${solicitudId}`);
+        const descripcion = await _descripcionDocHtml(s);
+        const historial = await _historialObservacionesDocHtml(s);
+        const tituloDesc = esSolicitudServicios(s)
+            ? "Descripción del servicio"
+            : "Descripción de la compra";
+        const cuerpo = `
+            <h1 style="font-size:20px;margin:0 0 12px;">${escapeHtml(s.titulo || "")}</h1>
+            ${descripcion ? `<h2 style="font-size:15px;">${tituloDesc}</h2>${descripcion}` : ""}
+            ${historial}`;
+
+        const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${escapeHtml(s.codigo || "Documento")}</title></head>
+<body style="font-family:Calibri,Arial,sans-serif;font-size:12px;color:#111;">${cuerpo}</body></html>`;
+
+        const blob = new Blob(["\ufeff", doc], { type: "application/msword" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${(s.codigo || "solicitud").replace(/[^\w.-]+/g, "_")}_proveedor.doc`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (err) {
+        onError?.(err?.message || "No se pudo generar el documento.");
+    }
 }
 
 export function renderProveedorSugeridoListaHtml(texto) {
@@ -3323,6 +3501,21 @@ export function attachGestionDownloadHandlers(container, onError) {
             body.hidden = !next;
             return;
         }
+    });
+
+    container.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-doc-proveedor]");
+        if (!btn) return;
+        e.preventDefault();
+        const id = btn.dataset.solicitudId;
+        if (!id) return;
+        const prev = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Generando...";
+        descargarDocProveedor(id, { onError }).finally(() => {
+            btn.disabled = false;
+            btn.textContent = prev;
+        });
     });
 
     container.addEventListener("click", async (e) => {
