@@ -38,6 +38,9 @@
                             placeholder="Buscar por consecutivo, título o solicitante..."
                             autocomplete="off"
                         />
+                        <select id="anticipo-filter-estado">
+                            <option value="">Todos los estados</option>
+                        </select>
                         <span class="info" id="anticipo-result-count"></span>
                     </div>
                     <div class="table-responsive">
@@ -112,7 +115,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initGestionAnticipo } from "/static/js/compras/gestion-anticipo.js?v=8";
+            import { initGestionAnticipo } from "/static/js/compras/gestion-anticipo.js?v=9";
 
             session.requireAuth();
             session.requireRole(["admin", "anticipos"]);

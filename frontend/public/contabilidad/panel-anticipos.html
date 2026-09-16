@@ -38,6 +38,9 @@
                             <option value="anticipo">Anticipos</option>
                             <option value="cierre">Cierre de contratos</option>
                         </select>
+                        <select id="ant-filter-estado" class="input-select">
+                            <option value="">Todos los estados</option>
+                        </select>
                         <span class="info" id="ant-result-count"></span>
                     </div>
                     <div class="table-responsive">
@@ -79,7 +82,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js?v=2";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelAnticipos } from "/static/js/anticipos/panel-anticipos.js?v=5";
+            import { initPanelAnticipos } from "/static/js/anticipos/panel-anticipos.js?v=6";
 
             const user = await requireSessionRole(["contabilidad", "admin"]);
             if (user) {

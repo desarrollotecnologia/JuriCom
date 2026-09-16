@@ -32,6 +32,9 @@
                             placeholder="Buscar por consecutivo o título..."
                             autocomplete="off"
                         />
+                        <select id="proy-filter-estado">
+                            <option value="">Todos los estados</option>
+                        </select>
                         <span class="info" id="proy-result-count"></span>
                     </div>
                     <div class="table-responsive">
@@ -73,7 +76,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js?v=2";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelProyectos } from "/static/js/proyectos/panel-cotizaciones.js?v=11";
+            import { initPanelProyectos } from "/static/js/proyectos/panel-cotizaciones.js?v=12";
 
             const user = await requireSessionRole(["proyectos", "admin"]);
             if (user) {

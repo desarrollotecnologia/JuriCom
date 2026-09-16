@@ -19,6 +19,7 @@ import {
 
     renderDetalleSolicitudHtml,
     esSolicitudServicios,
+    ESTADO_LABEL,
     TIPO_LABEL,
 } from "./gestion-solicitudes-common.js?v=59";
 
@@ -84,6 +85,8 @@ export function initAprobarSolicitudesGestion() {
     const tbody = document.getElementById("aprobacion-tbody");
 
     const searchInput = document.getElementById("aprobacion-search");
+
+    const filterEstado = document.getElementById("aprobacion-filter-estado");
 
     const resultCount = document.getElementById("aprobacion-result-count");
 
@@ -280,13 +283,42 @@ export function initAprobarSolicitudesGestion() {
 
 
 
+    function populateEstadoOptions() {
+        if (!filterEstado) return;
+        const previo = filterEstado.value;
+        const estados = new Map();
+        for (const s of items) {
+            const key = normalizarEstado(s.estado) || s.estado || "";
+            if (!key || estados.has(key)) continue;
+            estados.set(key, ESTADO_LABEL[key] || (s.estado_label || "").trim() || key);
+        }
+        const opciones = [...estados.entries()].sort((a, b) =>
+            a[1].localeCompare(b[1], "es")
+        );
+        filterEstado.innerHTML =
+            '<option value="">Todos los estados</option>' +
+            opciones
+                .map(
+                    ([value, label]) =>
+                        `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`
+                )
+                .join("");
+        filterEstado.value = estados.has(previo) ? previo : "";
+    }
+
     function filterLocal() {
+
+        const estadoSel = filterEstado?.value ?? "";
+
+        const base = estadoSel
+            ? items.filter((s) => normalizarEstado(s.estado) === estadoSel)
+            : items;
 
         const q = searchInput?.value.trim().toLowerCase() ?? "";
 
-        if (!q) return items;
+        if (!q) return base;
 
-        return items.filter((s) => {
+        return base.filter((s) => {
 
             const haystack = [
 
@@ -455,6 +487,8 @@ export function initAprobarSolicitudesGestion() {
             for (const s of pendientes) byId.set(s.id, s);
             for (const s of anticipos) byId.set(s.id, s);
             items = Array.from(byId.values()).sort((a, b) => (b.id || 0) - (a.id || 0));
+
+            populateEstadoOptions();
 
             renderTable();
 
@@ -1074,6 +1108,8 @@ export function initAprobarSolicitudesGestion() {
     document.querySelectorAll('input[name="tipo-aprobacion"]').forEach((radio) => {
         radio.addEventListener("change", syncTipoAprobacionUI);
     });
+
+    filterEstado?.addEventListener("change", renderTable);
 
     let debounce;
 

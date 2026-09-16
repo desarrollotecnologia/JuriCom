@@ -62,6 +62,13 @@ const ESTADOS_POR_ROL = {
     tesoreria: ["anticipo_tesoreria", "cierre_tesoreria"],
 };
 
+const ESTADO_LABEL_ANT = {
+    anticipo_contabilidad: "Anticipo · Contabilidad",
+    anticipo_tesoreria: "Anticipo · Tesorería",
+    cierre_contabilidad: "Cierre · Contabilidad",
+    cierre_tesoreria: "Cierre · Tesorería",
+};
+
 const TIPO_ARCHIVO_LABEL = {
     borrador_firmado: "Contrato firmado",
     borrador: "Borrador del contrato",
@@ -99,6 +106,9 @@ export function initPanelAnticipos({ user, rol }) {
             render();
         });
     }
+    document
+        .getElementById("ant-filter-estado")
+        ?.addEventListener("change", render);
     // Descargas de evidencia/archivos + colapsables (componente compartido).
     attachGestionDownloadHandlers(document.getElementById("detail-content"), mostrarError);
     cargar();
@@ -108,9 +118,35 @@ function accionDe(estado) {
     return ACCIONES[estado] || null;
 }
 
+function poblarEstados() {
+    const sel = document.getElementById("ant-filter-estado");
+    if (!sel) return;
+    const previo = sel.value;
+    const estados = new Map();
+    for (const c of ctx.items) {
+        const key = c.estado || "";
+        if (!key || estados.has(key)) continue;
+        if (!accionDe(key) || !ctx.estados.includes(key)) continue;
+        estados.set(key, ESTADO_LABEL_ANT[key] || key);
+    }
+    const opciones = [...estados.entries()].sort((a, b) =>
+        a[1].localeCompare(b[1], "es")
+    );
+    sel.innerHTML =
+        '<option value="">Todos los estados</option>' +
+        opciones
+            .map(
+                ([value, label]) =>
+                    `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`
+            )
+            .join("");
+    sel.value = estados.has(previo) ? previo : "";
+}
+
 async function cargar() {
     try {
         ctx.items = await api.get("/contratos");
+        poblarEstados();
         render();
     } catch (e) {
         mostrarError(e);
@@ -123,10 +159,12 @@ function render() {
     const q = (document.getElementById("ant-search").value || "").toLowerCase().trim();
     // Cada rol ve los contratos en sus etapas de anticipo y cierre (aplica también
     // para admin, que de lo contrario recibiría todos los contratos del backend).
+    const estadoSel = document.getElementById("ant-filter-estado")?.value || "";
     const filtrados = ctx.items.filter((c) => {
         const accion = accionDe(c.estado);
         if (!accion || !ctx.estados.includes(c.estado)) return false;
         if (ctx.fase !== "todos" && accion.fase !== ctx.fase) return false;
+        if (estadoSel && c.estado !== estadoSel) return false;
         if (!q) return true;
         return (
             (c.codigo || "").toLowerCase().includes(q) ||

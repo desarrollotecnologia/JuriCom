@@ -38,12 +38,40 @@ export function initPanelProyectos({ user }) {
     );
     const search = document.getElementById("proy-search");
     search.addEventListener("input", () => render());
+    document
+        .getElementById("proy-filter-estado")
+        ?.addEventListener("change", () => render());
     cargar();
+}
+
+function poblarEstados() {
+    const sel = document.getElementById("proy-filter-estado");
+    if (!sel) return;
+    const previo = sel.value;
+    const estados = new Map();
+    for (const s of ctx.items) {
+        const key = s.estado || "";
+        if (!key || estados.has(key)) continue;
+        estados.set(key, ESTADO_LABEL[key] || s.estado_label || key);
+    }
+    const opciones = [...estados.entries()].sort((a, b) =>
+        a[1].localeCompare(b[1], "es")
+    );
+    sel.innerHTML =
+        '<option value="">Todos los estados</option>' +
+        opciones
+            .map(
+                ([value, label]) =>
+                    `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`
+            )
+            .join("");
+    sel.value = estados.has(previo) ? previo : "";
 }
 
 async function cargar() {
     try {
         ctx.items = await api.get("/solicitudes-gestion/panel-proyectos");
+        poblarEstados();
         render();
     } catch (e) {
         mostrarError(e);
@@ -54,7 +82,9 @@ async function cargar() {
 
 function render() {
     const q = (document.getElementById("proy-search").value || "").toLowerCase().trim();
+    const estadoSel = document.getElementById("proy-filter-estado")?.value || "";
     const filtrados = ctx.items.filter((s) => {
+        if (estadoSel && (s.estado || "") !== estadoSel) return false;
         if (!q) return true;
         return (
             (s.codigo || "").toLowerCase().includes(q) ||

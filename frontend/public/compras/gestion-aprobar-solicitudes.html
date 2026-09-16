@@ -42,6 +42,9 @@
                             placeholder="Buscar por consecutivo, título o solicitante..."
                             autocomplete="off"
                         />
+                        <select id="aprobacion-filter-estado">
+                            <option value="">Todos los estados</option>
+                        </select>
                         <span class="info" id="aprobacion-result-count"></span>
                     </div>
 
@@ -155,7 +158,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=23";
+            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=24";
 
             session.requireAuth();
             session.requireRole(["admin", "lider_aprobador"]);

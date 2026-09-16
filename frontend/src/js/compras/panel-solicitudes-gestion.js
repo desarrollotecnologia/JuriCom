@@ -43,6 +43,7 @@ import {
     solicitudPuedeEntregaTotal,
     solicitudPuedeCerrarConPendientes,
     solicitudTieneOcRegistrada,
+    ESTADO_LABEL,
     TIPO_LABEL,
 } from "./gestion-solicitudes-common.js?v=59";
 
@@ -145,6 +146,7 @@ export function initPanelSolicitudesGestion() {
     const tbody = document.getElementById("panel-tbody");
     const searchInput = document.getElementById("panel-search");
     const filterTipo = document.getElementById("panel-filter-tipo");
+    const filterEstado = document.getElementById("panel-filter-estado");
     const resultCount = document.getElementById("panel-result-count");
     const btnVistaEnProceso = document.getElementById("btn-panel-vista-en-proceso");
     const btnVistaRealizadas = document.getElementById("btn-panel-vista-realizadas");
@@ -514,8 +516,38 @@ export function initPanelSolicitudesGestion() {
         return `/solicitudes-gestion/panel-gestion${qs ? `?${qs}` : ""}`;
     }
 
+    function populateEstadoOptions() {
+        if (!filterEstado) return;
+        const previo = filterEstado.value;
+        const estados = new Map();
+        for (const s of items) {
+            const key = normalizarEstado(s.estado) || s.estado || "";
+            if (!key || estados.has(key)) continue;
+            estados.set(key, ESTADO_LABEL[key] || (s.estado_label || "").trim() || key);
+        }
+        const opciones = [...estados.entries()].sort((a, b) =>
+            a[1].localeCompare(b[1], "es")
+        );
+        filterEstado.innerHTML =
+            '<option value="">Todos los estados</option>' +
+            opciones
+                .map(
+                    ([value, label]) =>
+                        `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`
+                )
+                .join("");
+        filterEstado.value = estados.has(previo) ? previo : "";
+    }
+
+    function itemsVisibles() {
+        const estadoSel = filterEstado?.value ?? "";
+        if (!estadoSel) return Array.isArray(items) ? items : [];
+        return items.filter((s) => normalizarEstado(s.estado) === estadoSel);
+    }
+
     function renderTable() {
-        if (!Array.isArray(items) || !items.length) {
+        const visibles = itemsVisibles();
+        if (!visibles.length) {
             tbody.innerHTML = esVistaEnProceso()
                 ? `<tr><td colspan="6" class="muted text-center">
                 No hay solicitudes en proceso fuera del panel.
@@ -534,7 +566,7 @@ export function initPanelSolicitudesGestion() {
             return;
         }
 
-        tbody.innerHTML = items
+        tbody.innerHTML = visibles
             .map((s) => {
                 if (esVistaEnProceso()) {
                     return `
@@ -642,7 +674,7 @@ export function initPanelSolicitudesGestion() {
             .join("");
 
         if (resultCount) {
-            resultCount.textContent = `${items.length} solicitud${items.length === 1 ? "" : "es"}`;
+            resultCount.textContent = `${visibles.length} solicitud${visibles.length === 1 ? "" : "es"}`;
         }
 
         tbody.querySelectorAll(".btn-panel-action").forEach((btn) => {
@@ -667,6 +699,7 @@ export function initPanelSolicitudesGestion() {
         try {
             const data = await api.get(buildQuery());
             items = sortPanelItems(Array.isArray(data) ? data : []);
+            populateEstadoOptions();
             renderTable();
             alertError?.classList.remove("show");
         } catch (err) {
@@ -2485,6 +2518,7 @@ export function initPanelSolicitudesGestion() {
         debounce = setTimeout(load, 300);
     });
     filterTipo?.addEventListener("change", load);
+    filterEstado?.addEventListener("change", renderTable);
     btnVistaEnProceso?.addEventListener("click", () => {
         vistaPanel = esVistaEnProceso() ? "gestion" : "en_proceso";
         syncVistaPanelUI();

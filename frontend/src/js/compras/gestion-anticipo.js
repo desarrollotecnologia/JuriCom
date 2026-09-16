@@ -7,7 +7,9 @@ import {
     badgeEstado,
     badgeTipo,
     esSolicitudServicios,
+    ESTADO_LABEL,
     hydrateInlineObservacionImages,
+    normalizarEstado,
     renderDetalleSolicitudHtml,
     TIPO_LABEL,
 } from "./gestion-solicitudes-common.js?v=59";
@@ -21,6 +23,7 @@ const OBS_FILE_LIST_ID = "anticipo-observacion-file-list";
 export function initGestionAnticipo() {
     const tbody = document.getElementById("anticipo-tbody");
     const searchInput = document.getElementById("anticipo-search");
+    const filterEstado = document.getElementById("anticipo-filter-estado");
     const resultCount = document.getElementById("anticipo-result-count");
     const alertError = document.getElementById("alert-error");
     const alertSuccess = document.getElementById("alert-success");
@@ -89,8 +92,38 @@ export function initGestionAnticipo() {
         return !s.gestor_anticipo_id || s.gestor_anticipo_id === currentUser?.id;
     }
 
+    function populateEstadoOptions() {
+        if (!filterEstado) return;
+        const previo = filterEstado.value;
+        const estados = new Map();
+        for (const s of items) {
+            const key = normalizarEstado(s.estado) || s.estado || "";
+            if (!key || estados.has(key)) continue;
+            estados.set(key, ESTADO_LABEL[key] || (s.estado_label || "").trim() || key);
+        }
+        const opciones = [...estados.entries()].sort((a, b) =>
+            a[1].localeCompare(b[1], "es")
+        );
+        filterEstado.innerHTML =
+            '<option value="">Todos los estados</option>' +
+            opciones
+                .map(
+                    ([value, label]) =>
+                        `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`
+                )
+                .join("");
+        filterEstado.value = estados.has(previo) ? previo : "";
+    }
+
+    function itemsVisibles() {
+        const estadoSel = filterEstado?.value ?? "";
+        if (!estadoSel) return items;
+        return items.filter((s) => normalizarEstado(s.estado) === estadoSel);
+    }
+
     function renderTable() {
-        if (!items.length) {
+        const visibles = itemsVisibles();
+        if (!visibles.length) {
             tbody.innerHTML = `<tr><td colspan="7" class="muted text-center">
                 No hay anticipos pendientes de gestión.
                 <br />Aparecen aquí después de que el líder aprobador o el administrador apruebe el anticipo.
@@ -99,7 +132,7 @@ export function initGestionAnticipo() {
             return;
         }
 
-        tbody.innerHTML = items
+        tbody.innerHTML = visibles
             .map((s) => {
                 const gestionar = puedeGestionar(s);
                 return `
@@ -123,7 +156,7 @@ export function initGestionAnticipo() {
             .join("");
 
         if (resultCount) {
-            resultCount.textContent = `${items.length} anticipo${items.length === 1 ? "" : "s"}`;
+            resultCount.textContent = `${visibles.length} anticipo${visibles.length === 1 ? "" : "s"}`;
         }
 
         tbody.querySelectorAll(".btn-anticipo-action").forEach((btn) => {
@@ -140,6 +173,7 @@ export function initGestionAnticipo() {
             const data = await api.get(buildQuery());
             items = Array.isArray(data) ? data : [];
             alertError?.classList.remove("show");
+            populateEstadoOptions();
             renderTable();
         } catch (err) {
             const msg =
@@ -235,6 +269,7 @@ export function initGestionAnticipo() {
     }
 
     searchInput?.addEventListener("input", () => load());
+    filterEstado?.addEventListener("change", renderTable);
     btnClose?.addEventListener("click", closeModal);
     btnGestionar?.addEventListener("click", cerrarGestion);
     modal?.addEventListener("click", (e) => {
