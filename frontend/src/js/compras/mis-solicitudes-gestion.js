@@ -5,14 +5,16 @@ import {
     attachGestionDownloadHandlers,
     badgeEstado,
     badgeTipo,
+    ESTADO_LABEL,
     hydrateInlineObservacionImages,
     hydrateComunicacionJuridica,
+    normalizarEstado,
     puedeComentarPosteriorCotizacion,
     puedeEnviarEvidenciaCierreServicio,
     renderAgregarComentarioHtml,
     renderDetalleSolicitudHtml,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=48";
+} from "./gestion-solicitudes-common.js?v=50";
 
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
@@ -26,6 +28,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
     const tbody = document.getElementById("gestion-tbody");
     const searchInput = document.getElementById("gestion-search");
     const filterTipo = document.getElementById("gestion-filter-tipo");
+    const filterEstado = document.getElementById("gestion-filter-estado");
     const resultCount = document.getElementById("gestion-result-count");
     const alertError = document.getElementById("alert-error");
     const alertSuccess = document.getElementById("alert-success");
@@ -99,17 +102,50 @@ export function initMisSolicitudesGestion({ esAdmin }) {
         return `/solicitudes-gestion${qs ? `?${qs}` : ""}`;
     }
 
+    function populateEstadoOptions() {
+        if (!filterEstado) return;
+        const previo = filterEstado.value;
+        const estados = new Map();
+        for (const s of items) {
+            const key = normalizarEstado(s.estado) || s.estado || "";
+            if (!key || estados.has(key)) continue;
+            estados.set(
+                key,
+                ESTADO_LABEL[key] || (s.estado_label || "").trim() || key
+            );
+        }
+        const opciones = [...estados.entries()].sort((a, b) =>
+            a[1].localeCompare(b[1], "es")
+        );
+        filterEstado.innerHTML =
+            '<option value="">Todos los estados</option>' +
+            opciones
+                .map(
+                    ([value, label]) =>
+                        `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`
+                )
+                .join("");
+        filterEstado.value = estados.has(previo) ? previo : "";
+    }
+
+    function itemsVisibles() {
+        const estadoSel = filterEstado?.value ?? "";
+        if (!estadoSel) return items;
+        return items.filter((s) => normalizarEstado(s.estado) === estadoSel);
+    }
+
     function renderTable() {
-        if (!Array.isArray(items) || !items.length) {
+        const visibles = itemsVisibles();
+        if (!visibles.length) {
             tbody.innerHTML = `<tr><td colspan="6" class="muted text-center">
-                No hay solicitudes registradas en Gestión de Solicitudes a Compras.
+                No hay solicitudes que coincidan con los filtros.
                 <br /><a href="/app/compras/nueva-solicitud.html">Crear nueva solicitud</a>
             </td></tr>`;
             if (resultCount) resultCount.textContent = "0 solicitudes";
             return;
         }
 
-        tbody.innerHTML = items
+        tbody.innerHTML = visibles
             .map(
                 (s) => `
             <tr>
@@ -137,7 +173,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
             .join("");
 
         if (resultCount) {
-            resultCount.textContent = `${items.length} solicitud${items.length === 1 ? "" : "es"}`;
+            resultCount.textContent = `${visibles.length} solicitud${visibles.length === 1 ? "" : "es"}`;
         }
 
         tbody.querySelectorAll(".btn-icon-view").forEach((btn) => {
@@ -151,6 +187,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
         try {
             const data = await api.get(buildQuery());
             items = Array.isArray(data) ? data : [];
+            populateEstadoOptions();
             renderTable();
         } catch (err) {
             const msg =
@@ -564,4 +601,5 @@ export function initMisSolicitudesGestion({ esAdmin }) {
         debounce = setTimeout(load, 300);
     });
     filterTipo?.addEventListener("change", load);
+    filterEstado?.addEventListener("change", renderTable);
 }

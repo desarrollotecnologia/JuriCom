@@ -13,6 +13,7 @@ from app.application.services.solicitud_gestion_notificaciones import (
     NotificadorSolicitudGestion,
 )
 from app.domain.entities.solicitud_gestion import (
+    normalizar_prioridad,
     SolicitudGestion,
     SolicitudGestionArchivo,
     SolicitudGestionProducto,
@@ -63,6 +64,7 @@ class RegistrarSolicitudCompra:
         observaciones_texto: str,
         productos_json: str,
         archivos: list[ArchivoEntradaSolicitud],
+        prioridad: str = "media",
     ) -> SolicitudGestion:
         if not actor.puede_crear_solicitudes_gestion():
             raise UnauthorizedError(
@@ -120,6 +122,7 @@ class RegistrarSolicitudCompra:
             titulo=titulo,
             presupuestado=presupuestado,
             centro_costo_area=centro_costo_area.strip(),
+            prioridad=normalizar_prioridad(prioridad),
             lider_area_id=str(lider_area_id).strip(),
             lider_area_label=(lider_area_label or "").strip(),
             observaciones=observaciones or "",

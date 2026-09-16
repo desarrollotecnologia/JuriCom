@@ -70,6 +70,17 @@
                                 </span>
                             </div>
                         </div>
+
+                        <div class="row-2">
+                            <div class="field">
+                                <label for="prioridad">Prioridad</label>
+                                <select id="prioridad" name="prioridad">
+                                    <option value="alta">Alta</option>
+                                    <option value="media" selected>Media</option>
+                                    <option value="baja">Baja</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-section">
@@ -150,7 +161,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSalidaConsumiblesForm } from "/static/js/compras/salida-consumibles-form.js?v=1";
+            import { initSalidaConsumiblesForm } from "/static/js/compras/salida-consumibles-form.js?v=2";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante", "proyectos"]);

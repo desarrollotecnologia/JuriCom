@@ -211,6 +211,7 @@ export function initSalidaConsumiblesForm() {
         const formData = new FormData();
         formData.append("titulo", form.titulo.value.trim());
         formData.append("centro_costo_area", form.centro_costo_area.value);
+        formData.append("prioridad", form.prioridad?.value || "media");
         formData.append("area_consumo", form.centro_costo_area.value);
         formData.append("lider_area_id", form.lider_area_id.value);
         formData.append("lider_area_label", lider?.label || "");

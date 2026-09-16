@@ -7,6 +7,7 @@ import {
     attachGestionDownloadHandlers,
     badgeEstado,
     badgeTipo,
+    descargarProductosPdf,
     COTIZACION_ACCEPT,
     hydrateInlineObservacionImages,
     hydrateComunicacionJuridica,
@@ -43,7 +44,7 @@ import {
     solicitudPuedeCerrarConPendientes,
     solicitudTieneOcRegistrada,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=48";
+} from "./gestion-solicitudes-common.js?v=50";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -1331,16 +1332,21 @@ export function initPanelSolicitudesGestion() {
         btnAvisarAlmacen.disabled = true;
         const textoOriginal = btnAvisarAlmacen.textContent;
         btnAvisarAlmacen.textContent = "Enviando...";
+        // Abrimos la ventana del PDF dentro del gesto del clic para evitar el
+        // bloqueo de pop-ups tras el await del envío del correo.
+        const pdfWin = window.open("", "_blank", "width=1000,height=700");
         try {
             const res = await api.post(
                 `/solicitudes-gestion/${selectedSolicitud.id}/avisar-insumos-almacen`
             );
             showSuccess(
                 res?.enviado
-                    ? "Se avisó al solicitante por correo que sus insumos ya están en almacén."
+                    ? "Se avisó al solicitante por correo que sus insumos ya están en almacén. Descargando PDF..."
                     : "No se pudo enviar el correo (revisa SMTP y el email del solicitante)."
             );
+            descargarPdfProductosSolicitud(pdfWin);
         } catch (err) {
+            pdfWin?.close();
             showError(
                 err instanceof ApiError ? err.message : "No se pudo enviar el aviso."
             );
@@ -1348,6 +1354,19 @@ export function initPanelSolicitudesGestion() {
             btnAvisarAlmacen.disabled = false;
             btnAvisarAlmacen.textContent = textoOriginal;
         }
+    }
+
+    function descargarPdfProductosSolicitud(ventana = null) {
+        if (!selectedSolicitud) {
+            ventana?.close();
+            return;
+        }
+        const codigo = selectedSolicitud.codigo || "";
+        descargarProductosPdf(
+            selectedSolicitud.productos,
+            `Productos aprobados${codigo ? ` · ${codigo}` : ""}`,
+            ventana
+        );
     }
 
     function abrirFormularioRecepcion() {

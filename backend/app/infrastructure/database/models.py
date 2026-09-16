@@ -263,6 +263,7 @@ class SolicitudGestionModel(Base):
     titulo: Mapped[str] = mapped_column(String(500), nullable=False)
     presupuestado: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     centro_costo_area: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    prioridad: Mapped[str] = mapped_column(String(10), nullable=False, default="media")
     lider_area_id: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     lider_area_label: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     observaciones: Mapped[str] = mapped_column(Text, nullable=False, default="")

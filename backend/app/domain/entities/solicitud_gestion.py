@@ -11,6 +11,14 @@ from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
 
 CODIGO_PREFIX = "SG"
 
+PRIORIDADES = ("alta", "media", "baja")
+
+
+def normalizar_prioridad(valor: str | None) -> str:
+    """Normaliza la prioridad a uno de: alta, media, baja (por defecto media)."""
+    v = (valor or "").strip().lower()
+    return v if v in PRIORIDADES else "media"
+
 
 def construir_codigo_solicitud(
     numero_consecutivo: int, tipo: TipoSolicitudGestion | str = TipoSolicitudGestion.COMPRA
@@ -168,6 +176,7 @@ class SolicitudGestion:
     creado_por_username: str = ""
     creado_por_email: str = ""
     centro_costo_area: str = ""
+    prioridad: str = "media"
     lider_area_id: str = ""
     lider_area_label: str = ""
     presupuestado: Optional[bool] = None

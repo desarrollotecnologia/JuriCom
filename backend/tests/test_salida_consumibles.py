@@ -109,6 +109,41 @@ def test_nace_lista_para_entrega_sin_aprobacion():
     assert res.tiene_tramite_oc_registrado is True
     # Se notificó (solicitante + líder + compras) vía el método dedicado.
     assert notif.llamado_con is not None
+    # Prioridad por defecto.
+    assert res.prioridad == "media"
+
+
+def test_prioridad_se_normaliza():
+    repo, notif = FakeRepo(), FakeNotificador()
+    res = RegistrarSolicitudSalidaConsumibles(repo, FakeStorage(), notif).execute(
+        actor=_actor(),
+        titulo="Consumibles urgentes",
+        centro_costo_area="212-7 TIC'S",
+        area_consumo="",
+        lider_area_id="1056908061",
+        lider_area_label="",
+        observaciones="",
+        observaciones_texto="",
+        productos_json=_productos_json(),
+        archivos=[],
+        prioridad="ALTA ",
+    )
+    assert res.prioridad == "alta"
+
+    res2 = RegistrarSolicitudSalidaConsumibles(FakeRepo(), FakeStorage(), FakeNotificador()).execute(
+        actor=_actor(),
+        titulo="Consumibles",
+        centro_costo_area="212-7 TIC'S",
+        area_consumo="",
+        lider_area_id="1056908061",
+        lider_area_label="",
+        observaciones="",
+        observaciones_texto="",
+        productos_json=_productos_json(),
+        archivos=[],
+        prioridad="lo-que-sea",
+    )
+    assert res2.prioridad == "media"
 
 
 def test_rechaza_sin_consumibles():

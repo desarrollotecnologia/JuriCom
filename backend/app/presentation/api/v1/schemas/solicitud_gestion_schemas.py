@@ -110,6 +110,7 @@ class SolicitudGestionListItem(BaseModel):
     titulo: str
     presupuestado: Optional[bool] = None
     centro_costo_area: str
+    prioridad: str = "media"
     lider_area_label: str
     estado: EstadoSolicitudGestion
     estado_label: str = ""
@@ -165,6 +166,7 @@ class SolicitudGestionResponse(BaseModel):
     titulo: str
     presupuestado: Optional[bool] = None
     centro_costo_area: str
+    prioridad: str = "media"
     lider_area_id: str
     lider_area_label: str
     observaciones: str
