@@ -131,7 +131,7 @@
                             </div>
                         </div>
 
-                        <div class="row-2">
+                        <div class="row-2" id="prioridad-row" hidden>
                             <div class="field">
                                 <label for="prioridad">Prioridad</label>
                                 <select id="prioridad" name="prioridad">
@@ -232,7 +232,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSolicitudCompraForm } from "/static/js/compras/f1-compra.js?v=3";
+            import { initSolicitudCompraForm } from "/static/js/compras/f1-compra.js?v=4";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante", "anticipos", "proyectos"]);

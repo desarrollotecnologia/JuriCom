@@ -36,6 +36,16 @@ export function initSolicitudCompraForm() {
         "Selecciona el centro de costo"
     );
 
+    const prioridadRow = document.getElementById("prioridad-row");
+    const prioridadSelect = document.getElementById("prioridad");
+    // La prioridad solo aplica para centros de costo de mantenimiento.
+    selectCentroCosto.addEventListener("change", () => {
+        if (!prioridadRow) return;
+        const esMantenimiento = /mantenimiento/i.test(selectCentroCosto.value);
+        prioridadRow.hidden = !esMantenimiento;
+        if (!esMantenimiento && prioridadSelect) prioridadSelect.value = "media";
+    });
+
     const liderSelect = createSearchableSelect({
         containerId: "lider-area-select",
         name: "lider_area_id",
@@ -231,6 +241,7 @@ export function initSolicitudCompraForm() {
         form.reset();
         liderSelect.clear();
         observacionControl.clearAll();
+        if (prioridadRow) prioridadRow.hidden = true;
         tbody.innerHTML = "";
         createProductRow();
     }
