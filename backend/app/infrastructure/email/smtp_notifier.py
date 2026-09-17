@@ -15,6 +15,7 @@ import logging
 import smtplib
 import socket
 import ssl
+import time
 import uuid
 from email.message import EmailMessage as MimeEmail
 from email.utils import formataddr, formatdate, make_msgid
@@ -24,6 +25,13 @@ from app.infrastructure.config import settings
 
 
 logger = logging.getLogger(__name__)
+
+# Errores que NO tiene sentido reintentar: la causa no cambia entre intentos.
+_ERRORES_PERMANENTES = (
+    smtplib.SMTPAuthenticationError,
+    smtplib.SMTPRecipientsRefused,
+    smtplib.SMTPSenderRefused,
+)
 
 
 def _permisive_ssl_context() -> ssl.SSLContext:
@@ -54,7 +62,9 @@ class SmtpEmailNotifier(EmailNotifier):
         password: str = settings.SMTP_PASSWORD,
         from_email: str = settings.SMTP_FROM_EMAIL,
         from_name: str = settings.SMTP_FROM_NAME,
-        timeout: int = 20,
+        timeout: int = 15,
+        max_attempts: int = 3,
+        retry_backoff: tuple[float, ...] = (2.0, 5.0),
     ) -> None:
         self._host = host
         self._port = port
@@ -64,6 +74,8 @@ class SmtpEmailNotifier(EmailNotifier):
         self._from_email = from_email
         self._from_name = from_name
         self._timeout = timeout
+        self._max_attempts = max(1, max_attempts)
+        self._retry_backoff = retry_backoff
 
     @property
     def disponible(self) -> bool:
@@ -94,25 +106,51 @@ class SmtpEmailNotifier(EmailNotifier):
         if destinos_reales:
             mime["X-Original-To"] = destinos_reales
 
-        # Estrategia con fallback
+        # Cada "pasada" prueba las estrategias de conexión (SSL estricto,
+        # permisivo, STARTTLS). Ante un fallo transitorio (timeout, corte de
+        # conexión, red inestable) se reintenta la pasada completa con backoff.
+        # Los errores permanentes (auth incorrecta, destinatario/remitente
+        # rechazado) NO se reintentan: sería perder tiempo y bloquear el request.
         errors: list[str] = []
-        for intento in self._estrategias():
-            try:
-                intento(mime, message.destinatarios)
-                logger.info(
-                    "Correo enviado a %s — asunto: %s",
+        for attempt in range(1, self._max_attempts + 1):
+            permanente: Exception | None = None
+            for intento in self._estrategias():
+                try:
+                    intento(mime, message.destinatarios)
+                    logger.info(
+                        "Correo enviado a %s — asunto: %s (intento %d)",
+                        ", ".join(message.destinatarios),
+                        message.asunto,
+                        attempt,
+                    )
+                    return
+                except _ERRORES_PERMANENTES as e:
+                    permanente = e
+                    errors.append(f"{type(e).__name__}: {e}")
+                    logger.warning("SMTP error permanente (%s): %s", type(e).__name__, e)
+                    break
+                except (ssl.SSLError, smtplib.SMTPException, socket.error, OSError) as e:
+                    errors.append(f"{type(e).__name__}: {e}")
+                    logger.warning("Intento SMTP fallido (%s): %s", type(e).__name__, e)
+
+            if permanente is not None:
+                break
+            if attempt < self._max_attempts:
+                espera = self._retry_backoff[min(attempt - 1, len(self._retry_backoff) - 1)]
+                logger.warning(
+                    "Reintentando envío SMTP a %s en %.1fs (pasada %d/%d)",
                     ", ".join(message.destinatarios),
-                    message.asunto,
+                    espera,
+                    attempt + 1,
+                    self._max_attempts,
                 )
-                return
-            except (ssl.SSLError, smtplib.SMTPException, socket.error, OSError) as e:
-                errors.append(f"{type(e).__name__}: {e}")
-                logger.warning("Intento SMTP fallido (%s): %s", type(e).__name__, e)
+                time.sleep(espera)
 
         msg_errores = " | ".join(errors)
         logger.error(
-            "Todos los intentos SMTP fallaron para '%s': %s",
+            "Todos los intentos SMTP fallaron para '%s' (%d pasadas): %s",
             message.asunto,
+            self._max_attempts,
             msg_errores,
         )
         raise RuntimeError(f"SMTP envío fallido: {msg_errores}")
