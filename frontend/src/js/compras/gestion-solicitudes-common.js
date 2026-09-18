@@ -3533,6 +3533,15 @@ export function renderPanelTramiteOcHtml(s) {
 
             ${renderAprobacionParcialAlertHtml(s)}
 
+            ${
+                (s.archivos || []).some((a) => a.categoria === "cotizacion")
+                    ? renderArchivosHtml(s, {
+                          categoria: "cotizacion",
+                          titulo: "Cotizaciones registradas",
+                      })
+                    : ""
+            }
+
             ${esTramitandoOc ? renderTramitandoOcAlertHtml(s, { contexto: "gestor" }) : ""}
 
             ${renderOrdenOcRegistradaAlertHtml(s)}
