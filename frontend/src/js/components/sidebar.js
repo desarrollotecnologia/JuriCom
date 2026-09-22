@@ -198,7 +198,7 @@ export function renderSidebar(containerId = "sidebar") {
             <div class="brand-name">JURICOM</div>
             <div class="brand-sub">Colbeef</div>
         </div>
-        <a href="/site.html" class="home-workcolbeef" title="Volver a WorkColbeef" aria-label="Volver a WorkColbeef">
+        <a href="http://192.168.20.205:8000/site.html" class="home-workcolbeef" title="Volver a WorkColbeef" aria-label="Volver a WorkColbeef">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M3 10.5 12 3l9 7.5" />
                 <path d="M5 9.5V21h14V9.5" />
