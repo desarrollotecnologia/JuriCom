@@ -333,6 +333,31 @@ textarea {
     margin-top: 2px;
 }
 
+.sidebar .home-workcolbeef {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: background 0.15s;
+}
+
+.sidebar .home-workcolbeef:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    text-decoration: none;
+}
+
+.sidebar .home-workcolbeef svg {
+    flex: 0 0 auto;
+}
+
 .sidebar nav {
     display: flex;
     flex-direction: column;
