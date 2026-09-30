@@ -21,6 +21,7 @@ from app.domain.entities.solicitud_gestion import (
 )
 from app.domain.entities.user import User
 from app.domain.exceptions import UnauthorizedError
+from app.domain.value_objects.estado_aprobacion_producto import EstadoAprobacionProducto
 from app.domain.value_objects.estado_solicitud_gestion import (
     EstadoSolicitudGestion,
     ETAPAS_PENDIENTES_APROBACION,
@@ -66,6 +67,7 @@ class RegistrarSolicitudCompra:
         productos_json: str,
         archivos: list[ArchivoEntradaSolicitud],
         prioridad: str = "media",
+        directa_compras: bool = False,
     ) -> SolicitudGestion:
         if not actor.puede_crear_solicitudes_gestion():
             raise UnauthorizedError(
@@ -115,6 +117,13 @@ class RegistrarSolicitudCompra:
                     descripcion=descripcion,
                     centro_costo=centro,
                     cantidad=cantidad,
+                    # Compra directa: sin aprobación previa, los ítems quedan aprobados
+                    # para que Compras pueda gestionarlos de una.
+                    estado_aprobacion=(
+                        EstadoAprobacionProducto.APROBADO
+                        if directa_compras
+                        else EstadoAprobacionProducto.PENDIENTE
+                    ),
                 )
             )
 
@@ -130,7 +139,14 @@ class RegistrarSolicitudCompra:
             observaciones_texto=(observaciones_texto or "").strip(),
             creado_por_id=actor.id,
             creado_por_email=(actor.email or "").strip(),
-            estado=EstadoSolicitudGestion.SOLICITUD,
+            directa_compras=bool(directa_compras),
+            # Compra directa: nace en Primera Aprobación (lista para Compras, salta
+            # la aprobación inicial del líder). Compra normal: pendiente de aprobación.
+            estado=(
+                EstadoSolicitudGestion.PRIMERA_APROBACION
+                if directa_compras
+                else EstadoSolicitudGestion.SOLICITUD
+            ),
         )
 
         for entrada in archivos:
@@ -185,5 +201,8 @@ class RegistrarSolicitudCompra:
         refreshed = self._solicitudes.get_by_id(created.id)
         resultado = refreshed or created
         if self._notificador:
-            self._notificador.notificar_solicitud_creada(resultado, actor)
+            if directa_compras:
+                self._notificador.notificar_compra_directa_creada(resultado, actor)
+            else:
+                self._notificador.notificar_solicitud_creada(resultado, actor)
         return resultado

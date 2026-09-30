@@ -147,6 +147,7 @@ class EnviarCotizacionSolicitud:
         lider_segunda_aprobacion_label: str = "",
         cotizaciones: list[ArchivoEntradaSolicitud],
         archivos_observacion: list[ArchivoEntradaSolicitud] | None = None,
+        directo_oc: bool = False,
     ) -> SolicitudGestion:
         if not (actor.is_admin() or actor.is_compras()):
             raise UnauthorizedError("Sólo Compras o Admin pueden enviar cotizaciones.")
@@ -170,10 +171,15 @@ class EnviarCotizacionSolicitud:
             raise UnauthorizedError("Sólo el gestor asignado puede enviar la cotización.")
 
         es_srv = es_flujo_servicios(solicitud.tipo)
+        # Compra directa: Compras continúa sin 2.ª aprobación (no requiere líder).
+        directo_oc = bool(directo_oc) and bool(getattr(solicitud, "directa_compras", False))
         if es_srv:
             lider_id = DIEGO_FINANCIERA_ID
             lider_label = DIEGO_FINANCIERA_LABEL
             _aplicar_datos_economicos_srv(cotizaciones)
+        elif directo_oc:
+            lider_id = ""
+            lider_label = ""
         else:
             lider_id = (lider_segunda_aprobacion_id or "").strip()
             lider_label = (lider_segunda_aprobacion_label or "").strip()
@@ -214,7 +220,8 @@ class EnviarCotizacionSolicitud:
         total_cotizaciones = self._solicitudes.count_archivos_categoria(
             solicitud_id, "cotizacion"
         )
-        if total_cotizaciones < MIN_COTIZACIONES:
+        # Compra directa: las cotizaciones son opcionales (solo para trazabilidad).
+        if total_cotizaciones < MIN_COTIZACIONES and not directo_oc:
             justificacion = (justificacion or "").strip()
             if not justificacion:
                 raise ValueError(
@@ -253,24 +260,28 @@ class EnviarCotizacionSolicitud:
         comite_servicios = es_srv and bool(
             getattr(solicitud, "requiere_comite_tecnico", False)
         )
-        proxima = (
-            EstadoSolicitudGestion.COMITE
-            if comite_servicios
-            else EstadoSolicitudGestion.EN_APROBACION
-        )
-        if comite_servicios:
+        if directo_oc:
+            # Compra directa: salta la 2.ª aprobación y pasa directo a trámite de OC.
+            proxima = EstadoSolicitudGestion.TRAMITANDO_OC
+        elif comite_servicios:
+            proxima = EstadoSolicitudGestion.COMITE
+        else:
+            proxima = EstadoSolicitudGestion.EN_APROBACION
+        if comite_servicios and not directo_oc:
             solicitud.comite_supervisor_ok = False
             solicitud.comite_proyectos_ok = False
         solicitud.estado = proxima
         actualizada = self._solicitudes.update(solicitud)
 
-        if comite_servicios:
+        if directo_oc:
+            comentario = "Menor cuantía: continúa a Trámite OC (sin segunda aprobación)"
+        elif comite_servicios:
             comentario = "Enviada a mesa técnica (comité) tras completar cotizaciones"
         else:
             comentario = (
                 f"Enviada a segunda aprobación — Líder: {solicitud.lider_segunda_aprobacion_label}"
             )
-        if total_cotizaciones < MIN_COTIZACIONES:
+        if total_cotizaciones < MIN_COTIZACIONES and not directo_oc:
             comentario += f" (Justificación: {solicitud.justificacion_cotizaciones})"
 
         self._solicitudes.registrar_historial(
@@ -280,7 +291,9 @@ class EnviarCotizacionSolicitud:
             comentario=comentario,
         )
         resultado = self._solicitudes.get_by_id(solicitud_id) or actualizada
-        if self._notificador:
+        if self._notificador and not directo_oc:
+            # Compra directa a Trámite OC: sin correo aquí; el solicitante recibirá
+            # la notificación cuando Compras registre la OC real.
             if comite_servicios:
                 self._notificador.notificar_comite_iniciado(resultado, actor)
             else:

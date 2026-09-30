@@ -15,6 +15,8 @@ from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
 from app.application.services.indicadores_compras import calcular_indicadores_compras
+from app.application.services.dashboard_tiempos_atencion import calcular_dashboard_tiempos
+from app.application.services.lideres_colbeef import DIEGO_FINANCIERA_ID
 from app.application.services.solicitud_gestion_notificaciones import (
     NotificadorSolicitudGestion,
 )
@@ -31,6 +33,8 @@ from app.application.use_cases.solicitudes_gestion import (
     GetSolicitudGestion,
     GestionarAnticipoSolicitud,
     GestionarSolicitudPanel,
+    EditarSolicitudGestion,
+    EnviarCompraAAprobacion,
     ListarGestionAnticipo,
     ListarPendientesAprobacion,
     ListarPendientesAprobacionAnticipo,
@@ -85,6 +89,7 @@ from app.presentation.api.v1.dependencies import (
     get_solicitud_gestion_repository,
 )
 from app.presentation.api.v1.schemas.solicitud_gestion_schemas import (
+    DashboardTiemposResponse,
     IndicadoresComprasResponse,
     RechazarAnticipoBody,
     RechazarSolicitudGestionBody,
@@ -437,6 +442,7 @@ def _to_response(
         observaciones_texto=s.observaciones_texto,
         requiere_visita=s.requiere_visita,
         requiere_comite_tecnico=s.requiere_comite_tecnico,
+        directa_compras=bool(getattr(s, "directa_compras", False)),
         servicio_programado=s.servicio_programado,
         fecha_servicio_programado=s.fecha_servicio_programado,
         descripcion_servicio=s.descripcion_servicio or "",
@@ -623,6 +629,52 @@ def obtener_indicadores_compras(
     )
 
 
+def _puede_ver_dashboard_tiempos(current: User) -> bool:
+    if current.is_admin():
+        return True
+    diego_email = (settings.APROBACION_DIEGO_SERRANO_EMAIL or "").strip().lower()
+    if diego_email and (current.email or "").strip().lower() == diego_email:
+        return True
+    return current.lider_id_catalogo() == DIEGO_FINANCIERA_ID
+
+
+@router.get("/dashboard-tiempos", response_model=DashboardTiemposResponse)
+def obtener_dashboard_tiempos(
+    tipo: Optional[str] = Query(None),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> DashboardTiemposResponse:
+    if not _puede_ver_dashboard_tiempos(current):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para consultar el dashboard de tiempos.",
+        )
+    permitidos = {
+        TipoSolicitudGestion.COMPRA.value,
+        TipoSolicitudGestion.INSUMOS_SERVICIOS.value,
+    }
+    tipo_filtro = (tipo or "").strip()
+    if tipo_filtro and tipo_filtro not in permitidos:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="tipo debe ser 'compra' o 'insumos_servicios'.",
+        )
+
+    def _tipo_val(s) -> str:
+        return s.tipo.value if hasattr(s.tipo, "value") else str(s.tipo)
+
+    solicitudes = [
+        s
+        for s in repo.list_all()
+        if _tipo_val(s) in permitidos and (not tipo_filtro or _tipo_val(s) == tipo_filtro)
+    ]
+    ids = [s.id for s in solicitudes if s.id is not None]
+    historial = repo.historial_por_solicitudes(ids)
+    contratos = repo.contrato_fecha_por_solicitudes(ids)
+    data = calcular_dashboard_tiempos(solicitudes, historial, contratos)
+    return DashboardTiemposResponse(**data)
+
+
 @router.get("/{solicitud_id}/archivos/{archivo_id}")
 def descargar_archivo_solicitud(
     solicitud_id: int,
@@ -693,6 +745,7 @@ async def registrar_solicitud_compra(
     observaciones: str = Form(""),
     observaciones_texto: str = Form(""),
     productos_json: str = Form(...),
+    directa_compras: bool = Form(False),
     archivos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
@@ -730,6 +783,7 @@ async def registrar_solicitud_compra(
             observaciones_texto=observaciones_texto,
             productos_json=productos_json,
             archivos=entradas,
+            directa_compras=directa_compras,
         )
     except UnauthorizedError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
@@ -1230,6 +1284,70 @@ def gestionar_solicitud_panel(
     return _to_response(solicitud, historial, current)
 
 
+@router.post("/{solicitud_id}/editar", response_model=SolicitudGestionResponse)
+def editar_solicitud(
+    solicitud_id: int,
+    titulo: Optional[str] = Form(None),
+    centro_costo_area: Optional[str] = Form(None),
+    prioridad: Optional[str] = Form(None),
+    presupuestado: Optional[bool] = Form(None),
+    lider_area_id: Optional[str] = Form(None),
+    lider_area_label: Optional[str] = Form(None),
+    observaciones: Optional[str] = Form(None),
+    observaciones_texto: Optional[str] = Form(None),
+    proveedor_sugerido: Optional[str] = Form(None),
+    descripcion_servicio: Optional[str] = Form(None),
+    descripcion_servicio_texto: Optional[str] = Form(None),
+    productos_json: Optional[str] = Form(None),
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> SolicitudGestionResponse:
+    try:
+        solicitud = EditarSolicitudGestion(repo).execute(
+            current,
+            solicitud_id,
+            titulo=titulo,
+            centro_costo_area=centro_costo_area,
+            prioridad=prioridad,
+            presupuestado=presupuestado,
+            lider_area_id=lider_area_id,
+            lider_area_label=lider_area_label,
+            observaciones=observaciones,
+            observaciones_texto=observaciones_texto,
+            proveedor_sugerido=proveedor_sugerido,
+            descripcion_servicio=descripcion_servicio,
+            descripcion_servicio_texto=descripcion_servicio_texto,
+            productos_json=productos_json,
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/enviar-a-aprobacion", response_model=SolicitudGestionResponse)
+def enviar_compra_a_aprobacion(
+    solicitud_id: int,
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    try:
+        solicitud = EnviarCompraAAprobacion(repo, notificador).execute(current, solicitud_id)
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
 @router.post("/{solicitud_id}/guardar-gestion-servicios", response_model=SolicitudGestionResponse)
 async def guardar_gestion_servicios_solicitud(
     solicitud_id: int,
@@ -1506,6 +1624,7 @@ async def enviar_cotizacion_solicitud(
     lider_segunda_aprobacion_id: str = Form(""),
     lider_segunda_aprobacion_label: str = Form(""),
     cotizaciones_meta: str = Form("[]"),
+    directo_oc: bool = Form(False),
     cotizaciones: list[UploadFile] = File(default=[]),
     adjuntos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
@@ -1561,6 +1680,7 @@ async def enviar_cotizacion_solicitud(
             lider_segunda_aprobacion_label=lider_segunda_aprobacion_label,
             cotizaciones=entradas,
             archivos_observacion=adjuntos_entradas,
+            directo_oc=directo_oc,
         )
         historial = repo.get_historial(solicitud_id)
     except ContratoNotFoundError as e:

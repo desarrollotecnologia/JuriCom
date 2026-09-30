@@ -109,6 +109,22 @@
                     </button>
                     <button
                         type="button"
+                        class="btn btn-secondary"
+                        id="btn-mis-sol-editar"
+                        hidden
+                    >
+                        Editar
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-mis-sol-guardar-edicion"
+                        hidden
+                    >
+                        Guardar cambios
+                    </button>
+                    <button
+                        type="button"
                         class="btn btn-primary"
                         id="btn-mis-sol-reenviar-revision-footer"
                         hidden
@@ -122,12 +138,15 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js?v=2";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=33";
+            import { initMisSolicitudesGestion } from "/static/js/compras/mis-solicitudes-gestion.js?v=39";
 
             const user = await requireSessionRole(["compras", "admin", "solicitante", "anticipos"]);
             if (user) {
                 renderSidebar();
-                initMisSolicitudesGestion({ esAdmin: user.role === "admin" });
+                initMisSolicitudesGestion({
+                    esAdmin: user.role === "admin",
+                    currentUserId: user.id ?? null,
+                });
             } else {
                 const tbody = document.getElementById("gestion-tbody");
                 if (tbody && !window.location.pathname.endsWith("/login.html")) {

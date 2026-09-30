@@ -270,6 +270,8 @@ class SolicitudGestionModel(Base):
     observaciones_texto: Mapped[str] = mapped_column(Text, nullable=False, default="")
     requiere_visita: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     requiere_comite_tecnico: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    # Compra directa: el solicitante la envía directo a Compras (salta aprobación inicial).
+    directa_compras: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     servicio_programado: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     fecha_servicio_programado: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     descripcion_servicio: Mapped[str] = mapped_column(Text, nullable=False, default="")

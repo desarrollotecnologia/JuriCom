@@ -21,7 +21,7 @@ import {
     esSolicitudServicios,
     ESTADO_LABEL,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=60";
+} from "./gestion-solicitudes-common.js?v=65";
 
 
 

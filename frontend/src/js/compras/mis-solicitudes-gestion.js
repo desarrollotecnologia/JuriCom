@@ -1,5 +1,15 @@
 import { api, ApiError } from "../api/client.js";
 import { createObservacionConAdjuntos } from "../components/observacion-editor.js?v=2";
+import { createSearchableSelect } from "../components/searchable-select.js";
+import {
+    LIDERES_AREA,
+    UNIDADES_MEDIDA,
+    buildSelectOptions,
+} from "./mock-catalogos.js";
+import {
+    opcionesCentrosCostosHtml,
+    poblarCentrosCostos,
+} from "../catalogos/centros-costos.js";
 import { escapeHtml, formatDate } from "../utils/format.js";
 import {
     attachGestionDownloadHandlers,
@@ -14,7 +24,7 @@ import {
     renderAgregarComentarioHtml,
     renderDetalleSolicitudHtml,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=60";
+} from "./gestion-solicitudes-common.js?v=65";
 
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
@@ -24,7 +34,9 @@ const COMENTARIO_FILE_LIST_ID = "mis-sol-comentario-cotizacion-file-list";
 const COMENTARIO_BTN_ID = "btn-mis-sol-guardar-comentario-cotizacion";
 const REVISION_BTN_ID = "btn-mis-sol-responder-revision";
 
-export function initMisSolicitudesGestion({ esAdmin }) {
+const TRASH_ICON_EDIT = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>`;
+
+export function initMisSolicitudesGestion({ esAdmin, currentUserId = null }) {
     const tbody = document.getElementById("gestion-tbody");
     const searchInput = document.getElementById("gestion-search");
     const filterTipo = document.getElementById("gestion-filter-tipo");
@@ -67,7 +79,20 @@ export function initMisSolicitudesGestion({ esAdmin }) {
     let selectedSolicitudId = null;
     let selectedSolicitud = null;
     let modoEdicion = false;
+    let modoEdicionLibre = false;
+    let liderEditControl = null;
     let observacionControl = null;
+
+    function esProductoTipo(s) {
+        return (s?.tipo || "") !== "insumos_servicios";
+    }
+
+    function puedeEditar(s) {
+        if (!s) return false;
+        const esCreador =
+            currentUserId != null && Number(s.creado_por_id) === Number(currentUserId);
+        return esCreador && normalizarEstado(s.estado) === "solicitud";
+    }
 
     function destroyObservacionEditor() {
         observacionControl?.destroy();
@@ -298,10 +323,301 @@ export function initMisSolicitudesGestion({ esAdmin }) {
             </div>`;
     }
 
+    function renderPanelEdicionHtml(s) {
+        const esServicio = !esProductoTipo(s);
+        const esCompra = (s.tipo || "") === "compra";
+        const esConsumibles = (s.tipo || "") === "salida_consumibles";
+        const limpiar = (html) =>
+            String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        const obsTexto = (s.observaciones_texto || "").trim() || limpiar(s.observaciones);
+        const descTexto =
+            (s.descripcion_servicio_texto || "").trim() || limpiar(s.descripcion_servicio);
+        return `
+            <div class="sg-detail-panel" id="panel-edicion-libre">
+                <h3 class="sg-detail-panel-title">Editar solicitud</h3>
+                <p class="muted sg-detail-panel-hint">
+                    Corrige los datos antes de la primera aprobación. El cambio quedará
+                    registrado en la trazabilidad.
+                </p>
+                <div class="field">
+                    <label for="edit-titulo">Asunto / título</label>
+                    <input id="edit-titulo" type="text" value="${escapeHtml(s.titulo || "")}" />
+                </div>
+                <div class="field">
+                    <label for="edit-centro-costo">Centro de costo</label>
+                    <select id="edit-centro-costo"></select>
+                </div>
+                ${
+                    esCompra
+                        ? `<div class="field">
+                    <label>Presupuestado</label>
+                    <div>
+                        <label style="margin-right:16px;"><input type="radio" name="edit-presupuestado" value="si" ${s.presupuestado ? "checked" : ""}/> Sí</label>
+                        <label><input type="radio" name="edit-presupuestado" value="no" ${!s.presupuestado ? "checked" : ""}/> No</label>
+                    </div>
+                </div>`
+                        : ""
+                }
+                ${
+                    esCompra || esConsumibles
+                        ? `<div class="field">
+                    <label for="edit-prioridad">Prioridad</label>
+                    <select id="edit-prioridad">
+                        <option value="alta" ${s.prioridad === "alta" ? "selected" : ""}>Alta</option>
+                        <option value="media" ${!s.prioridad || s.prioridad === "media" ? "selected" : ""}>Media</option>
+                        <option value="baja" ${s.prioridad === "baja" ? "selected" : ""}>Baja</option>
+                    </select>
+                </div>`
+                        : ""
+                }
+                <div class="field">
+                    <label for="edit-lider-input">Líder de área</label>
+                    <div id="edit-lider-host"></div>
+                </div>
+                ${
+                    esServicio
+                        ? `<div class="field">
+                    <label for="edit-proveedor">Proveedor sugerido</label>
+                    <textarea id="edit-proveedor" rows="2">${escapeHtml(s.proveedor_sugerido || "")}</textarea>
+                </div>
+                <div class="field">
+                    <label for="edit-descripcion">Descripción del servicio</label>
+                    <textarea id="edit-descripcion" rows="4">${escapeHtml(descTexto)}</textarea>
+                </div>`
+                        : `<div class="field">
+                    <label>Ítems / productos</label>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead><tr>
+                                <th>Código</th><th>Unidad</th><th>Descripción</th>
+                                <th>Centro de costo</th><th>Cantidad</th><th></th>
+                            </tr></thead>
+                            <tbody id="edit-items-tbody"></tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="edit-add-item">+ Agregar ítem</button>`
+                }
+                <div class="field">
+                    <label for="edit-observaciones">Observaciones</label>
+                    <textarea id="edit-observaciones" rows="2">${escapeHtml(obsTexto)}</textarea>
+                </div>
+            </div>`;
+    }
+
+    function setSelectValue(sel, value) {
+        if (!sel) return;
+        sel.value = value;
+        if (sel.value !== value && value) {
+            const opt = document.createElement("option");
+            opt.value = value;
+            opt.textContent = value;
+            sel.appendChild(opt);
+            sel.value = value;
+        }
+    }
+
+    function agregarFilaItem(tbody, p = {}) {
+        const tr = document.createElement("tr");
+        tr.className = "edit-item-row";
+        tr.innerHTML = `
+            <td><input type="text" class="input-table edit-codigo" value="${escapeHtml(p.codigo_siimed || "")}" placeholder="Ej. 100234" inputmode="numeric" /></td>
+            <td><select class="input-table edit-unidad"></select></td>
+            <td><textarea class="input-table edit-descripcion" rows="1" placeholder="Descripción" required>${escapeHtml(p.descripcion || "")}</textarea></td>
+            <td><select class="input-table edit-centro"></select></td>
+            <td><input type="number" class="input-table-cantidad edit-cantidad" min="0.0001" step="any" value="${escapeHtml(String(p.cantidad ?? 1))}" aria-label="Cantidad" /></td>
+            <td class="table-actions"><button type="button" class="btn btn-icon-danger edit-remove-row" title="Eliminar fila">${TRASH_ICON_EDIT}</button></td>`;
+        const uni = tr.querySelector(".edit-unidad");
+        uni.innerHTML = buildSelectOptions(UNIDADES_MEDIDA, "Unidad");
+        setSelectValue(uni, (p.unidad || "").trim());
+        poblarCentrosCostos(tr.querySelector(".edit-centro"), (p.centro_costo || "").trim());
+        tr.querySelector(".edit-remove-row").addEventListener("click", () => {
+            if (tbody.querySelectorAll("tr").length <= 1) {
+                showError("Debe quedar al menos un ítem en la solicitud.");
+                return;
+            }
+            tr.remove();
+        });
+        tbody.appendChild(tr);
+    }
+
+    function initEdicionLibre(s) {
+        poblarCentrosCostos(
+            document.getElementById("edit-centro-costo"),
+            s.centro_costo_area || ""
+        );
+
+        const liderItems = [...LIDERES_AREA];
+        const actualId = (s.lider_area_id || "").trim();
+        if (actualId && !liderItems.some((l) => String(l.id) === actualId)) {
+            liderItems.unshift({
+                id: actualId,
+                label: s.lider_area_label || actualId,
+            });
+        }
+        liderEditControl = createSearchableSelect({
+            container: document.getElementById("edit-lider-host"),
+            name: "edit_lider_area_id",
+            items: liderItems,
+            placeholder: "Escribe nombre o cargo del líder...",
+            inputId: "edit-lider-input",
+            emptyMessage: "No se encontró ningún líder con ese texto.",
+        });
+        if (actualId) liderEditControl.setValue(actualId);
+
+        if (esProductoTipo(s)) {
+            const tbody = document.getElementById("edit-items-tbody");
+            const productos = s.productos && s.productos.length ? s.productos : [{}];
+            for (const p of productos) agregarFilaItem(tbody, p);
+            document
+                .getElementById("edit-add-item")
+                ?.addEventListener("click", () => agregarFilaItem(tbody, {}));
+        }
+    }
+
+    function collectEdicion(s) {
+        const titulo = (document.getElementById("edit-titulo")?.value || "").trim();
+        if (!titulo) {
+            showError("El asunto o título no puede quedar vacío.");
+            return null;
+        }
+        const centro = document.getElementById("edit-centro-costo")?.value || "";
+        if (!centro) {
+            showError("Selecciona un centro de costo.");
+            return null;
+        }
+        const liderId = liderEditControl?.getValue() || "";
+        if (!liderId) {
+            showError("Selecciona un líder de área de la lista.");
+            return null;
+        }
+
+        const fd = new FormData();
+        fd.append("titulo", titulo);
+        fd.append("centro_costo_area", centro);
+        fd.append("lider_area_id", liderId);
+        fd.append("lider_area_label", liderEditControl?.getSelectedItem()?.label || "");
+        const obs = document.getElementById("edit-observaciones")?.value || "";
+        fd.append("observaciones_texto", obs);
+        fd.append("observaciones", "");
+
+        const presRadio = document.querySelector(
+            'input[name="edit-presupuestado"]:checked'
+        );
+        if (presRadio) {
+            fd.append("presupuestado", presRadio.value === "si" ? "true" : "false");
+        }
+        const prioridad = document.getElementById("edit-prioridad");
+        if (prioridad) fd.append("prioridad", prioridad.value);
+
+        if (!esProductoTipo(s)) {
+            fd.append("proveedor_sugerido", document.getElementById("edit-proveedor")?.value || "");
+            const desc = document.getElementById("edit-descripcion")?.value || "";
+            fd.append("descripcion_servicio_texto", desc);
+            fd.append("descripcion_servicio", "");
+            return fd;
+        }
+
+        const productos = [];
+        const rows = document.querySelectorAll("#edit-items-tbody .edit-item-row");
+        for (const row of rows) {
+            const descripcion = (row.querySelector(".edit-descripcion")?.value || "").trim();
+            const unidad = row.querySelector(".edit-unidad")?.value || "";
+            const centroCosto = row.querySelector(".edit-centro")?.value || "";
+            const cantidad = row.querySelector(".edit-cantidad")?.value ?? "1";
+            const codigo = (row.querySelector(".edit-codigo")?.value || "").trim();
+            if (!descripcion && !unidad && !centroCosto && !codigo) continue;
+            if (!descripcion) {
+                showError("Cada ítem requiere descripción.");
+                return null;
+            }
+            if (!unidad) {
+                showError(`El ítem «${descripcion}» requiere unidad.`);
+                return null;
+            }
+            if (!centroCosto) {
+                showError(`El ítem «${descripcion}» requiere centro de costo.`);
+                return null;
+            }
+            const n = Number(String(cantidad).replace(",", "."));
+            if (!Number.isFinite(n) || n <= 0) {
+                showError(`El ítem «${descripcion}» requiere una cantidad mayor a cero.`);
+                return null;
+            }
+            productos.push({
+                codigo_siimed: codigo,
+                unidad,
+                descripcion,
+                centro_costo: centroCosto,
+                cantidad: String(cantidad),
+            });
+        }
+        if (!productos.length) {
+            showError("Agrega al menos un ítem con descripción.");
+            return null;
+        }
+        fd.append("productos_json", JSON.stringify(productos));
+        return fd;
+    }
+
+    async function guardarEdicion() {
+        if (!selectedSolicitudId || !puedeEditar(selectedSolicitud)) return;
+        const fd = collectEdicion(selectedSolicitud);
+        if (!fd) return;
+
+        const btn = document.getElementById("btn-mis-sol-guardar-edicion");
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "Guardando...";
+        }
+        try {
+            await api.postForm(`/solicitudes-gestion/${selectedSolicitudId}/editar`, fd);
+            showSuccess("Solicitud actualizada. El cambio quedó registrado en la trazabilidad.");
+            modoEdicionLibre = false;
+            const s = await api.get(`/solicitudes-gestion/${selectedSolicitudId}`);
+            await renderDetalle(s);
+            await load();
+        } catch (err) {
+            showError(err instanceof ApiError ? err.message : "No se pudieron guardar los cambios.");
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = "Guardar cambios";
+            }
+        }
+    }
+
+    function syncBotonesEdicion(s) {
+        const editarBtn = document.getElementById("btn-mis-sol-editar");
+        const guardarBtn = document.getElementById("btn-mis-sol-guardar-edicion");
+        const editable = puedeEditar(s);
+        if (editarBtn) {
+            if (editable) {
+                editarBtn.removeAttribute("hidden");
+                editarBtn.textContent = modoEdicionLibre ? "Cancelar edición" : "Editar";
+            } else {
+                editarBtn.setAttribute("hidden", "");
+            }
+        }
+        if (guardarBtn) {
+            if (editable && modoEdicionLibre) guardarBtn.removeAttribute("hidden");
+            else guardarBtn.setAttribute("hidden", "");
+        }
+    }
+
+    async function toggleEdicionLibre() {
+        if (!puedeEditar(selectedSolicitud)) return;
+        modoEdicionLibre = !modoEdicionLibre;
+        await renderDetalle(selectedSolicitud);
+    }
+
     function renderDetalleConComentario(s) {
         const puedeEvidencia = puedeEnviarEvidenciaCierreServicio(s.estado, s);
         const puedeComentar =
             puedeEvidencia || puedeComentarPosteriorCotizacion(s.estado);
+
+        if (modoEdicionLibre && puedeEditar(s)) {
+            return renderPanelEdicionHtml(s);
+        }
 
         if (esEnRevision(s) && modoEdicion) {
             return renderPanelRevisionHtml(s);
@@ -371,7 +687,12 @@ export function initMisSolicitudesGestion({ esAdmin }) {
 
     async function renderDetalle(s) {
         selectedSolicitud = s;
+        liderEditControl = null;
         detailContent.innerHTML = renderDetalleConComentario(s);
+        if (modoEdicionLibre && puedeEditar(s)) {
+            initEdicionLibre(s);
+        }
+        syncBotonesEdicion(s);
         initObservacionEditor();
         const revBtn = document.getElementById(REVISION_BTN_ID);
         if (revBtn) {
@@ -427,6 +748,7 @@ export function initMisSolicitudesGestion({ esAdmin }) {
             const s = await api.get(`/solicitudes-gestion/${id}`);
             selectedSolicitudId = s.id;
             modoEdicion = false;
+            modoEdicionLibre = false;
             detailTitle.textContent = `${s.codigo} · ${TIPO_LABEL[s.tipo] || s.tipo}`;
             await renderDetalle(s);
             modal.classList.add("show");
@@ -582,9 +904,13 @@ export function initMisSolicitudesGestion({ esAdmin }) {
         selectedSolicitudId = null;
         selectedSolicitud = null;
         modoEdicion = false;
+        modoEdicionLibre = false;
+        liderEditControl = null;
         syncGear(null);
     }
 
+    document.getElementById("btn-mis-sol-editar")?.addEventListener("click", toggleEdicionLibre);
+    document.getElementById("btn-mis-sol-guardar-edicion")?.addEventListener("click", guardarEdicion);
     document.getElementById("btn-editar-revision")?.addEventListener("click", toggleEdicion);
     document.getElementById("btn-gestion-detail-close")?.addEventListener("click", closeModal);
     document.getElementById("btn-mis-sol-reenviar-revision-footer")?.addEventListener(

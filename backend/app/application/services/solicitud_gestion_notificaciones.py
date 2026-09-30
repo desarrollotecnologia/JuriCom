@@ -219,6 +219,84 @@ class NotificadorSolicitudGestion:
                 destinatarios=lideres,
             )
 
+    def notificar_compra_directa_creada(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Compra directa a Compras: salta la aprobación inicial del líder.
+
+        - Solicitante: confirmación de registro.
+        - Compras: nueva compra lista para gestión en el panel.
+        """
+        codigo = solicitud.codigo or ""
+        sol = resolver_email_solicitante(solicitud, self._users)
+        if sol:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM] {codigo} — Compra de menor cuantía registrada",
+                titulo="Menor cuantía registrada",
+                mensaje=(
+                    f"Se creó tu compra <strong>{codigo}</strong> como menor cuantía "
+                    "(directa a Compras). Compras la gestionará directamente; te avisaremos del avance."
+                ),
+                url=self._url_mis_solicitudes(),
+                boton="Ver mis solicitudes",
+                destinatarios=[sol],
+            )
+
+        compras = self._emails_rol(Role.COMPRAS)
+        if compras:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM] {codigo} — Nueva compra de menor cuantía para gestión",
+                titulo="Nueva menor cuantía",
+                mensaje=(
+                    f"La compra <strong>{codigo}</strong> (menor cuantía) llegó directamente "
+                    "a Compras (sin aprobación previa) y está lista para gestión en el panel."
+                ),
+                url=self._url_panel(),
+                boton="Panel de solicitudes",
+                destinatarios=compras,
+            )
+
+    def notificar_compra_enviada_a_aprobacion(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+    ) -> None:
+        """Compras devuelve una compra directa al flujo de aprobación del líder."""
+        codigo = solicitud.codigo or ""
+        sol = resolver_email_solicitante(solicitud, self._users)
+        if sol:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM] {codigo} — Enviada a aprobación del líder",
+                titulo="Enviada a aprobación",
+                mensaje=(
+                    f"Compras envió tu compra <strong>{codigo}</strong> a aprobación de tu "
+                    "líder de área. Te avisaremos cuando sea aprobada."
+                ),
+                url=self._url_mis_solicitudes(),
+                boton="Ver mis solicitudes",
+                destinatarios=[sol],
+            )
+
+        lideres = self._emails_lider_catalogo(solicitud.lider_area_id)
+        if lideres:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM] {codigo} — Pendiente de aprobación",
+                titulo="Compra pendiente de aprobación",
+                mensaje=(
+                    f"La compra <strong>{codigo}</strong> requiere tu aprobación antes de que "
+                    "Compras continúe la gestión."
+                ),
+                url=self._url_aprobar(),
+                boton="Aprobar solicitudes",
+                destinatarios=lideres,
+            )
+
     def notificar_salida_consumibles_creada(
         self,
         solicitud: SolicitudGestion,

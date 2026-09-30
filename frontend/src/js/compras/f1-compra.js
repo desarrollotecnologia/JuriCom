@@ -225,6 +225,7 @@ export function initSolicitudCompraForm() {
             presupuestado: presupuestado === "si",
             centro_costo_area: form.centro_costo_area.value,
             prioridad: form.prioridad?.value || "media",
+            directa_compras: !!document.getElementById("directa-compras")?.checked,
             lider_area_id: form.lider_area_id.value,
             productos: collectProductos(),
             observaciones: observacionesEditor.getHtml(),
@@ -272,6 +273,7 @@ export function initSolicitudCompraForm() {
         formData.append("presupuestado", String(payload.presupuestado));
         formData.append("centro_costo_area", payload.centro_costo_area);
         formData.append("prioridad", payload.prioridad);
+        formData.append("directa_compras", String(payload.directa_compras));
         formData.append("lider_area_id", form.lider_area_id.value);
         formData.append("lider_area_label", lider?.label || "");
         formData.append("observaciones", payload.observaciones);

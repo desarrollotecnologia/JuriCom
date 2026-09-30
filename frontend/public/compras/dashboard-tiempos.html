@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Dashboard de tiempos · JURICOM</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            :root {
+                --d-bg: #0e1730; --d-bg2: #0a1024; --d-panel: #16213f; --d-panel2: #1b2748;
+                --d-border: rgba(148, 163, 184, 0.16); --d-text: #e8edf7; --d-muted: #93a1bd;
+                --g-green: #a3e635; --g-green2: #22c55e; --g-blue: #38bdf8; --g-blue2: #2563eb;
+                --g-orange: #fb923c; --g-orange2: #f97316; --g-red: #fb7185; --g-red2: #e11d48;
+            }
+            body .main {
+                background:
+                    radial-gradient(1200px 500px at 80% -10%, rgba(56, 189, 248, 0.08), transparent 60%),
+                    radial-gradient(900px 500px at 0% 110%, rgba(163, 230, 53, 0.06), transparent 55%),
+                    linear-gradient(160deg, var(--d-bg), var(--d-bg2));
+                color: var(--d-text); min-height: 100vh;
+            }
+            body .main h1 { color: #fff; }
+            body .main .muted { color: var(--d-muted); }
+            body .main .card-title { color: #cdd8ef; }
+
+            .dash-panel {
+                background: linear-gradient(180deg, var(--d-panel), var(--d-panel2));
+                border: 1px solid var(--d-border); border-radius: 18px;
+                box-shadow: 0 12px 30px rgba(2, 6, 23, 0.35); padding: 20px 22px;
+            }
+            .grid { display: grid; gap: 16px; }
+            .g-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .g-3 { grid-template-columns: 1.1fr 1fr 1.4fr; }
+            @media (max-width: 1000px) { .g-4 { grid-template-columns: repeat(2, 1fr); } .g-3 { grid-template-columns: 1fr; } }
+            @media (max-width: 560px) { .g-4 { grid-template-columns: 1fr; } }
+
+            .kpi .kpi-label { color: var(--d-muted); font-size: .74rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+            .kpi .kpi-value { font-size: 2.1rem; font-weight: 800; margin-top: 10px; }
+            .kpi .kpi-hint { color: var(--d-muted); font-size: .74rem; margin-top: 6px; }
+            .grad-blue { background: linear-gradient(90deg, var(--g-blue), var(--g-blue2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+            .grad-green { background: linear-gradient(90deg, var(--g-green), var(--g-green2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+            .grad-orange { background: linear-gradient(90deg, var(--g-orange), var(--g-orange2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+            .grad-violet { background: linear-gradient(90deg, #c084fc, #8b5cf6); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+            .toolbar { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0 18px; }
+            .toolbar select { background: var(--d-panel2); border: 1px solid var(--d-border); border-radius: 10px; color: var(--d-text); padding: 9px 12px; }
+            .toolbar label { color: var(--d-muted); }
+
+            .callout { align-items: center; display: flex; gap: 14px; height: 100%; }
+            .callout .ico {
+                align-items: center; background: linear-gradient(135deg, var(--g-orange), var(--g-red2));
+                border-radius: 14px; box-shadow: 0 8px 20px rgba(225, 29, 72, .35); color: #fff;
+                display: inline-flex; flex: 0 0 auto; height: 54px; justify-content: center; width: 54px;
+            }
+            .callout small { color: var(--g-orange); font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+            .callout .big { color: #fff; font-size: 1.3rem; font-weight: 800; margin-top: 2px; }
+            .callout .sub { color: var(--d-muted); font-size: .78rem; margin-top: 4px; }
+
+            .empty-state { color: var(--d-muted); padding: 26px; text-align: center; }
+
+            /* Override del tema global (que pone fondo blanco a las tablas) */
+            .utable { background: transparent; border-collapse: separate; border-radius: 0; border-spacing: 0 6px; box-shadow: none; margin-top: 14px; overflow: visible; width: 100%; }
+            .utable thead th { background: transparent; }
+            .utable th { color: #aab6d4; font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 4px 14px 8px; text-align: left; border-bottom: none; }
+            .utable th.num, .utable td.num { text-align: right; }
+            .utable td { border-bottom: none; color: #e8edf7; padding: 12px 14px; vertical-align: middle; }
+            .utable tbody td { background: rgba(255, 255, 255, 0.05); transition: background .15s ease; }
+            .utable tbody tr:hover td { background: rgba(56, 189, 248, 0.12); }
+            .utable tbody td:first-child { border-radius: 12px 0 0 12px; }
+            .utable tbody td:last-child { border-radius: 0 12px 12px 0; }
+            .utable .rk { align-items: center; background: rgba(56,189,248,.22); border-radius: 50%; color: #cfeafe; display: inline-flex; font-size: .78rem; font-weight: 800; height: 28px; justify-content: center; width: 28px; }
+            .utable tbody tr:first-child .rk { background: linear-gradient(135deg, #fb7185, #e11d48); color: #fff; box-shadow: 0 4px 12px rgba(225,29,72,.4); }
+            .utable .code { color: #fff; font-weight: 800; letter-spacing: .02em; white-space: nowrap; }
+            .utable .usr { color: #f2f6ff; font-size: .95rem; font-weight: 700; }
+            .utable .req { color: #dbe4f7; font-weight: 600; }
+            .utable .sub2 { color: #8b97b5; font-size: .74rem; font-weight: 500; margin-top: 3px; }
+            .utable .count { color: #e2e8f0; font-size: 1rem; font-weight: 700; }
+            .utable .pill { border-radius: 9px; box-shadow: 0 3px 10px rgba(0,0,0,.25); color: #fff; display: inline-block; font-size: .84rem; font-weight: 800; min-width: 72px; padding: 6px 12px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+            .utable .mini-pill { border-radius: 7px; color: #fff; display: inline-block; font-size: .74rem; font-weight: 800; padding: 2px 8px; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+            .utable .req-row { cursor: pointer; }
+            .utable .req-row.expanded td { background: rgba(56,189,248,.14); }
+            .det-wrap { display: grid; gap: 12px; padding: 6px 4px 4px; }
+            .det-item { }
+            .det-top { align-items: baseline; display: flex; justify-content: space-between; }
+            .det-name { color: #eaf1ff; font-size: .85rem; font-weight: 600; }
+            .det-d { color: #fff; font-size: .82rem; font-weight: 800; }
+            .det-track { background: rgba(148,163,184,.14); border-radius: 999px; height: 9px; margin: 5px 0; overflow: hidden; }
+            .det-fill { border-radius: 999px; height: 100%; min-width: 5px; }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Dashboard de tiempos de atención</h1>
+                        <p class="muted" id="page-subtitle">
+                            Cuánto tarda cada compra/servicio de inicio a fin y quién demora más (Compras y Servicios).
+                        </p>
+                    </div>
+                    <div style="display:flex;gap:8px;">
+                        <a href="/app/compras/requerimientos-pendientes.html" class="btn btn-primary">Ver pendientes</a>
+                        <a href="/app/dashboard.html" class="btn btn-secondary">Volver</a>
+                    </div>
+                </div>
+
+                <div class="toolbar">
+                    <label for="filtro-tipo">Tipo:</label>
+                    <select id="filtro-tipo">
+                        <option value="">Todos</option>
+                        <option value="compra">Compras</option>
+                        <option value="insumos_servicios">Servicios</option>
+                    </select>
+                </div>
+
+                <section class="grid g-4">
+                    <div class="dash-panel kpi">
+                        <div class="kpi-label">Requerimientos</div>
+                        <div class="kpi-value grad-blue" id="kpi-total">—</div>
+                        <div class="kpi-hint">Total en el alcance</div>
+                    </div>
+                    <div class="dash-panel kpi">
+                        <div class="kpi-label">Pendientes</div>
+                        <div class="kpi-value grad-orange" id="kpi-pendientes">—</div>
+                        <div class="kpi-hint">Aún sin cerrar</div>
+                    </div>
+                    <div class="dash-panel kpi">
+                        <div class="kpi-label">Finalizados</div>
+                        <div class="kpi-value grad-green" id="kpi-finalizadas">—</div>
+                        <div class="kpi-hint">OC tramitada / contrato</div>
+                    </div>
+                    <div class="dash-panel kpi">
+                        <div class="kpi-label">Tiempo total promedio</div>
+                        <div class="kpi-value grad-violet" id="kpi-total-tiempo">—</div>
+                        <div class="kpi-hint">Radica → fin</div>
+                    </div>
+                </section>
+
+                <section class="grid g-3 mt-4">
+                    <div class="dash-panel">
+                        <h2 class="card-title">Distribución</h2>
+                        <div id="donut-chart"></div>
+                    </div>
+                    <div class="dash-panel">
+                        <h2 class="card-title">Eficiencia de cierre</h2>
+                        <div id="gauge-chart"></div>
+                    </div>
+                    <div class="dash-panel">
+                        <h2 class="card-title">El que más tardó</h2>
+                        <div class="callout" id="callout">
+                            <span class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg></span>
+                            <div>
+                                <small>Requerimiento más demorado</small>
+                                <div class="big" id="callout-name">—</div>
+                                <div class="sub" id="callout-sub"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="dash-panel mt-4">
+                    <h2 class="card-title">Tiempo por requerimiento (inicio → fin)</h2>
+                    <p class="muted" style="font-size:.8rem;margin-top:2px;">
+                        Cuánto tardó cada compra/servicio desde que se radicó hasta que se completó.
+                    </p>
+                    <div id="bars-chart"></div>
+                </section>
+
+                <section class="dash-panel mt-4">
+                    <h2 class="card-title">Requerimientos que más tardaron</h2>
+                    <p class="muted" style="font-size:.8rem;margin-top:2px;">
+                        Clic en una fila para ver por qué se demoró (desglose por etapa).
+                    </p>
+                    <table class="utable" id="ranking-tabla">
+                        <thead><tr><th>#</th><th>Requerimiento</th><th>¿Dónde se demoró?</th><th class="num">Total</th></tr></thead>
+                        <tbody><tr><td colspan="4" class="empty-state">Cargando…</td></tr></tbody>
+                    </table>
+                </section>
+            </main>
+        </div>
+
+        <script src="/static/vendor/apexcharts.min.js"></script>
+        <script type="module">
+            import { requireSessionRole } from "/static/js/auth/bootstrap.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api } from "/static/js/api/client.js";
+
+            const DIEGO_EMAIL = "gerencia.financiera@colbeef.com";
+
+            const user = await requireSessionRole(["admin", "lider_aprobador"]);
+            if (!user) throw new Error("sin sesión");
+            const esAdmin = (user.roles?.length ? user.roles : [user.role]).includes("admin");
+            const esDiego = (user.email || "").trim().toLowerCase() === DIEGO_EMAIL;
+            if (!esAdmin && !esDiego) {
+                window.location.href = "/app/dashboard.html";
+                throw new Error("sin acceso");
+            }
+            renderSidebar();
+
+            const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+            const num = (n) => { const v = Number(n); return Number.isNaN(v) ? 0 : v; };
+            function fmtDias(n) {
+                if (n == null) return "—";
+                const v = Number(n);
+                if (Number.isNaN(v)) return "—";
+                if (v < 1) return `${Math.round(v * 24)} h`;
+                return `${v} día${v === 1 ? "" : "s"}`;
+            }
+            const etiquetaReq = (r) => (r.titulo?.trim() ? r.titulo.trim() : (r.codigo || "Requerimiento"));
+            function colorPill(v, max) {
+                const r = max ? v / max : 0;
+                if (r >= 0.75) return "linear-gradient(90deg,#fb7185,#e11d48)";
+                if (r >= 0.45) return "linear-gradient(90deg,#fb923c,#f97316)";
+                if (r >= 0.2) return "linear-gradient(90deg,#38bdf8,#2563eb)";
+                return "linear-gradient(90deg,#a3e635,#22c55e)";
+            }
+
+            const baseChart = {
+                chart: { background: "transparent", foreColor: "#93a1bd", toolbar: { show: false }, animations: { easing: "easeinout", speed: 500 } },
+                theme: { mode: "dark" },
+                tooltip: { theme: "dark" },
+            };
+            let donutChart = null, gaugeChart = null, barsChart = null;
+
+            function renderDonut(total, fin, pen) {
+                const otros = Math.max(0, total - fin - pen);
+                const opts = {
+                    ...baseChart,
+                    chart: { ...baseChart.chart, type: "donut", height: 280 },
+                    series: [fin, pen, otros],
+                    labels: ["Finalizados", "Pendientes", "Otros / cancelados"],
+                    colors: ["#22c55e", "#f97316", "#64748b"],
+                    stroke: { width: 0 },
+                    legend: { position: "bottom", labels: { colors: "#cbd5e1" } },
+                    dataLabels: { enabled: true, formatter: (v) => `${Math.round(v)}%`, style: { fontSize: "12px", fontWeight: 700 } },
+                    plotOptions: { pie: { donut: { size: "68%", labels: { show: true, total: { show: true, label: "Total", color: "#93a1bd", formatter: () => `${total}` }, value: { color: "#fff", fontSize: "26px", fontWeight: 800 } } } } },
+                    noData: { text: "Sin datos", style: { color: "#93a1bd" } },
+                };
+                if (donutChart) { donutChart.updateOptions(opts); }
+                else { donutChart = new ApexCharts(document.querySelector("#donut-chart"), opts); donutChart.render(); }
+            }
+
+            function renderGauge(total, fin) {
+                const pct = total ? Math.round((fin / total) * 100) : 0;
+                const opts = {
+                    ...baseChart,
+                    chart: { ...baseChart.chart, type: "radialBar", height: 300 },
+                    series: [pct],
+                    labels: ["Finalizados"],
+                    plotOptions: {
+                        radialBar: {
+                            startAngle: -135, endAngle: 135,
+                            hollow: { size: "58%" },
+                            track: { background: "rgba(148,163,184,.15)", strokeWidth: "100%" },
+                            dataLabels: {
+                                name: { color: "#93a1bd", fontSize: "13px", offsetY: 22 },
+                                value: { color: "#fff", fontSize: "34px", fontWeight: 800, offsetY: -12, formatter: (v) => `${Math.round(v)}%` },
+                            },
+                        },
+                    },
+                    fill: { type: "gradient", gradient: { shade: "dark", type: "horizontal", gradientToColors: ["#a3e635"], stops: [0, 100], colorStops: [{ offset: 0, color: "#fb7185" }, { offset: 50, color: "#fb923c" }, { offset: 100, color: "#22c55e" }] } },
+                    stroke: { lineCap: "round" },
+                    colors: ["#22c55e"],
+                };
+                if (gaugeChart) { gaugeChart.updateOptions(opts); }
+                else { gaugeChart = new ApexCharts(document.querySelector("#gauge-chart"), opts); gaugeChart.render(); }
+            }
+
+            function renderBarras(finalizados) {
+                const lista = finalizados.slice(0, 15);
+                const data = lista.map((r) => num(r.dias_total));
+                const cats = lista.map((r) => r.codigo || etiquetaReq(r));
+                const titulos = lista.map((r) => etiquetaReq(r));
+                const paleta = ["#38bdf8", "#22c55e", "#a3e635", "#8b5cf6", "#0ea5e9"];
+                const colors = lista.map((r, i) => (i === 0 ? "#e11d48" : paleta[i % paleta.length]));
+                const opts = {
+                    ...baseChart,
+                    chart: { ...baseChart.chart, type: "bar", height: 340 },
+                    series: [{ name: "Días", data }],
+                    xaxis: { categories: cats, labels: { rotate: -45, style: { colors: "#93a1bd", fontSize: "11px" } }, axisBorder: { color: "rgba(148,163,184,.2)" }, axisTicks: { color: "rgba(148,163,184,.2)" } },
+                    yaxis: { labels: { formatter: (v) => `${Math.round(v)}d`, style: { colors: "#93a1bd" } } },
+                    plotOptions: { bar: { borderRadius: 6, distributed: true, columnWidth: "55%" } },
+                    colors,
+                    fill: { type: "gradient", gradient: { shade: "dark", type: "vertical", opacityFrom: 1, opacityTo: 0.82 } },
+                    dataLabels: { enabled: false },
+                    legend: { show: false },
+                    grid: { borderColor: "rgba(148,163,184,.1)" },
+                    tooltip: { theme: "dark", custom: ({ dataPointIndex }) => `<div style="padding:8px 12px"><b>${escapeHtml(cats[dataPointIndex])}</b><br>${escapeHtml(titulos[dataPointIndex])}<br><span style="color:#a3e635">${escapeHtml(fmtDias(data[dataPointIndex]))}</span></div>` },
+                    noData: { text: "Aún no hay requerimientos completados", style: { color: "#93a1bd" } },
+                };
+                if (barsChart) { barsChart.updateOptions(opts); }
+                else { barsChart = new ApexCharts(document.querySelector("#bars-chart"), opts); barsChart.render(); }
+            }
+
+            function renderCallout(finalizados) {
+                if (!finalizados.length) {
+                    document.getElementById("callout-name").textContent = "Aún sin datos";
+                    document.getElementById("callout-sub").textContent = "No hay requerimientos completados todavía.";
+                    return;
+                }
+                const r = finalizados[0];
+                document.getElementById("callout-name").textContent = etiquetaReq(r);
+                document.getElementById("callout-sub").textContent = `${r.codigo} · ${r.tipo_label} · ${fmtDias(r.dias_total)}`;
+            }
+
+            function detalleEtapas(r) {
+                const etapas = (r.etapas || []).slice();
+                if (!etapas.length) return `<div class="sub2">Sin desglose de etapas registrado.</div>`;
+                const maxd = Math.max(1, ...etapas.map((e) => num(e.dias)));
+                const filas = etapas.map((e) => {
+                    const v = num(e.dias);
+                    const pct = Math.round((v / maxd) * 100);
+                    const quien = [e.responsable, e.rol_label && e.rol_label !== "—" ? `(${e.rol_label})` : ""].filter(Boolean).join(" ");
+                    return `<div class="det-item">
+                        <div class="det-top"><span class="det-name">${escapeHtml(e.etapa_label)}</span><span class="det-d">${escapeHtml(fmtDias(v))}</span></div>
+                        <div class="det-track"><div class="det-fill" style="width:${pct}%;background:${colorPill(v, maxd)}"></div></div>
+                        ${quien ? `<div class="sub2">Atendió: ${escapeHtml(quien)}</div>` : ""}
+                    </div>`;
+                }).join("");
+                return `<div class="det-wrap">${filas}</div>`;
+            }
+
+            function renderRankingTabla(finalizados) {
+                const body = document.querySelector("#ranking-tabla tbody");
+                if (!finalizados.length) { body.innerHTML = `<tr><td colspan="4" class="empty-state">Sin requerimientos completados.</td></tr>`; return; }
+                const lista = finalizados.slice(0, 12);
+                const maximo = Math.max(1, ...lista.map((r) => num(r.dias_total)));
+                body.innerHTML = lista.map((r, i) => {
+                    const v = num(r.dias_total);
+                    const cd = num(r.cuello_dias);
+                    const cuello = r.cuello_label
+                        ? `<span class="req">${escapeHtml(r.cuello_label)}</span> <span class="mini-pill" style="background:${colorPill(cd, v || cd)}">${escapeHtml(fmtDias(cd))}</span>${r.cuello_responsable ? `<div class="sub2">Atendió: ${escapeHtml(r.cuello_responsable)}${r.cuello_rol_label && r.cuello_rol_label !== "—" ? ` (${escapeHtml(r.cuello_rol_label)})` : ""}</div>` : ""}`
+                        : `<span class="sub2">Sin desglose</span>`;
+                    return `<tr class="req-row" data-i="${i}">
+                        <td><span class="rk">${i + 1}</span></td>
+                        <td><span class="code">${escapeHtml(r.codigo)}</span><div class="sub2">${escapeHtml(etiquetaReq(r))} · ${escapeHtml(r.tipo_label)}</div></td>
+                        <td>${cuello}</td>
+                        <td class="num"><span class="pill" style="background:${colorPill(v, maximo)}">${escapeHtml(fmtDias(v))}</span></td>
+                    </tr>
+                    <tr class="det-row" id="det-${i}" hidden><td colspan="4">${detalleEtapas(r)}</td></tr>`;
+                }).join("");
+                body.querySelectorAll(".req-row").forEach((row) => {
+                    row.addEventListener("click", () => {
+                        const det = document.getElementById(`det-${row.dataset.i}`);
+                        if (det) det.hidden = !det.hidden;
+                        row.classList.toggle("expanded");
+                    });
+                });
+            }
+
+            async function cargar() {
+                const tipo = document.getElementById("filtro-tipo").value;
+                const qs = tipo ? `?tipo=${encodeURIComponent(tipo)}` : "";
+                try {
+                    const d = await api.get(`/solicitudes-gestion/dashboard-tiempos${qs}`);
+                    const total = d.total ?? 0, fin = d.finalizadas_count ?? 0, pen = d.pendientes_count ?? 0;
+                    document.getElementById("kpi-total").textContent = total;
+                    document.getElementById("kpi-pendientes").textContent = pen;
+                    document.getElementById("kpi-finalizadas").textContent = fin;
+                    document.getElementById("kpi-total-tiempo").textContent = fmtDias(d.tiempo_total_promedio_dias);
+                    const finalizados = d.finalizados || [];
+                    renderDonut(total, fin, pen);
+                    renderGauge(total, fin);
+                    renderBarras(finalizados);
+                    renderCallout(finalizados);
+                    renderRankingTabla(finalizados);
+                } catch (err) {
+                    document.getElementById("page-subtitle").textContent = "No se pudo cargar el dashboard.";
+                }
+            }
+
+            document.getElementById("filtro-tipo").addEventListener("change", cargar);
+            cargar();
+        </script>
+    </body>
+</html>

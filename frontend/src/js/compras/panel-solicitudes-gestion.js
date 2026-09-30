@@ -45,7 +45,7 @@ import {
     solicitudTieneOcRegistrada,
     ESTADO_LABEL,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=60";
+} from "./gestion-solicitudes-common.js?v=65";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -159,6 +159,8 @@ export function initPanelSolicitudesGestion() {
     const detailTitle = document.getElementById("panel-detail-title");
     const btnClose = document.getElementById("btn-panel-detail-close");
     const btnEnviar = document.getElementById("btn-panel-enviar-aprobacion");
+    const btnContinuarDirecta = document.getElementById("btn-panel-continuar-directa-oc");
+    const btnEnviarAprobacionLider = document.getElementById("btn-panel-enviar-aprobacion-lider");
     const btnGuardarGestionServicios = document.getElementById("btn-panel-guardar-gestion-servicios");
     const btnSolicitarAnticipoServicios = document.getElementById("btn-panel-solicitar-anticipo-servicios");
     const btnGuardarValorServicio = document.getElementById("btn-panel-guardar-valor-servicio");
@@ -720,6 +722,8 @@ export function initPanelSolicitudesGestion() {
         modoGestion = false;
         modalActionsGestion?.setAttribute("hidden", "");
         setModalBtnHidden(btnEnviar, false);
+        setModalBtnHidden(btnContinuarDirecta, true);
+        setModalBtnHidden(btnEnviarAprobacionLider, true);
         setModalBtnHidden(btnGuardarGestionServicios, true);
         setModalBtnHidden(btnGuardarValorServicio, true);
         setModalBtnHidden(btnSolicitarAnticipoServicios, true);
@@ -785,6 +789,44 @@ export function initPanelSolicitudesGestion() {
         });
 
         refreshCotizacionesUI();
+    }
+
+    async function enviarAAprobacion() {
+        const id = selectedSolicitud?.id;
+        if (!id) return;
+        if (
+            !confirm(
+                "¿Enviar esta compra de menor cuantía a aprobación del líder de área? Saldrá del panel de Compras hasta que el líder la apruebe."
+            )
+        ) {
+            return;
+        }
+        const btn = btnEnviarAprobacionLider;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "Enviando...";
+        }
+        try {
+            const solicitud = await api.post(
+                `/solicitudes-gestion/${id}/enviar-a-aprobacion`,
+                {}
+            );
+            showSuccess(
+                `Compra ${solicitud.codigo} enviada a aprobación del líder de área.`
+            );
+            closeModal();
+            await load();
+        } catch (err) {
+            showError(
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo enviar la compra a aprobación."
+            );
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = "Enviar a aprobación del líder";
+            }
+        }
     }
 
     function programarVisitaSeleccionado() {
@@ -1088,7 +1130,9 @@ export function initPanelSolicitudesGestion() {
         const total = contarCotizaciones(selectedSolicitud, nuevos);
 
         if (countLabel) {
-            countLabel.textContent = `Cotizaciones registradas: ${total} (mínimo: ${MIN_COTIZACIONES}) · Nuevas seleccionadas: ${nuevos.length}`;
+            countLabel.textContent = selectedSolicitud.directa_compras
+                ? `Cotizaciones registradas: ${total} (opcional) · Nuevas seleccionadas: ${nuevos.length}`
+                : `Cotizaciones registradas: ${total} (mínimo: ${MIN_COTIZACIONES}) · Nuevas seleccionadas: ${nuevos.length}`;
         }
         if (justificacionWrap) {
             justificacionWrap.hidden = total >= MIN_COTIZACIONES;
@@ -1281,7 +1325,16 @@ export function initPanelSolicitudesGestion() {
     }
 
     function updateAccionesGestionModal(esEntrega) {
-        setModalBtnHidden(btnEnviar, esEntrega);
+        // Compra directa en gestión (Cotización): salta la 2.ª aprobación → Trámite OC.
+        const esCompraDirectaGestion =
+            !esEntrega &&
+            modoGestion &&
+            !esSolicitudServicios(selectedSolicitud) &&
+            !!selectedSolicitud?.directa_compras &&
+            normalizarEstado(selectedSolicitud?.estado) === "cotizacion";
+        setModalBtnHidden(btnContinuarDirecta, !esCompraDirectaGestion);
+        setModalBtnHidden(btnEnviarAprobacionLider, !esCompraDirectaGestion);
+        setModalBtnHidden(btnEnviar, esEntrega || esCompraDirectaGestion);
         setModalBtnHidden(btnGuardarGestionServicios, true);
         setModalBtnHidden(btnGuardarValorServicio, true);
         setModalBtnHidden(btnSolicitarAnticipoServicios, true);
@@ -2465,6 +2518,55 @@ export function initPanelSolicitudesGestion() {
         }
     }
 
+    async function continuarDirectaOc() {
+        if (!selectedSolicitud || !modoGestion) return;
+
+        observacionControl?.editor.syncHidden();
+        const nuevaObsHtml = observacionControl?.editor.getHtml() ?? "";
+        const nuevaObsTexto = observacionControl?.editor.getText() ?? "";
+        observacionControl?.clearDraft();
+
+        if (
+            !confirm(
+                "¿Continuar a Trámite OC sin segunda aprobación? (Menor cuantía). Las cotizaciones adjuntas quedan registradas para trazabilidad."
+            )
+        ) {
+            return;
+        }
+
+        const nuevos = getSelectedCotizacionFiles();
+        const formData = new FormData();
+        formData.append("nueva_observacion", nuevaObsHtml);
+        formData.append("nueva_observacion_texto", nuevaObsTexto);
+        formData.append("directo_oc", "true");
+        formData.append("cotizaciones_meta", "[]");
+        nuevos.forEach((file) => formData.append("cotizaciones", file));
+        (observacionControl?.getFiles() ?? []).forEach((file) =>
+            formData.append("adjuntos", file)
+        );
+
+        btnContinuarDirecta.disabled = true;
+        btnContinuarDirecta.textContent = "Procesando...";
+        try {
+            const solicitud = await api.postForm(
+                `/solicitudes-gestion/${selectedSolicitud.id}/enviar-cotizacion`,
+                formData
+            );
+            showSuccess(`Compra ${solicitud.codigo} lista para Trámite OC.`);
+            closeModal();
+            await load();
+        } catch (err) {
+            showError(
+                err instanceof ApiError
+                    ? err.message
+                    : "No se pudo continuar a Trámite OC."
+            );
+        } finally {
+            btnContinuarDirecta.disabled = false;
+            btnContinuarDirecta.textContent = "Continuar a Trámite OC";
+        }
+    }
+
     load();
 
     try {
@@ -2475,6 +2577,8 @@ export function initPanelSolicitudesGestion() {
 
     btnClose?.addEventListener("click", closeModal);
     btnEnviar?.addEventListener("click", enviarParaAprobacion);
+    btnContinuarDirecta?.addEventListener("click", continuarDirectaOc);
+    btnEnviarAprobacionLider?.addEventListener("click", enviarAAprobacion);
     btnGuardarGestionServicios?.addEventListener("click", guardarGestionServicios);
     btnGuardarValorServicio?.addEventListener("click", guardarValorServicio);
     btnSolicitarAnticipoServicios?.addEventListener("click", solicitarAnticipoServicios);

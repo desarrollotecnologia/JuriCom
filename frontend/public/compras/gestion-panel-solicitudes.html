@@ -168,6 +168,22 @@
                     </button>
                     <button
                         type="button"
+                        class="btn btn-secondary"
+                        id="btn-panel-enviar-aprobacion-lider"
+                        hidden
+                    >
+                        Enviar a aprobación del líder
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-continuar-directa-oc"
+                        hidden
+                    >
+                        Continuar a Trámite OC
+                    </button>
+                    <button
+                        type="button"
                         class="btn btn-primary"
                         id="btn-panel-guardar-tramite-oc"
                         hidden
@@ -277,7 +293,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js?v=2";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=65";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=70";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {

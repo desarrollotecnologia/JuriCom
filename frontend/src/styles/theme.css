@@ -2079,6 +2079,21 @@ table.clickable-rows tbody tr[data-id]:focus {
     cursor: pointer;
 }
 
+.checkbox-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--color-text);
+}
+
+.checkbox-inline input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--color-primary);
+    cursor: pointer;
+}
+
 .programado-row {
     display: flex;
     flex-wrap: wrap;

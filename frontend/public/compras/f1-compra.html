@@ -8,7 +8,7 @@
         <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Solicitud de Compra · JURICOM</title>
-        <link rel="stylesheet" href="/static/styles/theme.css?v=14" />
+        <link rel="stylesheet" href="/static/styles/theme.css?v=15" />
     </head>
     <body>
         <template id="tpl-unidades-medida">
@@ -84,26 +84,36 @@
                             />
                         </div>
 
-                        <div class="field">
-                            <label>Presupuestado <span class="required">*</span></label>
-                            <div class="radio-group">
-                                <label class="radio-option">
-                                    <input
-                                        type="radio"
-                                        name="presupuestado"
-                                        value="si"
-                                        required
-                                    />
-                                    Es presupuestado
+                        <div class="row-2">
+                            <div class="field">
+                                <label>Presupuestado <span class="required">*</span></label>
+                                <div class="radio-group">
+                                    <label class="radio-option">
+                                        <input
+                                            type="radio"
+                                            name="presupuestado"
+                                            value="si"
+                                            required
+                                        />
+                                        Es presupuestado
+                                    </label>
+                                    <label class="radio-option">
+                                        <input
+                                            type="radio"
+                                            name="presupuestado"
+                                            value="no"
+                                        />
+                                        No es presupuestado
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label>Tipo de gestión</label>
+                                <label class="checkbox-inline">
+                                    <input type="checkbox" id="directa-compras" name="directa_compras" />
+                                    Menor cuantía
                                 </label>
-                                <label class="radio-option">
-                                    <input
-                                        type="radio"
-                                        name="presupuestado"
-                                        value="no"
-                                    />
-                                    No es presupuestado
-                                </label>
+                                <span class="hint">Omite la aprobación del líder de área.</span>
                             </div>
                         </div>
 
@@ -141,6 +151,7 @@
                                 </select>
                             </div>
                         </div>
+
                     </div>
 
                     <!-- 2. Detalle productos -->
@@ -232,7 +243,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSolicitudCompraForm } from "/static/js/compras/f1-compra.js?v=4";
+            import { initSolicitudCompraForm } from "/static/js/compras/f1-compra.js?v=5";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante", "anticipos", "proyectos"]);

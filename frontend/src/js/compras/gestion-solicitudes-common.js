@@ -2059,8 +2059,12 @@ export function renderInformacionGeneralHtml(s, options = {}) {
                     <dd>${badgePrioridad(s.prioridad)}</dd>
                 </div>
                 <div class="sg-detail-field">
-                    <dt>${escapeHtml(liderTitulo)}</dt>
-                    <dd>${escapeHtml(s.lider_area_label || "—")}</dd>
+                    <dt>${s.directa_compras ? "Modalidad" : escapeHtml(liderTitulo)}</dt>
+                    <dd>${
+                        s.directa_compras
+                            ? "Menor cuantía (sin aprobación)"
+                            : escapeHtml(s.lider_area_label || "—")
+                    }</dd>
                 </div>
                 ${
                     showPresupuestado && s.tipo === "compra"
@@ -3192,6 +3196,21 @@ export function renderPanelGestionHtml(s, lideresOptionsHtml) {
 
             ${renderAprobacionParcialAlertHtml(s)}
 
+            ${
+                s.directa_compras
+                    ? `<div class="sg-detail-panel sg-directa-compras-panel">
+                          <h3 class="sg-detail-panel-title">Menor cuantía</h3>
+                          <p class="muted sg-detail-panel-hint">
+                              Compra de menor cuantía: llegó directamente a Compras (sin aprobación previa).
+                              Puedes continuar la gestión con <strong>Continuar a Trámite OC</strong>,
+                              o enviarla a aprobación del líder de área
+                              (${escapeHtml(s.lider_area_label || "líder asignado")})
+                              con el botón inferior.
+                          </p>
+                      </div>`
+                    : ""
+            }
+
             ${renderProductosTableHtml(s.productos, {
                 titulo: tieneProductosNoAprobados(s.productos)
                     ? "Productos aprobados"
@@ -3215,6 +3234,16 @@ export function renderPanelGestionHtml(s, lideresOptionsHtml) {
             <div class="sg-detail-panel sg-gestion-form-panel">
                 <h3 class="sg-detail-panel-title">Gestión de cotización</h3>
 
+                ${
+                    s.directa_compras
+                        ? `<p class="muted sg-detail-panel-hint">
+                              Menor cuantía: las cotizaciones son opcionales (solo para
+                              trazabilidad) y no requiere segunda aprobación. Usa
+                              <strong>Continuar a Trámite OC</strong> para seguir el proceso.
+                          </p>`
+                        : ""
+                }
+
                 ${renderCotizacionesUploadHtml(cotizaciones.length)}
 
                 ${
@@ -3226,7 +3255,10 @@ export function renderPanelGestionHtml(s, lideresOptionsHtml) {
                         : ""
                 }
 
-                <div class="field" id="gestion-justificacion-wrap" hidden>
+                ${
+                    s.directa_compras
+                        ? ""
+                        : `<div class="field" id="gestion-justificacion-wrap" hidden>
                     <label for="gestion-justificacion">
                         Justificación
                         <span class="required">*</span>
@@ -3247,7 +3279,8 @@ export function renderPanelGestionHtml(s, lideresOptionsHtml) {
                         <option value="">Selecciona un líder</option>
                         ${lideresOptionsHtml}
                     </select>
-                </div>
+                </div>`
+                }
             </div>
         </div>`;
 }

@@ -3,6 +3,7 @@
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
+from app.application.services.supervisiones_solicitudes import emails_supervisados
 from app.domain.entities.solicitud_gestion import SolicitudGestion
 from app.domain.entities.user import User
 from app.domain.exceptions import ContratoNotFoundError, UnauthorizedError
@@ -32,6 +33,12 @@ class GetSolicitudGestion:
             actor.ve_solo_propias_solicitudes_gestion()
             and solicitud.creado_por_id != actor.id
         ):
+            # Visores autorizados: pueden ver el detalle y la trazabilidad de las
+            # solicitudes de los solicitantes que supervisan (por correo).
+            if (solicitud.creado_por_email or "").strip().lower() in emails_supervisados(
+                actor.email
+            ):
+                return solicitud
             estado = normalizar_estado(solicitud.estado)
             if es_visible_en_panel(estado) or es_pendiente_aprobacion(estado):
                 return solicitud

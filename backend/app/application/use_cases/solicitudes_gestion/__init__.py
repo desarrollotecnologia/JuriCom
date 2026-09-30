@@ -12,6 +12,8 @@ from .gestionar_anticipo_solicitud import GestionarAnticipoSolicitud
 
 from .gestionar_solicitud_panel import GestionarSolicitudPanel
 
+from .enviar_compra_a_aprobacion import EnviarCompraAAprobacion
+
 from .get_solicitud_gestion import GetSolicitudGestion
 
 
@@ -73,6 +75,8 @@ from .responder_revision_solicitud import ResponderRevisionSolicitud
 
 from .responder_revision_proyectos import ResponderRevisionProyectos
 
+from .editar_solicitud_gestion import EditarSolicitudGestion
+
 
 
 
@@ -100,6 +104,8 @@ __all__ = [
     "GestionarAnticipoSolicitud",
 
     "GestionarSolicitudPanel",
+
+    "EnviarCompraAAprobacion",
 
     "GetSolicitudGestion",
 
@@ -172,6 +178,8 @@ __all__ = [
     "ResponderRevisionSolicitud",
 
     "ResponderRevisionProyectos",
+
+    "EditarSolicitudGestion",
 
 
 

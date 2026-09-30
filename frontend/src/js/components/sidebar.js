@@ -30,6 +30,9 @@ const MIS_SOLICITUDES_GESTION_HREF = "/app/compras/gestion-mis-solicitudes.html"
 const GESTION_ANTICIPO_HREF = "/app/compras/gestion-anticipo.html";
 const APROBAR_SOLICITUDES_HREF = "/app/compras/gestion-aprobar-solicitudes.html";
 const CATALOGO_PROVEEDORES_HREF = "/app/compras/catalogo-proveedores.html";
+const DASHBOARD_TIEMPOS_HREF = "/app/compras/dashboard-tiempos.html";
+const REQ_PENDIENTES_HREF = "/app/compras/requerimientos-pendientes.html";
+const DASHBOARD_TIEMPOS_EMAIL = "gerencia.financiera@colbeef.com";
 
 const GESTION_COMPRAS_PATHS = new Set([
     GESTION_COMPRAS_HREF,
@@ -84,6 +87,8 @@ const NAV_BY_ROLE = {
         { href: CATALOGO_PROVEEDORES_HREF, label: "Catálogo de proveedores" },
         { href: PANEL_CONTABILIDAD_HREF, label: "Anticipos · Contabilidad" },
         { href: PANEL_TESORERIA_HREF, label: "Anticipos · Tesorería" },
+        { href: DASHBOARD_TIEMPOS_HREF, label: "Dashboard de tiempos" },
+        { href: REQ_PENDIENTES_HREF, label: "Requerimientos pendientes" },
         { href: "/app/compras/finalizar-contrato.html", label: "Finalizar contrato" },
     ],
     juridica: [
@@ -145,6 +150,18 @@ export function renderSidebar(containerId = "sidebar") {
             }
         });
     });
+    // Diego (gerencia financiera) ve estos módulos aunque su rol sea líder aprobador.
+    if ((user.email || "").trim().toLowerCase() === DASHBOARD_TIEMPOS_EMAIL) {
+        [
+            { href: DASHBOARD_TIEMPOS_HREF, label: "Dashboard de tiempos" },
+            { href: REQ_PENDIENTES_HREF, label: "Requerimientos pendientes" },
+        ].forEach((item) => {
+            if (!seenHrefs.has(item.href)) {
+                seenHrefs.add(item.href);
+                mergedNav.push(item);
+            }
+        });
+    }
     const navItems = mergedNav
         .map((item) => {
             let active = path === item.href;

@@ -27,6 +27,7 @@ from app.domain.value_objects.estado_solicitud_gestion import (
 )
 from app.domain.value_objects.tipo_solicitud_gestion import TipoSolicitudGestion
 from app.infrastructure.database.models import (
+    ContratoModel,
     SolicitudGestionArchivoModel,
     SolicitudGestionHistorialEstadoModel,
     SolicitudGestionModel,
@@ -130,6 +131,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones_texto=model.observaciones_texto,
             requiere_visita=getattr(model, "requiere_visita", None),
             requiere_comite_tecnico=getattr(model, "requiere_comite_tecnico", None),
+            directa_compras=bool(getattr(model, "directa_compras", False)),
             servicio_programado=getattr(model, "servicio_programado", None),
             fecha_servicio_programado=getattr(model, "fecha_servicio_programado", None),
             descripcion_servicio=getattr(model, "descripcion_servicio", "") or "",
@@ -264,6 +266,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             observaciones_texto=solicitud.observaciones_texto,
             requiere_visita=solicitud.requiere_visita,
             requiere_comite_tecnico=solicitud.requiere_comite_tecnico,
+            directa_compras=bool(getattr(solicitud, "directa_compras", False)),
             servicio_programado=solicitud.servicio_programado,
             fecha_servicio_programado=solicitud.fecha_servicio_programado,
             descripcion_servicio=solicitud.descripcion_servicio or "",
@@ -423,6 +426,14 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model.estado = normalizar_estado(solicitud.estado).value
         model.titulo = solicitud.titulo or ""
         model.centro_costo_area = solicitud.centro_costo_area or ""
+        model.prioridad = getattr(solicitud, "prioridad", "media") or "media"
+        model.presupuestado = solicitud.presupuestado
+        model.lider_area_id = solicitud.lider_area_id or ""
+        model.lider_area_label = solicitud.lider_area_label or ""
+        model.requiere_visita = solicitud.requiere_visita
+        model.requiere_comite_tecnico = solicitud.requiere_comite_tecnico
+        model.servicio_programado = solicitud.servicio_programado
+        model.fecha_servicio_programado = solicitud.fecha_servicio_programado
         model.proveedor_sugerido = solicitud.proveedor_sugerido or ""
         model.descripcion_servicio = solicitud.descripcion_servicio or ""
         model.descripcion_servicio_texto = solicitud.descripcion_servicio_texto or ""
@@ -452,6 +463,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         model.proyectista_id = solicitud.proyectista_id
         model.comite_supervisor_ok = bool(solicitud.comite_supervisor_ok)
         model.comite_proyectos_ok = bool(solicitud.comite_proyectos_ok)
+        model.directa_compras = bool(getattr(solicitud, "directa_compras", False))
         model.visita_proyectos_hecha = bool(getattr(solicitud, "visita_proyectos_hecha", False))
         model.lider_segunda_aprobacion_id = solicitud.lider_segunda_aprobacion_id
         model.lider_segunda_aprobacion_label = solicitud.lider_segunda_aprobacion_label
@@ -461,6 +473,32 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         if updated is None:
             raise RuntimeError("No se pudo recuperar la solicitud actualizada.")
         return updated
+
+    def reemplazar_productos(
+        self,
+        solicitud_id: int,
+        productos: list[SolicitudGestionProducto],
+    ) -> None:
+        """Borra los ítems actuales y guarda los nuevos (solo válido antes de gestión)."""
+        (
+            self._db.query(SolicitudGestionProductoModel)
+            .filter(SolicitudGestionProductoModel.solicitud_id == solicitud_id)
+            .delete(synchronize_session=False)
+        )
+        for producto in productos:
+            self._db.add(
+                SolicitudGestionProductoModel(
+                    solicitud_id=solicitud_id,
+                    codigo_siimed=producto.codigo_siimed,
+                    unidad=producto.unidad,
+                    descripcion=producto.descripcion,
+                    area_consumo=getattr(producto, "area_consumo", "") or "",
+                    centro_costo=producto.centro_costo,
+                    cantidad=producto.cantidad,
+                    estado_aprobacion=producto.estado_aprobacion.value,
+                )
+            )
+        self._db.commit()
 
     def registrar_historial(
         self,
@@ -748,3 +786,54 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             .all()
         )
         return [self._historial_to_entity(model, username or "") for model, username in rows]
+
+    def historial_por_solicitudes(
+        self, solicitud_ids: list[int]
+    ) -> dict[int, list[tuple[str, "datetime", str, str]]]:
+        if not solicitud_ids:
+            return {}
+        rows = (
+            self._db.query(
+                SolicitudGestionHistorialEstadoModel.solicitud_id,
+                SolicitudGestionHistorialEstadoModel.etapa,
+                SolicitudGestionHistorialEstadoModel.created_at,
+                UserModel.nombre,
+                UserModel.username,
+                UserModel.role,
+            )
+            .outerjoin(
+                UserModel,
+                SolicitudGestionHistorialEstadoModel.usuario_id == UserModel.id,
+            )
+            .filter(SolicitudGestionHistorialEstadoModel.solicitud_id.in_(solicitud_ids))
+            .order_by(
+                SolicitudGestionHistorialEstadoModel.solicitud_id.asc(),
+                SolicitudGestionHistorialEstadoModel.created_at.asc(),
+            )
+            .all()
+        )
+        resultado: dict[int, list[tuple[str, "datetime", str, str]]] = {}
+        for sid, etapa, created_at, nombre, username, role in rows:
+            if created_at is None:
+                continue
+            responsable = (nombre or "").strip() or (username or "").strip() or ""
+            resultado.setdefault(sid, []).append(
+                (etapa, created_at, responsable, (role or "").strip())
+            )
+        return resultado
+
+    def contrato_fecha_por_solicitudes(
+        self, solicitud_ids: list[int]
+    ) -> dict[int, "datetime"]:
+        if not solicitud_ids:
+            return {}
+        rows = (
+            self._db.query(
+                ContratoModel.solicitud_gestion_id,
+                func.min(ContratoModel.created_at),
+            )
+            .filter(ContratoModel.solicitud_gestion_id.in_(solicitud_ids))
+            .group_by(ContratoModel.solicitud_gestion_id)
+            .all()
+        )
+        return {sid: fecha for sid, fecha in rows if sid is not None and fecha is not None}

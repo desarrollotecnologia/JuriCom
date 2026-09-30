@@ -659,6 +659,11 @@ def migrar_comite_tecnico_srv() -> None:
             "ALTER TABLE solicitudes_gestion ADD COLUMN visita_proyectos_hecha TINYINT(1) "
             "NOT NULL DEFAULT 0 AFTER comite_proyectos_ok",
         ),
+        (
+            "directa_compras",
+            "ALTER TABLE solicitudes_gestion ADD COLUMN directa_compras TINYINT(1) "
+            "NOT NULL DEFAULT 0 AFTER requiere_comite_tecnico",
+        ),
     ]
     with engine.begin() as conn:
         for columna, ddl in columnas:

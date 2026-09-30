@@ -5,6 +5,7 @@ from typing import Optional
 from app.application.interfaces.solicitud_gestion_repository import (
     SolicitudGestionRepository,
 )
+from app.application.services.supervisiones_solicitudes import emails_supervisados
 from app.domain.entities.solicitud_gestion import SolicitudGestion
 from app.domain.entities.user import User
 from app.domain.exceptions import UnauthorizedError
@@ -28,6 +29,19 @@ class ListarSolicitudesGestion:
         creador_id: Optional[int] = None
         if actor.ve_solo_propias_solicitudes_gestion():
             creador_id = actor.id
+
+        supervisados = emails_supervisados(actor.email)
+        if creador_id is not None and supervisados:
+            # Ve las propias + las de los solicitantes que supervisa (por correo).
+            permitidos = supervisados | {(actor.email or "").strip().lower()}
+            todas = self._solicitudes.list_all(tipo=tipo, query=query)
+            return [
+                s
+                for s in todas
+                if s.creado_por_id == actor.id
+                or (s.creado_por_email or "").strip().lower() in permitidos
+            ]
+
         return self._solicitudes.list_all(
             creador_id=creador_id,
             tipo=tipo,

@@ -35,6 +35,72 @@ class IndicadoresComprasResponse(BaseModel):
     proveedores_frecuentes: list[ItemRankingIndicador] = []
 
 
+class DashboardEtapaTiempo(BaseModel):
+    etapa: str
+    etapa_label: str
+    promedio_dias: float
+    muestras: int
+    orden: int = 0
+
+
+class DashboardPendiente(BaseModel):
+    id: int
+    codigo: str
+    tipo: str
+    tipo_label: str
+    titulo: str
+    estado: str
+    estado_label: str
+    solicitante: str
+    dias_en_etapa: float
+    dias_total: float
+
+
+class DashboardUsuarioTiempo(BaseModel):
+    usuario: str
+    rol: str = ""
+    rol_label: str = ""
+    promedio_dias: float
+    respuestas: int
+
+
+class DashboardEtapaBreakdown(BaseModel):
+    etapa: str
+    etapa_label: str
+    dias: float
+    responsable: str = ""
+    rol_label: str = ""
+
+
+class DashboardFinalizado(BaseModel):
+    id: int
+    codigo: str
+    tipo: str
+    tipo_label: str
+    titulo: str
+    estado: str
+    estado_label: str
+    solicitante: str
+    dias_total: float
+    etapas: list[DashboardEtapaBreakdown] = []
+    cuello_label: str = ""
+    cuello_dias: float = 0
+    cuello_responsable: str = ""
+    cuello_rol_label: str = ""
+
+
+class DashboardTiemposResponse(BaseModel):
+    total: int
+    pendientes_count: int
+    finalizadas_count: int
+    tiempo_total_promedio_dias: Optional[float] = None
+    tiempo_total_muestras: int
+    tiempos_por_etapa: list[DashboardEtapaTiempo] = []
+    tiempos_por_usuario: list[DashboardUsuarioTiempo] = []
+    pendientes: list[DashboardPendiente] = []
+    finalizados: list[DashboardFinalizado] = []
+
+
 class SolicitudGestionProductoResponse(BaseModel):
     id: int
     codigo_siimed: str
@@ -173,6 +239,7 @@ class SolicitudGestionResponse(BaseModel):
     observaciones_texto: str
     requiere_visita: Optional[bool] = None
     requiere_comite_tecnico: Optional[bool] = None
+    directa_compras: bool = False
     servicio_programado: Optional[bool] = None
     fecha_servicio_programado: Optional[date] = None
     descripcion_servicio: str = ""

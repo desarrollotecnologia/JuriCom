@@ -184,6 +184,8 @@ class SolicitudGestion:
     observaciones_texto: str = ""
     requiere_visita: Optional[bool] = None
     requiere_comite_tecnico: Optional[bool] = None
+    # Compra directa a Compras: salta la aprobación inicial del líder de área.
+    directa_compras: bool = False
     servicio_programado: Optional[bool] = None
     fecha_servicio_programado: Optional[date] = None
     descripcion_servicio: str = ""

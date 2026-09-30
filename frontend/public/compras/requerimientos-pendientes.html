@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" href="/app/assets/dm1.ico?v=3" type="image/x-icon" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Requerimientos pendientes · JURICOM</title>
+        <link rel="stylesheet" href="/static/styles/theme.css" />
+        <style>
+            .toolbar {
+                align-items: center;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin: 4px 0 8px;
+            }
+            .tabs { display: inline-flex; gap: 4px; }
+            .tab {
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: 999px;
+                color: var(--color-text-muted);
+                cursor: pointer;
+                font-size: 0.85rem;
+                font-weight: 600;
+                padding: 7px 16px;
+            }
+            .tab.active {
+                background: var(--color-primary);
+                border-color: var(--color-primary);
+                color: #fff;
+            }
+            .search {
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-md, 8px);
+                margin-left: auto;
+                min-width: 240px;
+                padding: 9px 12px;
+            }
+            .summary { color: var(--color-text-muted); font-size: 0.85rem; margin: 6px 2px 18px; }
+            .cards {
+                display: grid;
+                gap: 16px;
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            }
+            .req-card {
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-lg);
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                padding: 18px;
+                transition: box-shadow 0.2s ease, transform 0.2s ease;
+            }
+            .req-card:hover {
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+                transform: translateY(-2px);
+            }
+            .req-head { align-items: flex-start; display: flex; gap: 12px; }
+            .avatar {
+                align-items: center;
+                background: var(--color-primary-light);
+                border-radius: 12px;
+                color: var(--color-primary-dark);
+                display: inline-flex;
+                flex: 0 0 auto;
+                font-size: 0.95rem;
+                font-weight: 800;
+                height: 44px;
+                justify-content: center;
+                width: 44px;
+            }
+            .req-code { color: var(--color-text-muted); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.03em; }
+            .req-title {
+                color: var(--color-text);
+                display: -webkit-box;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 2;
+                font-size: 0.98rem;
+                font-weight: 700;
+                line-height: 1.3;
+                margin-top: 2px;
+                overflow: hidden;
+            }
+            .tag {
+                border-radius: 999px;
+                font-size: 0.72rem;
+                font-weight: 700;
+                padding: 3px 10px;
+                white-space: nowrap;
+            }
+            .tag-compra { background: #dbeafe; color: #1e40af; }
+            .tag-servicio { background: #ede9fe; color: #6d28d9; }
+            .req-etapa {
+                align-items: center;
+                background: var(--color-surface-2);
+                border-radius: 8px;
+                color: var(--color-text);
+                display: flex;
+                font-size: 0.8rem;
+                gap: 8px;
+                padding: 8px 10px;
+            }
+            .req-etapa .dot { background: var(--color-accent); border-radius: 50%; height: 8px; width: 8px; }
+            .req-foot {
+                align-items: center;
+                border-top: 1px dashed var(--color-border);
+                display: flex;
+                gap: 16px;
+                justify-content: space-between;
+                padding-top: 12px;
+            }
+            .metric { display: flex; flex-direction: column; gap: 2px; }
+            .metric b { color: var(--color-primary-dark); font-size: 1.05rem; }
+            .metric span { color: var(--color-text-muted); font-size: 0.72rem; }
+            .req-solicitante { color: var(--color-text-muted); font-size: 0.78rem; }
+            .aging-track { background: var(--color-surface-2); border-radius: 999px; height: 6px; overflow: hidden; }
+            .aging-fill { background: var(--color-primary); border-radius: 999px; height: 100%; }
+            .empty-state {
+                background: var(--color-surface);
+                border: 1px dashed var(--color-border);
+                border-radius: var(--radius-lg);
+                color: var(--color-text-muted);
+                grid-column: 1 / -1;
+                padding: 48px 24px;
+                text-align: center;
+            }
+            .skeleton {
+                background: var(--color-surface);
+                border: 1px solid var(--color-border);
+                border-radius: var(--radius-lg);
+                height: 190px;
+            }
+            .skeleton::after {
+                animation: sk 1.1s infinite;
+                background: linear-gradient(90deg, transparent, rgba(148,163,184,.12), transparent);
+                content: "";
+                display: block;
+                height: 100%;
+            }
+            @keyframes sk { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+        </style>
+    </head>
+    <body>
+        <div class="app-shell">
+            <aside class="sidebar" id="sidebar"></aside>
+            <main class="main">
+                <div class="page-header">
+                    <div>
+                        <h1>Requerimientos pendientes</h1>
+                        <p class="muted">Solicitudes de Compras y Servicios aún sin cerrar.</p>
+                    </div>
+                    <a href="/app/compras/dashboard-tiempos.html" class="btn btn-secondary">
+                        Dashboard de tiempos
+                    </a>
+                </div>
+
+                <div class="toolbar">
+                    <div class="tabs" id="tabs">
+                        <button class="tab active" data-tipo="">Todos</button>
+                        <button class="tab" data-tipo="compra">Compras</button>
+                        <button class="tab" data-tipo="insumos_servicios">Servicios</button>
+                    </div>
+                    <input type="search" class="search" id="buscador" placeholder="Buscar por código, título o solicitante…" />
+                </div>
+                <p class="summary" id="summary">Cargando…</p>
+
+                <div class="cards" id="cards"></div>
+            </main>
+        </div>
+
+        <script type="module">
+            import { requireSessionRole } from "/static/js/auth/bootstrap.js";
+            import { renderSidebar } from "/static/js/components/sidebar.js";
+            import { api } from "/static/js/api/client.js";
+
+            const DIEGO_EMAIL = "gerencia.financiera@colbeef.com";
+
+            const user = await requireSessionRole(["admin", "lider_aprobador"]);
+            if (!user) throw new Error("sin sesión");
+            const esAdmin = (user.roles?.length ? user.roles : [user.role]).includes("admin");
+            const esDiego = (user.email || "").trim().toLowerCase() === DIEGO_EMAIL;
+            if (!esAdmin && !esDiego) {
+                window.location.href = "/app/dashboard.html";
+                throw new Error("sin acceso");
+            }
+            renderSidebar();
+
+            let tipoActual = "";
+            let pendientes = [];
+
+            function escapeHtml(s) {
+                return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+                    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+                }[c]));
+            }
+
+            function fmtDias(n) {
+                if (n == null) return "—";
+                const v = Number(n);
+                if (Number.isNaN(v)) return "—";
+                if (v < 1) return `${Math.round(v * 24)} h`;
+                return `${v}`;
+            }
+
+            function iniciales(email) {
+                const base = String(email || "").split("@")[0].replace(/[._-]+/g, " ").trim();
+                const partes = base.split(/\s+/).filter(Boolean);
+                if (!partes.length) return "?";
+                return (partes[0][0] + (partes[1]?.[0] || "")).toUpperCase();
+            }
+
+            function esServicio(tipo) {
+                return tipo === "insumos_servicios";
+            }
+
+            function tarjeta(p) {
+                const servicio = esServicio(p.tipo);
+                const tagClass = servicio ? "tag-servicio" : "tag-compra";
+                const maxAging = Math.max(1, ...pendientes.map((x) => Number(x.dias_total) || 0));
+                const agingPct = Math.min(100, Math.round(((Number(p.dias_en_etapa) || 0) / maxAging) * 100));
+                return `
+                    <article class="req-card">
+                        <div class="req-head">
+                            <span class="avatar">${escapeHtml(iniciales(p.solicitante))}</span>
+                            <div style="min-width:0;flex:1;">
+                                <div style="display:flex;align-items:center;gap:8px;justify-content:space-between;">
+                                    <span class="req-code">${escapeHtml(p.codigo)}</span>
+                                    <span class="tag ${tagClass}">${escapeHtml(p.tipo_label)}</span>
+                                </div>
+                                <div class="req-title">${escapeHtml(p.titulo) || "(Sin título)"}</div>
+                            </div>
+                        </div>
+                        <div class="req-etapa">
+                            <span class="dot"></span>
+                            <span>Etapa actual: <strong>${escapeHtml(p.estado_label)}</strong></span>
+                        </div>
+                        <div>
+                            <div class="aging-track"><div class="aging-fill" style="width:${agingPct}%"></div></div>
+                            <div class="req-foot">
+                                <div class="metric"><b>${fmtDias(p.dias_en_etapa)}</b><span>días en etapa</span></div>
+                                <div class="metric" style="text-align:right;"><b>${fmtDias(p.dias_total)}</b><span>días totales</span></div>
+                            </div>
+                        </div>
+                        <div class="req-solicitante">👤 ${escapeHtml(p.solicitante) || "—"}</div>
+                    </article>`;
+            }
+
+            function render() {
+                const q = document.getElementById("buscador").value.trim().toLowerCase();
+                const filtradas = q
+                    ? pendientes.filter((p) =>
+                          [p.codigo, p.titulo, p.solicitante, p.estado_label]
+                              .join(" ").toLowerCase().includes(q))
+                    : pendientes;
+                const cont = document.getElementById("cards");
+                const resumen = document.getElementById("summary");
+                if (!filtradas.length) {
+                    cont.innerHTML = pendientes.length
+                        ? `<div class="empty-state">No hay resultados para “${escapeHtml(q)}”.</div>`
+                        : `<div class="empty-state">🎉 No hay requerimientos pendientes en este filtro.</div>`;
+                    resumen.textContent = `${filtradas.length} de ${pendientes.length} pendientes`;
+                    return;
+                }
+                resumen.textContent =
+                    `${filtradas.length} de ${pendientes.length} pendiente${pendientes.length === 1 ? "" : "s"}`;
+                cont.innerHTML = filtradas.map(tarjeta).join("");
+            }
+
+            async function cargar() {
+                const cont = document.getElementById("cards");
+                cont.innerHTML = Array.from({ length: 6 }, () => `<div class="skeleton"></div>`).join("");
+                document.getElementById("summary").textContent = "Cargando…";
+                const qs = tipoActual ? `?tipo=${encodeURIComponent(tipoActual)}` : "";
+                try {
+                    const d = await api.get(`/solicitudes-gestion/dashboard-tiempos${qs}`);
+                    pendientes = (d.pendientes || []).slice().sort(
+                        (a, b) => (Number(b.dias_en_etapa) || 0) - (Number(a.dias_en_etapa) || 0)
+                    );
+                    render();
+                } catch (err) {
+                    cont.innerHTML = `<div class="empty-state">No se pudieron cargar los pendientes.</div>`;
+                    document.getElementById("summary").textContent = "";
+                }
+            }
+
+            document.getElementById("tabs").addEventListener("click", (e) => {
+                const btn = e.target.closest(".tab");
+                if (!btn) return;
+                document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+                btn.classList.add("active");
+                tipoActual = btn.dataset.tipo;
+                cargar();
+            });
+            document.getElementById("buscador").addEventListener("input", render);
+            cargar();
+        </script>
+    </body>
+</html>

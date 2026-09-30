@@ -1,6 +1,7 @@
 """Puerto de persistencia para solicitudes de gestión."""
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Optional
 
 from app.domain.entities.solicitud_gestion import (
@@ -8,6 +9,7 @@ from app.domain.entities.solicitud_gestion import (
     SolicitudGestionArchivo,
     SolicitudGestionHistorialEstado,
     SolicitudGestionObservacion,
+    SolicitudGestionProducto,
     SolicitudGestionVisitaProgramada,
 )
 from app.domain.value_objects.estado_solicitud_gestion import EstadoSolicitudGestion
@@ -38,6 +40,15 @@ class SolicitudGestionRepository(ABC):
 
     @abstractmethod
     def update(self, solicitud: SolicitudGestion) -> SolicitudGestion:
+        ...
+
+    @abstractmethod
+    def reemplazar_productos(
+        self,
+        solicitud_id: int,
+        productos: list[SolicitudGestionProducto],
+    ) -> None:
+        """Reemplaza los ítems de la solicitud (solo antes de aprobación/gestión)."""
         ...
 
     @abstractmethod
@@ -148,4 +159,18 @@ class SolicitudGestionRepository(ABC):
 
     @abstractmethod
     def get_historial(self, solicitud_id: int) -> list[SolicitudGestionHistorialEstado]:
+        ...
+
+    @abstractmethod
+    def historial_por_solicitudes(
+        self, solicitud_ids: list[int]
+    ) -> dict[int, list[tuple[str, "datetime", str, str]]]:
+        """Etapas (etapa, created_at, responsable, rol) por solicitud, en una consulta."""
+        ...
+
+    @abstractmethod
+    def contrato_fecha_por_solicitudes(
+        self, solicitud_ids: list[int]
+    ) -> dict[int, "datetime"]:
+        """Fecha de creación (expedición) del contrato por solicitud origen."""
         ...
