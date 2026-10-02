@@ -276,6 +276,13 @@ export function initMisSolicitudesGestion({ esAdmin, currentUserId = null }) {
                 <p class="muted sg-detail-panel-hint">
                     Corrige los datos, comenta qué ajustaste y reenvía a primera aprobación.
                 </p>
+                <div class="field">
+                    <label for="rev-lider-input">Líder aprobador</label>
+                    <div id="rev-lider-host"></div>
+                    <p class="muted sg-detail-panel-hint">
+                        Si te equivocaste de líder, elige otro: el correo de reenvío le llegará a él.
+                    </p>
+                </div>
                 ${renderCamposAjusteHtml(s)}
                 ${renderAgregarComentarioHtml({
                     editorContainerId: COMENTARIO_EDITOR_ID,
@@ -440,12 +447,9 @@ export function initMisSolicitudesGestion({ esAdmin, currentUserId = null }) {
         tbody.appendChild(tr);
     }
 
-    function initEdicionLibre(s) {
-        poblarCentrosCostos(
-            document.getElementById("edit-centro-costo"),
-            s.centro_costo_area || ""
-        );
-
+    function crearSelectorLider(s, hostId, inputId) {
+        const host = document.getElementById(hostId);
+        if (!host) return null;
         const liderItems = [...LIDERES_AREA];
         const actualId = (s.lider_area_id || "").trim();
         if (actualId && !liderItems.some((l) => String(l.id) === actualId)) {
@@ -454,15 +458,25 @@ export function initMisSolicitudesGestion({ esAdmin, currentUserId = null }) {
                 label: s.lider_area_label || actualId,
             });
         }
-        liderEditControl = createSearchableSelect({
-            container: document.getElementById("edit-lider-host"),
-            name: "edit_lider_area_id",
+        const control = createSearchableSelect({
+            container: host,
+            name: inputId.replace(/-/g, "_"),
             items: liderItems,
             placeholder: "Escribe nombre o cargo del líder...",
-            inputId: "edit-lider-input",
+            inputId,
             emptyMessage: "No se encontró ningún líder con ese texto.",
         });
-        if (actualId) liderEditControl.setValue(actualId);
+        if (actualId) control.setValue(actualId);
+        return control;
+    }
+
+    function initEdicionLibre(s) {
+        poblarCentrosCostos(
+            document.getElementById("edit-centro-costo"),
+            s.centro_costo_area || ""
+        );
+
+        liderEditControl = crearSelectorLider(s, "edit-lider-host", "edit-lider-input");
 
         if (esProductoTipo(s)) {
             const tbody = document.getElementById("edit-items-tbody");
@@ -691,6 +705,8 @@ export function initMisSolicitudesGestion({ esAdmin, currentUserId = null }) {
         detailContent.innerHTML = renderDetalleConComentario(s);
         if (modoEdicionLibre && puedeEditar(s)) {
             initEdicionLibre(s);
+        } else if (esEnRevision(s) && modoEdicion) {
+            liderEditControl = crearSelectorLider(s, "rev-lider-host", "rev-lider-input");
         }
         syncBotonesEdicion(s);
         initObservacionEditor();
@@ -850,6 +866,13 @@ export function initMisSolicitudesGestion({ esAdmin, currentUserId = null }) {
         if (titulo) formData.append("titulo", titulo.value.trim());
         const centro = document.getElementById("rev-centro-costo");
         if (centro) formData.append("centro_costo_area", centro.value.trim());
+        if (liderEditControl) {
+            formData.append("lider_area_id", liderEditControl.getValue() || "");
+            formData.append(
+                "lider_area_label",
+                liderEditControl.getSelectedItem()?.label || ""
+            );
+        }
         const proveedor = document.getElementById("rev-proveedor");
         if (proveedor) formData.append("proveedor_sugerido", proveedor.value);
         const descripcion = document.getElementById("rev-descripcion");

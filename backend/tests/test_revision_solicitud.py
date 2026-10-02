@@ -67,6 +67,8 @@ def _solicitud(estado=EstadoSolicitudGestion.SOLICITUD, creado_por_id=7):
         observaciones="",
         observaciones_texto="",
         centro_costo_area="CC-1",
+        lider_area_id="L1",
+        lider_area_label="Líder Uno",
     )
 
 
@@ -119,6 +121,28 @@ def test_solicitante_responde_y_reenvia():
     assert s.titulo == "Servicio corregido"
     assert s.proveedor_sugerido == "Proveedor X"
     assert repo.historial[-1][0] == EstadoSolicitudGestion.SOLICITUD
+
+
+def test_reenvia_a_otro_lider():
+    repo = FakeRepo(_solicitud(estado=EstadoSolicitudGestion.REVISION, creado_por_id=7))
+    s = ResponderRevisionSolicitud(repo).execute(
+        _actor(rol="solicitante", actor_id=7),
+        10,
+        observacion_texto="Me equivoqué de líder",
+        lider_area_id="L2",
+        lider_area_label="Líder Dos",
+    )
+    assert (s.lider_area_id, s.lider_area_label) == ("L2", "Líder Dos")
+    assert "Líder Uno" in repo.historial[-1][1] and "Líder Dos" in repo.historial[-1][1]
+
+
+def test_mismo_lider_no_registra_cambio():
+    repo = FakeRepo(_solicitud(estado=EstadoSolicitudGestion.REVISION, creado_por_id=7))
+    s = ResponderRevisionSolicitud(repo).execute(
+        _actor(rol="solicitante", actor_id=7), 10, observacion_texto="ok", lider_area_id="L1"
+    )
+    assert s.lider_area_id == "L1"
+    assert "líder cambiado" not in repo.historial[-1][1]
 
 
 def test_no_creador_no_puede_responder():

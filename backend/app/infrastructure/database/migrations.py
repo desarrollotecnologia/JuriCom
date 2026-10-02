@@ -68,7 +68,7 @@ def migrar_estado_contratos() -> None:
         conn.execute(
             text(
                 "UPDATE contratos SET estado = 'en_proceso' "
-                "WHERE estado NOT IN ('en_proceso','elaborando','activo','finalizado')"
+                "WHERE estado = 'radicado'"
             )
         )
 

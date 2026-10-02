@@ -37,10 +37,14 @@ def _texto(data: bytes) -> str:
 
 
 MUESTRAS = {
-    "obra": ["148.381.168", "FRANCISCO ANDRES RINCON SOLANO", "901.357.967", "2026-216"],
-    "orden_trabajo": ["10.018.062", "VASQUEZ & RODRIGUEZ", "804.015.808-6", "2026-222"],
-    "suministro": ["20.862.400", "INDUSTRIAS O&C", "901.358.312-9", "2026-213"],
-    "cps": ["13.873.758", "METAL FULL", "METALFULL", "901.118.220", "2026-219"],
+    "obra": ["148.381.168", "FRANCISCO ANDRES RINCON SOLANO", "901.357.967", "2026-216",
+             "único pago equivalente"],
+    "orden_trabajo": ["10.018.062", "VASQUEZ & RODRIGUEZ", "804.015.808-6", "2026-222",
+                      "El 100% del valor total de la orden"],
+    "suministro": ["20.862.400", "INDUSTRIAS O&C", "901.358.312-9", "2026-213",
+                   "Cuarenta por ciento (40%)", "FORMA DE PAGO DE SUMINISTRO"],
+    "cps": ["13.873.758", "METAL FULL", "METALFULL", "901.118.220", "2026-219",
+            "cuarenta por ciento (40%)", "sesenta por ciento (60%)"],
 }
 
 
@@ -58,5 +62,13 @@ def test_generar_minuta(clave):
     assert "$45.500.000" in texto
     assert "CUARENTA Y CINCO (45) DÍAS" in texto
     assert "COMPLETAR" in texto
+    assert "Con anticipo del 30% y saldo contra entrega." in texto
     for muestra in MUESTRAS[clave]:
         assert muestra not in texto, f"quedó dato de muestra: {muestra!r}"
+
+
+@pytest.mark.parametrize("clave", list(PLANTILLAS))
+def test_minuta_sin_forma_pago_pide_completar(clave):
+    c = _contrato()
+    c.forma_pago = ""
+    assert "COMPLETAR: forma de pago" in _texto(generar_minuta(clave, c))

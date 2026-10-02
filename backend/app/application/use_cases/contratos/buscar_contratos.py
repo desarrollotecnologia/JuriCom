@@ -27,9 +27,11 @@ class BuscarContratos:
     ) -> list[Contrato]:
         creador_id: Optional[int] = None
         supervisor_id: Optional[int] = None
-        if actor.is_compras():
+        # Admin/Jurídica no se limitan aunque además tengan rol Compras o Supervisor.
+        ve_todos = actor.is_admin() or actor.is_juridica()
+        if actor.is_compras() and not ve_todos:
             creador_id = actor.id
-        if actor.is_solicitante():
+        if actor.is_solicitante() and not ve_todos:
             supervisor_id = actor.id
 
         solo_aprobados = (

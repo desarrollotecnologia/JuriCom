@@ -1216,6 +1216,8 @@ async def responder_revision_solicitud(
     observaciones: str = Form(""),
     observaciones_texto: str = Form(""),
     centro_costo_area: str = Form(""),
+    lider_area_id: str = Form(""),
+    lider_area_label: str = Form(""),
     adjuntos: list[UploadFile] = File(default=[]),
     current: User = Depends(get_current_user),
     repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
@@ -1255,6 +1257,8 @@ async def responder_revision_solicitud(
             observaciones=observaciones if observaciones != "" else None,
             observaciones_texto=observaciones_texto if observaciones_texto != "" else None,
             centro_costo_area=centro_costo_area or None,
+            lider_area_id=lider_area_id or None,
+            lider_area_label=lider_area_label or None,
         )
         historial = repo.get_historial(solicitud_id)
     except ContratoNotFoundError as e:

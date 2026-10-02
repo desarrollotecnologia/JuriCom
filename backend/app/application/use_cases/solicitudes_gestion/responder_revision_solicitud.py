@@ -47,6 +47,8 @@ class ResponderRevisionSolicitud:
         observaciones: str | None = None,
         observaciones_texto: str | None = None,
         centro_costo_area: str | None = None,
+        lider_area_id: str | None = None,
+        lider_area_label: str | None = None,
     ) -> SolicitudGestion:
         solicitud = self._solicitudes.get_by_id(solicitud_id)
         if solicitud is None:
@@ -94,13 +96,23 @@ class ResponderRevisionSolicitud:
             archivos=archivos or [],
         )
 
+        comentario = "Reenviada a primera aprobación tras ajustes del solicitante"
+        nuevo_lider = (lider_area_id or "").strip()
+        if nuevo_lider and nuevo_lider != (solicitud.lider_area_id or "").strip():
+            anterior = solicitud.lider_area_label or solicitud.lider_area_id
+            solicitud.lider_area_id = nuevo_lider
+            solicitud.lider_area_label = (lider_area_label or "").strip() or nuevo_lider
+            comentario += (
+                f" (líder cambiado: «{anterior}» → «{solicitud.lider_area_label}»)"
+            )
+
         solicitud.estado = EstadoSolicitudGestion.SOLICITUD
         actualizada = self._solicitudes.update(solicitud)
         self._solicitudes.registrar_historial(
             solicitud_id,
             EstadoSolicitudGestion.SOLICITUD,
             usuario_id=actor.id,
-            comentario="Reenviada a primera aprobación tras ajustes del solicitante",
+            comentario=comentario,
         )
         refreshed = self._solicitudes.get_by_id(solicitud_id)
         resultado = refreshed or actualizada

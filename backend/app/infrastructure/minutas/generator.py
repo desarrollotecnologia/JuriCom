@@ -130,9 +130,15 @@ def _reemplazos(key: str, c) -> list[tuple[str, str, bool]]:
     valor_letras = pesos_en_letras(getattr(c, "valor", 0) or 0)
     valor_num = "$" + miles_con_puntos(getattr(c, "valor", 0) or 0)
     plazo = _plazo_core(c)
+    pago = (getattr(c, "forma_pago", "") or "").strip()
+    pago_hl = not pago
+    pago = pago or "«COMPLETAR: forma de pago»"
+    if not pago.endswith("."):
+        pago += "."
 
     if key == "obra":
         return [
+            ("El valor estimado del contrato será cancelado en un único pago equivalente al cien por ciento (100%) del mismo, una vez el CONTRATISTA haya ejecutado en su totalidad el objeto contractual.", pago, pago_hl),
             ("$148.381.168", valor_num, False),
             ("CIENTO CUARENTA Y OCHO MILLONES TRESCIENTOS OCHENTA Y UN MIL CIENTO SESENTA Y OCHO PESOS M/CTE", valor_letras, False),
             ("Obra civil por precios unitarios firmes correspondiente a desmontes y adecuaciones estructurales en la Planta de Tratamiento de Aguas Residuales (PETAR) de Colbeef, conforme a los términos y condiciones plasmados en la cotización del 29 de MAYO de 2026.", objeto, False),
@@ -147,6 +153,7 @@ def _reemplazos(key: str, c) -> list[tuple[str, str, bool]]:
         ]
     if key == "orden_trabajo":
         return [
+            ("El 100% del valor total de la orden, será pagado previa suscripción de acta de entrega y recibido a satisfacción del objeto pactado.", pago, pago_hl),
             ("$10.018.062", valor_num, False),
             ("DIEZ MILLONES DIECIOCHO MIL SESENTA Y DOS PESOS M/CTE", valor_letras, False),
             ("Prestación de servicios para el mantenimiento predictivo y preventivo para el generador STAMFORD que se caracteriza por 500KW 1800RPM 440voltios 60Hz 3phases, el cual incluye el desacople, desmontaje, traslado, diagnostico, metrología mecánica, protocolo de pruebas eléctricas (CLZ, MEGGER, HIPOT, SURGE, IP/DAR) verificación plato de rectificación (Diodos, varistor), verificación de balanceo dinámico a rotor, informe técnico, traslado de vuelta y montaje en las instalaciones del CONTRATANTE y demás términos de la cotización del 05 de abril de 2026", objeto, False),
@@ -159,6 +166,8 @@ def _reemplazos(key: str, c) -> list[tuple[str, str, bool]]:
         ]
     if key == "suministro":
         return [
+            # La tabla 40%/60% de muestra que sigue a esta frase se quita en generar_minuta.
+            ("serán pagados por el CONTRATANTE así:", "serán pagados por el CONTRATANTE de la siguiente manera: " + pago, pago_hl),
             ("$20.862.400", valor_num, False),
             ("VEINTE MILLONES OCHOCIENTOS SESENTA Y DOS MIL CUATROCIENTOS PESOS M/CTE", valor_letras, False),
             ("SUMINISTRO E INSTALACIÓN DE DOSCIENTAS DIEZ (210) FRANJAS EPOXICAS ANTIDESLIZANTES DE 50MM DE TIPO INDUSTRIAL PARA TRAFICO PESADO CON UNA RESITENCIA DE USO DE CINCO (05) AÑOS LAS CUALES SE VAN A UBICAR EN (XXXX)", objeto, False),
@@ -177,6 +186,8 @@ def _reemplazos(key: str, c) -> list[tuple[str, str, bool]]:
         ]
     if key == "cps":
         return [
+            ("El cuarenta por ciento (40%) del valor total del contrato en calidad de anticipo que se cancelara posterior a la firma del presente contrato y a la aprobación de la póliza de correcta inversión del anticipo.", pago, pago_hl),
+            ("El sesenta por ciento (60%) del valor total del contrato se le pagara a EL CONTRATISTA una vez recibido a satisfacción los trabajos y previo a presentación del correspondiente informe final y acta de liquidación firmada por los supervisores y por las partes y con la presentación de la correspondiente factura.", "", False),
             ("$13.873.758", valor_num, False),
             ("TRECE MILLONES OCHOCIENTOS SETENTA Y TRES MIL SETECIENTOS CINCUENTA Y OCHO PESOS M/CTE", valor_letras, False),
             ("PRESTACION DE SERVICIOS PARA EL SERVICIO DE MANTENIMIENTO PREVENTIVO DEL EJE Y TORNILLO  SIN FIN SCREW PRESS UBICADOS EN (XXXXXXXXX) EN INSTALACIONES DEN LA PLANTA DE COLBEEF.", objeto, False),
@@ -200,6 +211,9 @@ def generar_minuta(plantilla: str, contrato) -> bytes:
     ruta = _DIR / PLANTILLAS[plantilla]["archivo"]
     doc = Document(str(ruta))
     _aplicar(doc, _reemplazos(plantilla, contrato))
+    for tabla in doc.tables:
+        if "FORMA DE PAGO DE SUMINISTRO" in tabla.cell(0, 0).text:
+            tabla._tbl.getparent().remove(tabla._tbl)
     _banner(doc, contrato)
     buffer = io.BytesIO()
     doc.save(buffer)

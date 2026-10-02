@@ -16,16 +16,20 @@ class GetContrato:
         if contrato is None:
             raise ContratoNotFoundError(f"No existe el contrato {contrato_id}.")
 
+        # Contabilidad y Tesorería gestionan contratos en sus etapas (anticipo/cierre);
+        # pueden abrirlos aunque además tengan rol Supervisor o Compras (multi-rol).
+        if actor.is_contabilidad() or actor.is_tesoreria():
+            return contrato
+        # Admin/Jurídica ven todos los aprobados aunque además sean Supervisor o Compras.
+        if actor.is_admin() or actor.is_juridica():
+            if contrato.estado_aprobacion != EstadoAprobacion.APROBADO:
+                raise UnauthorizedError(
+                    "Este contrato todavía no tiene aprobación de líder y gerencia."
+                )
+            return contrato
         if actor.is_compras() and contrato.creado_por_id != actor.id:
             raise UnauthorizedError("No puedes ver contratos que no creaste.")
         if actor.is_solicitante() and contrato.supervisor_id != actor.id:
             raise UnauthorizedError("No puedes ver contratos que no supervisas.")
-        if (
-            (actor.is_admin() or actor.is_juridica())
-            and contrato.estado_aprobacion != EstadoAprobacion.APROBADO
-        ):
-            raise UnauthorizedError(
-                "Este contrato todavía no tiene aprobación de líder y gerencia."
-            )
 
         return contrato
