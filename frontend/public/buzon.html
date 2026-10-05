@@ -191,17 +191,18 @@
                 juridica: "Entra al módulo correspondiente para resolver tus pendientes.",
                 compras: "Revisa el estado de tus solicitudes y otrosíes.",
             };
+            const rolBuzon = ["admin", "juridica", "compras"].find((r) => session.hasRole(r));
             document.getElementById("buzon-subtitle").textContent =
-                subtitles[user.role] || subtitles.compras;
+                subtitles[rolBuzon] || subtitles.compras;
 
             const btnVolver = document.getElementById("btn-volver-gestion");
-            if (user.role === "juridica") {
+            if (rolBuzon === "juridica") {
                 btnVolver.href = "/app/juridica/gestion-juridica.html";
                 btnVolver.hidden = false;
-            } else if (user.role === "compras") {
+            } else if (rolBuzon === "compras") {
                 btnVolver.href = "/app/compras/gestion-solicitudes.html";
                 btnVolver.hidden = false;
-            } else if (user.role === "admin") {
+            } else if (rolBuzon === "admin") {
                 btnVolver.href = "/app/dashboard.html";
                 btnVolver.hidden = false;
             }

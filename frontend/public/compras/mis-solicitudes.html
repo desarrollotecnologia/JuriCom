@@ -327,12 +327,14 @@
             renderBuzonBtn();
 
             const user = session.getUser();
-            const puedeRadicar = ["compras", "admin"].includes(user.role);
-            const esJuridica = ["juridica", "admin"].includes(user.role);
-            const puedeAplicarOtrosi = esJuridica || user.role === "compras";
+            // hasRole incluye los roles extra (p. ej. Supervisor + Jurídica).
+            const puedeRadicar = session.hasRole("compras", "admin");
+            const esJuridica = session.hasRole("juridica", "admin");
+            const esCompras = session.hasRole("compras") && !esJuridica;
+            const puedeAplicarOtrosi = esJuridica || session.hasRole("compras");
 
             document.getElementById("page-subtitle").textContent =
-                user.role === "compras"
+                esCompras
                     ? "Solicitudes que has radicado."
                     : "Todas las solicitudes radicadas en el sistema.";
             if (puedeRadicar) {
@@ -693,7 +695,7 @@
             }
 
             function puedeResponderInfo(c) {
-                return user.role === "admin" || (user.role === "compras" && c.creado_por_id === user.id);
+                return session.hasRole("admin") || (session.hasRole("compras") && c.creado_por_id === user.id);
             }
 
             async function cargarInfoFaltanteCompras(c) {
@@ -1121,9 +1123,9 @@
                             <textarea id="otrosi-descripcion" placeholder="Explica por qué se solicita el otrosí"></textarea>
                             ${archivoFirmadoHtml}
                             <button class="btn btn-sm btn-primary" id="btn-aplicar-otrosi" style="margin-top:10px;">
-                                ${user.role === "compras" ? "Enviar solicitud de otrosí" : "Aplicar otrosí"}
+                                ${esCompras ? "Enviar solicitud de otrosí" : "Aplicar otrosí"}
                             </button>
-                            ${user.role === "compras" ? `
+                            ${esCompras ? `
                                 <p class="muted" style="margin-top:8px;font-size:0.82rem;">
                                     La solicitud se enviará primero al líder del proceso y luego a gerencia.
                                     El PDF firmado sólo lo carga Jurídica cuando ambas aprobaciones estén listas.
@@ -1217,7 +1219,7 @@
                         showSuccess(
                             otrosiPendienteId
                                 ? `Otrosí firmado cargado y aplicado al contrato ${c.codigo}.`
-                                : user.role === "compras"
+                                : esCompras
                                 ? `Solicitud de otrosí enviada para el contrato ${c.codigo}.`
                                 : `Otrosí aplicado correctamente al contrato ${c.codigo}.`
                         );

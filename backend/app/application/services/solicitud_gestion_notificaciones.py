@@ -74,7 +74,7 @@ class NotificadorSolicitudGestion:
     ) -> list[str]:
         emails: list[str] = []
         for user in self._users.list_all():
-            if not user.is_active or user.role != role:
+            if not user.is_active or not user.tiene_rol(role):
                 continue
             if exclude_user_id and user.id == exclude_user_id:
                 continue
@@ -93,7 +93,7 @@ class NotificadorSolicitudGestion:
             return []
         emails: list[str] = []
         for user in self._users.list_all():
-            if not user.is_active or user.role != Role.LIDER_APROBADOR:
+            if not user.is_active or not user.tiene_rol(Role.LIDER_APROBADOR):
                 continue
             if (user.lider_catalog_id or "").strip() != lid:
                 continue

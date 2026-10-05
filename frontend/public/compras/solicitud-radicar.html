@@ -466,7 +466,7 @@
             session.requireAuth();
             session.requireRole(["compras", "juridica", "admin"]);
             const currentUser = session.getUser();
-            const isJuridica = currentUser?.role === "juridica";
+            const isJuridica = session.hasRole("juridica");
             renderSidebar();
 
             poblarCentrosCostos(document.getElementById("centroCostos"));
