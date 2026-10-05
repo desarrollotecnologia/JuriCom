@@ -66,6 +66,13 @@ class FakeRepo:
     def add_archivos(self, solicitud_id, archivos):
         return []
 
+    def add_observacion(self, solicitud_id, observacion):
+        observacion.id = 1
+        return observacion
+
+    def get_observacion_by_id(self, obs_id):
+        return None
+
 
 class FakeNotificador:
     def __init__(self):
@@ -175,3 +182,35 @@ def test_compra_directa_continua_a_tramite_oc_sin_segunda_aprobacion():
     assert res.estado == EstadoSolicitudGestion.TRAMITANDO_OC
     assert not res.lider_segunda_aprobacion_id
     assert notif.eventos == ["directa_creada"]
+
+
+def _enviar_a_segunda(lider_id):
+    from app.application.use_cases.solicitudes_gestion.enviar_cotizacion_solicitud import (
+        EnviarCotizacionSolicitud,
+    )
+
+    repo = FakeRepo()
+    _crear(repo, FakeNotificador(), directa=False)  # líder 1.ª aprobación: 1056908061
+    compras = _actor(role=Role.COMPRAS, id=20)
+    repo.s.estado = EstadoSolicitudGestion.COTIZACION
+    repo.s.gestor_id = compras.id
+    return EnviarCotizacionSolicitud(repo, FakeStorage()).execute(
+        compras,
+        1,
+        cotizaciones=[],
+        justificacion="Proveedor único",
+        lider_segunda_aprobacion_id=lider_id,
+        lider_segunda_aprobacion_label="X",
+    )
+
+
+@pytest.mark.parametrize("lider_id", ["1056908061", "13542263", "79249780"])
+def test_segunda_aprobacion_lider_primera_financiera_o_general(lider_id):
+    res = _enviar_a_segunda(lider_id)
+    assert res.estado == EstadoSolicitudGestion.EN_APROBACION
+    assert res.lider_segunda_aprobacion_id == lider_id
+
+
+def test_segunda_aprobacion_rechaza_otro_lider():
+    with pytest.raises(ValueError, match="Gerencia General"):
+        _enviar_a_segunda("37747995")

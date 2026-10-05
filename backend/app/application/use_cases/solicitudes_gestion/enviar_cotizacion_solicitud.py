@@ -14,6 +14,7 @@ from app.application.services.solicitud_gestion_notificaciones import (
 from app.application.services.lideres_colbeef import (
     DIEGO_FINANCIERA_ID,
     DIEGO_FINANCIERA_LABEL,
+    opciones_segunda_aprobacion,
 )
 from app.application.use_cases.solicitudes_gestion.agregar_observacion_solicitud import (
     AgregarObservacionSolicitud,
@@ -174,18 +175,23 @@ class EnviarCotizacionSolicitud:
         # Compra directa: Compras continúa sin 2.ª aprobación (no requiere líder).
         directo_oc = bool(directo_oc) and bool(getattr(solicitud, "directa_compras", False))
         if es_srv:
-            lider_id = DIEGO_FINANCIERA_ID
-            lider_label = DIEGO_FINANCIERA_LABEL
             _aplicar_datos_economicos_srv(cotizaciones)
-        elif directo_oc:
+        lider_id = (lider_segunda_aprobacion_id or "").strip()
+        lider_label = (lider_segunda_aprobacion_label or "").strip()
+        if directo_oc:
             lider_id = ""
             lider_label = ""
         else:
-            lider_id = (lider_segunda_aprobacion_id or "").strip()
-            lider_label = (lider_segunda_aprobacion_label or "").strip()
+            if es_srv and not lider_id:
+                lider_id, lider_label = DIEGO_FINANCIERA_ID, DIEGO_FINANCIERA_LABEL
             if not lider_id:
                 raise ValueError(
-                    "Debes seleccionar un líder Colbeef para la segunda aprobación."
+                    "Debes seleccionar quién da la segunda aprobación."
+                )
+            if lider_id not in opciones_segunda_aprobacion(solicitud.lider_area_id):
+                raise ValueError(
+                    "La segunda aprobación sólo puede ir al líder de la primera "
+                    "aprobación, a Gerencia Financiera o a Gerencia General."
                 )
 
         nuevos_ids: list[int] = []

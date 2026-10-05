@@ -31,6 +31,12 @@ DIEGO_FINANCIERA_ID = "13542263"
 DIEGO_FINANCIERA_LABEL = (
     "SERRANO ARDILA DIEGO FERNANDO - DIRECTOR ADMINISTRATIVO Y FINANCIERO"
 )
+GERENCIA_GENERAL_ID = "79249780"
+
+
+def opciones_segunda_aprobacion(lider_primera_id: str) -> set[str]:
+    """Quién puede dar la 2.ª aprobación: el líder de la 1.ª, Financiera o Gerencia General."""
+    return {i for i in ((lider_primera_id or "").strip(), DIEGO_FINANCIERA_ID, GERENCIA_GENERAL_ID) if i}
 
 
 def email_lider_catalogo(catalog_id: str) -> str:

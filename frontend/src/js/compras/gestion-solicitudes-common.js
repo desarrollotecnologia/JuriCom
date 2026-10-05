@@ -2662,7 +2662,7 @@ export function renderPanelGestionServiciosHtml(s, lideresOptionsHtml) {
                     </div>
                     <p class="hint muted" id="sg-adjuntar-cotizaciones-hint">
                         Si eliges <strong>Sí</strong>, adjunta al menos 3 cotizaciones con su valor
-                        y anticipo. Diego Serrano (Financiera) elige cuál aprueba o pide recotización.
+                        y anticipo. Quien da la segunda aprobación elige cuál aprueba o pide recotización.
                     </p>
                 </div>
 
@@ -2694,11 +2694,18 @@ export function renderPanelGestionServiciosHtml(s, lideresOptionsHtml) {
                     >${escapeHtml(s.justificacion_cotizaciones || "")}</textarea>
                 </div>
 
-                <p class="hint" id="sg-segunda-aprobacion-diego">
-                    La segunda aprobación se envía automáticamente a
-                    <strong>Diego Serrano — Dirección Administrativa y Financiera</strong>.
-                    Él elige una cotización o pide recotización si ninguna le sirve.
-                </p>
+                <div class="field" id="sg-segunda-aprobacion-diego">
+                    <label for="gestion-lider-aprobacion">
+                        Enviar segunda aprobación a
+                        <span class="required">*</span>
+                    </label>
+                    <select id="gestion-lider-aprobacion">
+                        ${lideresOptionsHtml}
+                    </select>
+                    <p class="hint muted">
+                        Quien apruebe elige una cotización o pide recotización si ninguna le sirve.
+                    </p>
+                </div>
                 </div>
             </div>
         </div>`;
@@ -3272,11 +3279,11 @@ export function renderPanelGestionHtml(s, lideresOptionsHtml) {
 
                 <div class="field">
                     <label for="gestion-lider-aprobacion">
-                        Líder Colbeef — segunda aprobación
+                        Enviar segunda aprobación a
                         <span class="required">*</span>
                     </label>
                     <select id="gestion-lider-aprobacion" required>
-                        <option value="">Selecciona un líder</option>
+                        <option value="">Selecciona quién aprueba</option>
                         ${lideresOptionsHtml}
                     </select>
                 </div>`

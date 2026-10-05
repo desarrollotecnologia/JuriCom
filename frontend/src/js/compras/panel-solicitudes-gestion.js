@@ -45,7 +45,7 @@ import {
     solicitudTieneOcRegistrada,
     ESTADO_LABEL,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=65";
+} from "./gestion-solicitudes-common.js?v=66";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -60,18 +60,34 @@ function buildLideresOptions(selectedId = "") {
     ).join("");
 }
 
-// La segunda aprobación es de Gerencia: solo Diego Serrano, María Filomena y Nidia Rocío.
-const GERENCIA_SEGUNDA_APROBACION_IDS = ["13542263", "1056908061", "37747995"];
+const GERENCIA_FINANCIERA_ID = "13542263";
+const GERENCIA_GENERAL_ID = "79249780";
 
-function buildGerenciaOptions(selectedId = "") {
-    return LIDERES_COLBEEF.filter((l) =>
-        GERENCIA_SEGUNDA_APROBACION_IDS.includes(l.id)
-    )
+// 2.ª aprobación: el líder que eligió el solicitante (1.ª aprobación), Gerencia Financiera
+// o Gerencia General. Debe coincidir con opciones_segunda_aprobacion() del backend.
+function buildSegundaAprobacionOptions(solicitud, selectedIdDefault = "") {
+    const selectedId = solicitud.lider_segunda_aprobacion_id || selectedIdDefault;
+    const label = (id) => LIDERES_COLBEEF.find((l) => l.id === id)?.label || id;
+    const opciones = [];
+    const primeraId = (solicitud.lider_area_id || "").trim();
+    if (primeraId) {
+        opciones.push({
+            id: primeraId,
+            label: solicitud.lider_area_label || label(primeraId),
+            prefijo: "Líder de primera aprobación",
+        });
+    }
+    opciones.push(
+        { id: GERENCIA_FINANCIERA_ID, label: label(GERENCIA_FINANCIERA_ID), prefijo: "Gerencia Financiera" },
+        { id: GERENCIA_GENERAL_ID, label: label(GERENCIA_GENERAL_ID), prefijo: "Gerencia General" }
+    );
+    return opciones
+        .filter((o, i) => opciones.findIndex((x) => x.id === o.id) === i)
         .map(
-            (l) =>
-                `<option value="${escapeHtml(l.id)}" data-label="${escapeHtml(l.label)}"${
-                    l.id === selectedId ? " selected" : ""
-                }>${escapeHtml(l.label)}</option>`
+            (o) =>
+                `<option value="${escapeHtml(o.id)}" data-label="${escapeHtml(o.label)}"${
+                    o.id === selectedId ? " selected" : ""
+                }>${escapeHtml(`${o.prefijo} — ${o.label}`)}</option>`
         )
         .join("");
 }
@@ -975,7 +991,7 @@ export function initPanelSolicitudesGestion() {
         const adjuntar = adjuntarCotizacionesSeleccionado();
         if (wrap) wrap.hidden = !adjuntar;
         const liderSelect = document.getElementById("gestion-lider-aprobacion");
-        if (liderSelect) liderSelect.required = adjuntar && !esSolicitudServicios(selectedSolicitud);
+        if (liderSelect) liderSelect.required = adjuntar;
         syncGestionServiciosAccionesUI();
     }
 
@@ -1664,12 +1680,9 @@ export function initPanelSolicitudesGestion() {
               : esSolicitudServicios(solicitud)
               ? renderPanelGestionServiciosHtml(
                     solicitud,
-                    buildGerenciaOptions(solicitud.lider_segunda_aprobacion_id || "")
+                    buildSegundaAprobacionOptions(solicitud, GERENCIA_FINANCIERA_ID)
                 )
-              : renderPanelGestionHtml(
-                    solicitud,
-                    buildGerenciaOptions(solicitud.lider_segunda_aprobacion_id || "")
-                );
+              : renderPanelGestionHtml(solicitud, buildSegundaAprobacionOptions(solicitud));
         modalActionsGestion?.removeAttribute("hidden");
         updateAccionesGestionModal(esEntrega);
         btnClose?.removeAttribute("hidden");
@@ -2420,20 +2433,12 @@ export function initPanelSolicitudesGestion() {
         const justificacion = document.getElementById("gestion-justificacion")?.value.trim() ?? "";
         const esSrv = esSolicitudServicios(selectedSolicitud);
 
-        let liderId = "";
-        let liderLabel = "";
-        if (esSrv) {
-            const diego = LIDERES_COLBEEF.find((l) => l.id === "13542263");
-            liderId = diego?.id || "13542263";
-            liderLabel = diego?.label || "";
-        } else {
-            const liderSelect = document.getElementById("gestion-lider-aprobacion");
-            liderId = liderSelect?.value ?? "";
-            liderLabel = liderSelect?.selectedOptions?.[0]?.dataset.label ?? "";
-            if (!liderId) {
-                showError("Selecciona un líder Colbeef para la segunda aprobación.");
-                return;
-            }
+        const liderSelect = document.getElementById("gestion-lider-aprobacion");
+        const liderId = liderSelect?.value ?? "";
+        const liderLabel = liderSelect?.selectedOptions?.[0]?.dataset.label ?? "";
+        if (!liderId) {
+            showError("Selecciona quién da la segunda aprobación.");
+            return;
         }
 
         const nuevos = getSelectedCotizacionFiles();
@@ -2502,9 +2507,9 @@ export function initPanelSolicitudesGestion() {
                 formData
             );
             showSuccess(
-                esSrv
-                    ? `Solicitud ${solicitud.codigo} enviada a Diego Serrano (Financiera).`
-                    : `Solicitud ${solicitud.codigo} enviada a En Aprobación correctamente.`
+                `Solicitud ${solicitud.codigo} enviada a segunda aprobación: ${
+                    solicitud.lider_segunda_aprobacion_label || liderLabel
+                }.`
             );
             closeModal();
             await load();

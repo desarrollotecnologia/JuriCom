@@ -9,7 +9,9 @@ export const LIDERES_COLBEEF = [
     { id: "13542263", label: "SERRANO ARDILA DIEGO FERNANDO - DIRECTOR ADMINISTRATIVO Y FINANCIERO", email: "gerencia.financiera@colbeef.com" },
     { id: "37747995", label: "GOMEZ MARTINEZ NIDIA ROCIO - DIRECTORA DE ASUNTOS CORPORATIVOS", email: "gerencia.juridica@colbeef.com" },
     { id: "1098673651", label: "PINEDA TRIANA VIVIANA ANDREA - JEFE DE TESORERIA Y CARTERA", email: "coordinacion.tesoreria@colbeef.com" },
-    { id: "79249780", label: "ARDILA JIMENEZ DIEGO SIGIFREDO - GERENTE GENERAL", email: "gerencia.general@colbeef.com" },
+    // ponytail: se conserva el id histórico de Gerencia General (cédula del gerente anterior)
+    // para no migrar la cuenta ni las solicitudes; cambiarlo exige actualizar users.lider_catalog_id.
+    { id: "79249780", label: "TORO GONZALEZ HANS SEBASTIAN - GERENTE GENERAL", email: "gerencia.general@colbeef.com" },
     { id: "1127947335", label: "RINCON BOTELLO YERSON JAVIER - LIDER DE BENEFICIO", email: "coordinacion.subproductos@colbeef.com" },
     { id: "91536323", label: "DIAZ HIGUERA LUIS FERNANDO - JEFE DE VENTAS", email: "gerencia.comercial@colbeef.com" },
     { id: "73579178", label: "LARA LUNA LEONARDO LUIS - JEFE DE TECNOLOGIA", email: "coordinacion.tecnologia@colbeef.com" },
