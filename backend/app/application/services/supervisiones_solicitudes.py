@@ -21,3 +21,19 @@ _SUPERVISIONES: dict[str, tuple[str, ...]] = {
 def emails_supervisados(email: str) -> set[str]:
     """Correos cuyas solicitudes puede ver el `email` dado (en minúsculas)."""
     return {e.strip().lower() for e in _SUPERVISIONES.get((email or "").strip().lower(), ())}
+
+
+# Especialistas de mantenimiento que integran el comité técnico: ven (sin votar)
+# todas las SRV que están en mesa técnica, con sus cotizaciones. PMO = rol Proyectos,
+# que ya participa del comité por su rol.
+_MIEMBROS_COMITE_TECNICO: frozenset[str] = frozenset(
+    {
+        "mantenimiento@colbeef.com",
+        "aux.mantenimiento@colbeef.com",
+        "planeador.colbeef@soatsas.com",
+    }
+)
+
+
+def es_miembro_comite_tecnico(email: str) -> bool:
+    return (email or "").strip().lower() in _MIEMBROS_COMITE_TECNICO

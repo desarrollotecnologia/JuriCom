@@ -301,6 +301,22 @@ export function initMisSolicitudesGestion({ esAdmin, currentUserId = null }) {
     function renderPanelComiteHtml(s) {
         const supOk = s.comite_supervisor_ok;
         const proyOk = s.comite_proyectos_ok;
+        const estadoHtml = `
+                <p><strong>Supervisor:</strong> ${supOk ? "✓ De acuerdo" : "pendiente"}</p>
+                <p><strong>Proyectos:</strong> ${proyOk ? "✓ De acuerdo" : "pendiente"}</p>`;
+        const esCreador =
+            currentUserId != null && Number(s.creado_por_id) === Number(currentUserId);
+        if (!esCreador) {
+            return `
+            <div class="sg-detail-panel" id="panel-comite-supervisor">
+                <h3 class="sg-detail-panel-title">Comité técnico</h3>
+                <p class="muted sg-detail-panel-hint">
+                    Participas en el comité técnico como consulta: revisa las cotizaciones
+                    de arriba. La aceptación la dan el supervisor de la solicitud y Proyectos.
+                </p>
+                ${estadoHtml}
+            </div>`;
+        }
         return `
             <div class="sg-detail-panel" id="panel-comite-supervisor">
                 <h3 class="sg-detail-panel-title">Comité técnico</h3>
@@ -308,8 +324,7 @@ export function initMisSolicitudesGestion({ esAdmin, currentUserId = null }) {
                     Tras la reunión del comité, confirma si estás de acuerdo para continuar.
                     Si no hay acuerdo, la solicitud vuelve a Proyectos para recotizar.
                 </p>
-                <p><strong>Supervisor:</strong> ${supOk ? "✓ De acuerdo" : "pendiente"}</p>
-                <p><strong>Proyectos:</strong> ${proyOk ? "✓ De acuerdo" : "pendiente"}</p>
+                ${estadoHtml}
                 <div class="form-group">
                     <label for="comite-sup-observacion">Acta / observación (opcional)</label>
                     <textarea id="comite-sup-observacion" rows="2"
