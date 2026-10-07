@@ -20,9 +20,12 @@ from app.application.services.lideres_colbeef import DIEGO_FINANCIERA_ID
 from app.application.services.solicitud_gestion_notificaciones import (
     NotificadorSolicitudGestion,
 )
+from app.application.interfaces.user_repository import UserRepository
 from app.application.use_cases.solicitudes_gestion import (
     AgregarObservacionSolicitud,
+    AnularSolicitudGestion,
     ArchivoEntradaSolicitud,
+    CambiarGestorSolicitud,
     CerrarSolicitudConPendientes,
     EnviarCotizacionSolicitud,
     EnviarCotizacionProyectos,
@@ -87,12 +90,14 @@ from app.presentation.api.v1.dependencies import (
     get_file_storage,
     get_notificador_solicitud_gestion,
     get_solicitud_gestion_repository,
+    get_user_repository,
 )
 from app.presentation.api.v1.schemas.solicitud_gestion_schemas import (
     DashboardTiemposResponse,
     IndicadoresComprasResponse,
     RechazarAnticipoBody,
     RechazarSolicitudGestionBody,
+    CambiarGestorBody,
     SolicitudGestionArchivoResponse,
     SolicitudGestionHistorialEstadoResponse,
     SolicitudGestionListItem,
@@ -579,6 +584,19 @@ def listar_panel_gestion(
     except UnauthorizedError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     return [_to_list_item(s, current) for s in items]
+
+
+@router.get("/gestores-compras")
+def listar_gestores_compras(
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    users: UserRepository = Depends(get_user_repository),
+) -> list[dict]:
+    try:
+        gestores = CambiarGestorSolicitud(repo, users).gestores_disponibles(current)
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    return [{"id": u.id, "username": u.username, "nombre": u.nombre or ""} for u in gestores]
 
 
 @router.get("/panel-proyectos", response_model=list[SolicitudGestionListItem])
@@ -1278,6 +1296,69 @@ def gestionar_solicitud_panel(
 ) -> SolicitudGestionResponse:
     try:
         solicitud = GestionarSolicitudPanel(repo).execute(current, solicitud_id)
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/pasar-a-cotizacion", response_model=SolicitudGestionResponse)
+def pasar_solicitud_a_cotizacion(
+    solicitud_id: int,
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> SolicitudGestionResponse:
+    try:
+        solicitud = GestionarSolicitudPanel(repo).pasar_a_cotizacion(current, solicitud_id)
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/anular", response_model=SolicitudGestionResponse)
+def anular_solicitud_gestion(
+    solicitud_id: int,
+    body: RechazarSolicitudGestionBody,
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    try:
+        solicitud = AnularSolicitudGestion(repo, notificador).execute(
+            current, solicitud_id, body.motivo
+        )
+        historial = repo.get_historial(solicitud_id)
+    except ContratoNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _to_response(solicitud, historial, current)
+
+
+@router.post("/{solicitud_id}/cambiar-gestor", response_model=SolicitudGestionResponse)
+def cambiar_gestor_solicitud(
+    solicitud_id: int,
+    body: CambiarGestorBody,
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+    users: UserRepository = Depends(get_user_repository),
+    notificador: NotificadorSolicitudGestion = Depends(get_notificador_solicitud_gestion),
+) -> SolicitudGestionResponse:
+    try:
+        solicitud = CambiarGestorSolicitud(repo, users, notificador).execute(
+            current, solicitud_id, body.gestor_id, body.comentario
+        )
         historial = repo.get_historial(solicitud_id)
     except ContratoNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

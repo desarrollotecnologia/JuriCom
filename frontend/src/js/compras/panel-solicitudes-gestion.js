@@ -45,7 +45,7 @@ import {
     solicitudTieneOcRegistrada,
     ESTADO_LABEL,
     TIPO_LABEL,
-} from "./gestion-solicitudes-common.js?v=66";
+} from "./gestion-solicitudes-common.js?v=67";
 
 const GESTION_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
@@ -104,11 +104,27 @@ function puedeGestionar(solicitud, userId, isAdmin = false) {
     if (estado === "tramitando_oc") {
         return esGestorAsignado(solicitud, userId, isAdmin);
     }
-    if (estado === "programacion_visita" || estado === "cotizacion" || estado === "gestionando_servicio" || estado === "pendiente_evidencia_cierre" || estado === "items_en_camino" || estado === "recepcion_insumos" || estado === "tramitada_oc" || estado === "entregado_parcial") {
+    if (estado === "en_gestion" || estado === "programacion_visita" || estado === "cotizacion" || estado === "gestionando_servicio" || estado === "pendiente_evidencia_cierre" || estado === "items_en_camino" || estado === "recepcion_insumos" || estado === "tramitada_oc" || estado === "entregado_parcial") {
         return esGestorAsignado(solicitud, userId, isAdmin);
     }
     return false;
 }
+
+// Deben coincidir con ETAPAS_ANULABLES_COMPRAS y ETAPAS_PANEL_GESTION del backend.
+const ESTADOS_ANULABLES = new Set(["en_gestion", "programacion_visita", "cotizacion"]);
+const ESTADOS_REASIGNABLES = new Set([
+    "primera_aprobacion",
+    "en_gestion",
+    "programacion_visita",
+    "cotizacion",
+    "gestionando_servicio",
+    "pendiente_evidencia_cierre",
+    "tramitando_oc",
+    "tramitada_oc",
+    "items_en_camino",
+    "recepcion_insumos",
+    "entregado_parcial",
+]);
 
 function contarCotizaciones(solicitud, nuevosArchivos = []) {
     const existentes = (solicitud.archivos || []).filter((a) => a.categoria === "cotizacion").length;
@@ -163,6 +179,17 @@ export function initPanelSolicitudesGestion() {
     const searchInput = document.getElementById("panel-search");
     const filterTipo = document.getElementById("panel-filter-tipo");
     const filterEstado = document.getElementById("panel-filter-estado");
+    const filterGestor = document.getElementById("panel-filter-gestor");
+    const btnPasarCotizacion = document.getElementById("btn-panel-pasar-cotizacion");
+    const btnAnular = document.getElementById("btn-panel-anular");
+    const btnCambiarGestor = document.getElementById("btn-panel-cambiar-gestor");
+    const modalAnular = document.getElementById("modal-panel-anular");
+    const anularMotivo = document.getElementById("panel-anular-motivo");
+    const btnAnularConfirmar = document.getElementById("btn-panel-anular-confirmar");
+    const modalCambiarGestor = document.getElementById("modal-panel-cambiar-gestor");
+    const selectNuevoGestor = document.getElementById("panel-nuevo-gestor");
+    const cambiarGestorComentario = document.getElementById("panel-cambiar-gestor-comentario");
+    const btnCambiarGestorConfirmar = document.getElementById("btn-panel-cambiar-gestor-confirmar");
     const resultCount = document.getElementById("panel-result-count");
     const btnVistaEnProceso = document.getElementById("btn-panel-vista-en-proceso");
     const btnVistaRealizadas = document.getElementById("btn-panel-vista-realizadas");
@@ -216,6 +243,8 @@ export function initPanelSolicitudesGestion() {
     // Equipo de compras compartido: cualquier compras (o admin) puede gestionar,
     // aunque la solicitud ya tenga otro gestor asignado.
     const puedeGestionarCompras = session.hasRole("compras", "admin");
+    const esAdmin = session.hasRole("admin");
+    const esCompras = session.hasRole("compras");
 
     let alertHideTimer = null;
 
@@ -557,26 +586,78 @@ export function initPanelSolicitudesGestion() {
         filterEstado.value = estados.has(previo) ? previo : "";
     }
 
+    // Compras arranca viendo lo suyo y lo que nadie ha tomado.
+    let gestorFiltroInicial = esCompras ? "mias_libres" : "";
+
+    function populateGestorOptions() {
+        if (!filterGestor) return;
+        const previo = gestorFiltroInicial || filterGestor.value;
+        gestorFiltroInicial = "";
+        const gestores = new Map();
+        for (const s of items) {
+            if (s.gestor_id && !gestores.has(s.gestor_id)) {
+                gestores.set(s.gestor_id, s.gestor_username || `#${s.gestor_id}`);
+            }
+        }
+        const fijas = [
+            ["", "Todos los gestores"],
+            ["mias_libres", "Mías y sin gestor"],
+            ["mias", "Asignadas a mí"],
+            ["sin_gestor", "Sin gestor"],
+        ];
+        const nombres = [...gestores.entries()]
+            .filter(([id]) => id !== currentUser?.id)
+            .sort((a, b) => a[1].localeCompare(b[1], "es"))
+            .map(([id, nombre]) => [String(id), nombre]);
+        filterGestor.innerHTML = [...fijas, ...nombres]
+            .map(([v, l]) => `<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`)
+            .join("");
+        const valores = new Set([...fijas, ...nombres].map(([v]) => v));
+        filterGestor.value = valores.has(previo) ? previo : "";
+    }
+
+    function coincideGestor(s, sel) {
+        const mio = s.gestor_id === currentUser?.id;
+        if (sel === "mias_libres") return mio || !s.gestor_id;
+        if (sel === "mias") return mio;
+        if (sel === "sin_gestor") return !s.gestor_id;
+        return String(s.gestor_id || "") === sel;
+    }
+
     function itemsVisibles() {
         const estadoSel = filterEstado?.value ?? "";
-        if (!estadoSel) return Array.isArray(items) ? items : [];
-        return items.filter((s) => normalizarEstado(s.estado) === estadoSel);
+        const gestorSel = filterGestor?.value ?? "";
+        return (Array.isArray(items) ? items : []).filter(
+            (s) =>
+                (!estadoSel || normalizarEstado(s.estado) === estadoSel) &&
+                (!gestorSel || coincideGestor(s, gestorSel))
+        );
+    }
+
+    function celdaGestor(s) {
+        return s.gestor_id
+            ? escapeHtml(s.gestor_username || `#${s.gestor_id}`)
+            : '<span class="muted"><em>Sin gestor</em></span>';
     }
 
     function renderTable() {
         const visibles = itemsVisibles();
         if (!visibles.length) {
-            tbody.innerHTML = esVistaEnProceso()
-                ? `<tr><td colspan="6" class="muted text-center">
+            tbody.innerHTML = items.length
+                ? `<tr><td colspan="7" class="muted text-center">
+                Ninguna solicitud coincide con los filtros (revisa el filtro de gestor).
+            </td></tr>`
+                : esVistaEnProceso()
+                ? `<tr><td colspan="7" class="muted text-center">
                 No hay solicitudes en proceso fuera del panel.
                 <br />Cuando una solicitud esté pendiente de aprobación o de anticipo, aparecerá aquí.
             </td></tr>`
                 : esVistaRealizadas()
-                ? `<tr><td colspan="6" class="muted text-center">
+                ? `<tr><td colspan="7" class="muted text-center">
                 Aún no hay solicitudes realizadas.
                 <br />Cuando una operación se finalice, entregue o facture, aparecerá aquí.
             </td></tr>`
-                : `<tr><td colspan="6" class="muted text-center">
+                : `<tr><td colspan="7" class="muted text-center">
                 No hay solicitudes aprobadas para gestionar.
                 <br />Las solicitudes aparecen aquí después de ser aprobadas por el administrador o el líder aprobador.
             </td></tr>`;
@@ -600,6 +681,7 @@ export function initPanelSolicitudesGestion() {
                         ${escapeHtml(hintEstadoEnProceso(s.estado))}
                     </div>
                 </td>
+                <td data-label="Gestor">${celdaGestor(s)}</td>
                 <td data-label="Fecha">${formatDate(s.created_at)}</td>
                 <td data-label="Acciones" class="col-actions">
                     <button
@@ -648,6 +730,7 @@ export function initPanelSolicitudesGestion() {
                 <td data-label="Solicitante">${escapeHtml(s.creado_por_username || "—")}</td>
                 <td data-label="Tipo">${badgeTipo(s.tipo)}</td>
                 <td data-label="Estado">${badgeEstado(s.estado, s)}</td>
+                <td data-label="Gestor">${celdaGestor(s)}</td>
                 <td data-label="Fecha">${formatDate(s.created_at)}</td>
                 <td data-label="Acciones" class="${accionesClass}">
                     <button
@@ -713,11 +796,12 @@ export function initPanelSolicitudesGestion() {
 
     async function load() {
         tbody.innerHTML =
-            '<tr><td colspan="6" class="muted text-center">Cargando...</td></tr>';
+            '<tr><td colspan="7" class="muted text-center">Cargando...</td></tr>';
         try {
             const data = await api.get(buildQuery());
             items = sortPanelItems(Array.isArray(data) ? data : []);
             populateEstadoOptions();
+            populateGestorOptions();
             renderTable();
             alertError?.classList.remove("show");
         } catch (err) {
@@ -725,7 +809,7 @@ export function initPanelSolicitudesGestion() {
                 err instanceof ApiError
                     ? err.message
                     : "No se pudieron cargar las solicitudes del panel.";
-            tbody.innerHTML = `<tr><td colspan="6" class="muted text-center">${escapeHtml(msg)}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="muted text-center">${escapeHtml(msg)}</td></tr>`;
             if (resultCount) resultCount.textContent = "";
             showError(msg);
         }
@@ -738,6 +822,9 @@ export function initPanelSolicitudesGestion() {
         modoGestion = false;
         modalActionsGestion?.setAttribute("hidden", "");
         setModalBtnHidden(btnEnviar, false);
+        setModalBtnHidden(btnPasarCotizacion, true);
+        setModalBtnHidden(btnAnular, true);
+        setModalBtnHidden(btnCambiarGestor, true);
         setModalBtnHidden(btnContinuarDirecta, true);
         setModalBtnHidden(btnEnviarAprobacionLider, true);
         setModalBtnHidden(btnGuardarGestionServicios, true);
@@ -1182,6 +1269,7 @@ export function initPanelSolicitudesGestion() {
             setModalBtnHidden(btnRegistrarRecepcion, true);
             setModalBtnHidden(btnConfirmarRecepcion, true);
             btnClose?.removeAttribute("hidden");
+            syncAccionesGestor(s);
             await hydrateInlineObservacionImages(detailContent, s.id);
             await hydrateComunicacionJuridica(showError);
             modal.classList.add("show");
@@ -1348,6 +1436,7 @@ export function initPanelSolicitudesGestion() {
             !esSolicitudServicios(selectedSolicitud) &&
             !!selectedSolicitud?.directa_compras &&
             normalizarEstado(selectedSolicitud?.estado) === "cotizacion";
+        setModalBtnHidden(btnPasarCotizacion, true);
         setModalBtnHidden(btnContinuarDirecta, !esCompraDirectaGestion);
         setModalBtnHidden(btnEnviarAprobacionLider, !esCompraDirectaGestion);
         setModalBtnHidden(btnEnviar, esEntrega || esCompraDirectaGestion);
@@ -1635,10 +1724,51 @@ export function initPanelSolicitudesGestion() {
         }
     }
 
+    function syncAccionesGestor(s) {
+        const estado = normalizarEstado(s?.estado);
+        const esGestorOAdmin = esAdmin || (s?.gestor_id && s.gestor_id === currentUser?.id);
+        const enPanel = !esVistaEnProceso() && !esVistaRealizadas();
+        setModalBtnHidden(btnAnular, !(enPanel && esGestorOAdmin && ESTADOS_ANULABLES.has(estado)));
+        setModalBtnHidden(
+            btnCambiarGestor,
+            !(
+                enPanel &&
+                puedeGestionarCompras &&
+                ESTADOS_REASIGNABLES.has(estado) &&
+                (!s?.gestor_id || esGestorOAdmin)
+            )
+        );
+    }
+
+    function ocultarBotonesGestion() {
+        modalActionsGestion
+            ?.querySelectorAll("button")
+            .forEach((btn) => setModalBtnHidden(btn, true));
+    }
+
     async function abrirGestion(solicitud) {
         selectedSolicitud = solicitud;
         modoGestion = true;
         const estado = normalizarEstado(solicitud.estado);
+        syncAccionesGestor(solicitud);
+
+        if (estado === "en_gestion") {
+            detailTitle.textContent = `En gestión · ${solicitud.codigo}`;
+            detailContent.innerHTML = renderDetalleSolicitudHtml(solicitud, {
+                productosOptions: { excluirNoAprobados: true, titulo: "Productos aprobados" },
+            });
+            ocultarBotonesGestion();
+            setModalBtnHidden(btnPasarCotizacion, false);
+            const menorCuantia = !esSolicitudServicios(solicitud) && !!solicitud.directa_compras;
+            setModalBtnHidden(btnContinuarDirecta, !menorCuantia);
+            setModalBtnHidden(btnEnviarAprobacionLider, !menorCuantia);
+            modalActionsGestion?.removeAttribute("hidden");
+            btnClose?.removeAttribute("hidden");
+            await hydrateInlineObservacionImages(detailContent, solicitud.id);
+            await hydrateComunicacionJuridica(showError);
+            modal.classList.add("show");
+            return;
+        }
 
         if (estado === "programacion_visita" && esSolicitudServicios(solicitud)) {
             detailTitle.textContent = `Programar visita · ${solicitud.codigo}`;
@@ -1748,6 +1878,8 @@ export function initPanelSolicitudesGestion() {
                 showSuccess(`Gestión logística — ${solicitud.codigo}`);
             } else if (estado === "programacion_visita") {
                 showSuccess(`Programar visita — ${solicitud.codigo}`);
+            } else if (estado === "en_gestion") {
+                showSuccess(`Solicitud ${solicitud.codigo} En gestión: revísala y pásala a cotización.`);
             } else if (estado === "cotizacion") {
                 showSuccess(`Solicitud ${solicitud.codigo} en estado Cotización.`);
             } else if (estado === "gestionando_servicio") {
@@ -2572,6 +2704,109 @@ export function initPanelSolicitudesGestion() {
         }
     }
 
+    async function pasarACotizacion() {
+        if (!selectedSolicitud) return;
+        btnPasarCotizacion.disabled = true;
+        try {
+            const solicitud = await api.post(
+                `/solicitudes-gestion/${selectedSolicitud.id}/pasar-a-cotizacion`,
+                {}
+            );
+            showSuccess(
+                normalizarEstado(solicitud.estado) === "programacion_visita"
+                    ? `Solicitud ${solicitud.codigo} lista para programar la visita.`
+                    : `Solicitud ${solicitud.codigo} pasó a Cotización.`
+            );
+            await load();
+            await abrirGestion(solicitud);
+        } catch (err) {
+            showError(err instanceof ApiError ? err.message : "No se pudo pasar a cotización.");
+        } finally {
+            btnPasarCotizacion.disabled = false;
+        }
+    }
+
+    function abrirAnular() {
+        if (!selectedSolicitud || !modalAnular) return;
+        document.getElementById("panel-anular-codigo").textContent = selectedSolicitud.codigo;
+        anularMotivo.value = "";
+        modalAnular.classList.add("show");
+        anularMotivo.focus();
+    }
+
+    async function confirmarAnular() {
+        const motivo = anularMotivo.value.trim();
+        if (!motivo) {
+            showError("Escribe el motivo de la anulación.");
+            anularMotivo.focus();
+            return;
+        }
+        btnAnularConfirmar.disabled = true;
+        try {
+            const solicitud = await api.post(
+                `/solicitudes-gestion/${selectedSolicitud.id}/anular`,
+                { motivo }
+            );
+            modalAnular.classList.remove("show");
+            closeModal();
+            showSuccess(`Solicitud ${solicitud.codigo} anulada. Se avisó al supervisor y al líder.`);
+            await load();
+        } catch (err) {
+            showError(err instanceof ApiError ? err.message : "No se pudo anular la solicitud.");
+        } finally {
+            btnAnularConfirmar.disabled = false;
+        }
+    }
+
+    async function abrirCambiarGestor() {
+        if (!selectedSolicitud || !modalCambiarGestor) return;
+        try {
+            const gestores = await api.get("/solicitudes-gestion/gestores-compras");
+            const opciones = gestores.filter((g) => g.id !== selectedSolicitud.gestor_id);
+            if (!opciones.length) {
+                showError("No hay otros usuarios de Compras para asignar.");
+                return;
+            }
+            selectNuevoGestor.innerHTML = opciones
+                .map(
+                    (g) =>
+                        `<option value="${g.id}">${escapeHtml(
+                            g.nombre ? `${g.nombre} (${g.username})` : g.username
+                        )}</option>`
+                )
+                .join("");
+            document.getElementById("panel-cambiar-gestor-codigo").textContent =
+                selectedSolicitud.codigo;
+            cambiarGestorComentario.value = "";
+            modalCambiarGestor.classList.add("show");
+        } catch (err) {
+            showError(err instanceof ApiError ? err.message : "No se pudieron cargar los gestores.");
+        }
+    }
+
+    async function confirmarCambiarGestor() {
+        btnCambiarGestorConfirmar.disabled = true;
+        try {
+            const solicitud = await api.post(
+                `/solicitudes-gestion/${selectedSolicitud.id}/cambiar-gestor`,
+                {
+                    gestor_id: Number(selectNuevoGestor.value),
+                    comentario: cambiarGestorComentario.value.trim(),
+                }
+            );
+            modalCambiarGestor.classList.remove("show");
+            closeModal();
+            showSuccess(
+                `Solicitud ${solicitud.codigo} asignada a ${solicitud.gestor_username || "otro gestor"}.`
+            );
+            await load();
+        } catch (err) {
+            showError(err instanceof ApiError ? err.message : "No se pudo cambiar el gestor.");
+        } finally {
+            btnCambiarGestorConfirmar.disabled = false;
+        }
+    }
+
     load();
 
     try {
@@ -2581,6 +2816,17 @@ export function initPanelSolicitudesGestion() {
     }
 
     btnClose?.addEventListener("click", closeModal);
+    btnPasarCotizacion?.addEventListener("click", pasarACotizacion);
+    btnAnular?.addEventListener("click", abrirAnular);
+    btnAnularConfirmar?.addEventListener("click", confirmarAnular);
+    document
+        .getElementById("btn-panel-anular-cancelar")
+        ?.addEventListener("click", () => modalAnular.classList.remove("show"));
+    btnCambiarGestor?.addEventListener("click", abrirCambiarGestor);
+    btnCambiarGestorConfirmar?.addEventListener("click", confirmarCambiarGestor);
+    document
+        .getElementById("btn-panel-cambiar-gestor-cancelar")
+        ?.addEventListener("click", () => modalCambiarGestor.classList.remove("show"));
     btnEnviar?.addEventListener("click", enviarParaAprobacion);
     btnContinuarDirecta?.addEventListener("click", continuarDirectaOc);
     btnEnviarAprobacionLider?.addEventListener("click", enviarAAprobacion);
@@ -2628,6 +2874,7 @@ export function initPanelSolicitudesGestion() {
     });
     filterTipo?.addEventListener("change", load);
     filterEstado?.addEventListener("change", renderTable);
+    filterGestor?.addEventListener("change", renderTable);
     btnVistaEnProceso?.addEventListener("click", () => {
         vistaPanel = esVistaEnProceso() ? "gestion" : "en_proceso";
         syncVistaPanelUI();

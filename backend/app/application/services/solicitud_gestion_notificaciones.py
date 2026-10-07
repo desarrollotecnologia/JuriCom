@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from html import escape
 from typing import Optional
 
 from app.application.interfaces.email_notifier import EmailMessage, EmailNotifier
@@ -490,6 +491,66 @@ class NotificadorSolicitudGestion:
                 boton="Panel de solicitudes",
                 destinatarios=compras,
             )
+
+    def notificar_anulacion(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+        motivo: str,
+    ) -> None:
+        """Compras anuló la solicitud: avisa al supervisor y al líder de 1.ª aprobación."""
+        codigo = solicitud.codigo or ""
+        mensaje = (
+            f"Compras (<strong>{escape(actor.username or '')}</strong>) anuló la solicitud "
+            f"<strong>{codigo}</strong>.<p><strong>Motivo:</strong> {escape(motivo)}</p>"
+        )
+        sol = resolver_email_solicitante(solicitud, self._users)
+        if sol:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM] {codigo} — Solicitud anulada por Compras",
+                titulo="Solicitud anulada",
+                mensaje=mensaje,
+                url=self._url_mis_solicitudes(),
+                boton="Ver mis solicitudes",
+                destinatarios=[sol],
+            )
+        lider = email_lider_catalogo(solicitud.lider_area_id)
+        lideres = [lider] if lider else self._emails_lider_catalogo(solicitud.lider_area_id)
+        if lideres:
+            self._enviar_evento(
+                solicitud,
+                asunto=f"[JURICOM] {codigo} — Solicitud anulada por Compras",
+                titulo="Solicitud anulada",
+                mensaje=mensaje,
+                url=self._url_aprobar(),
+                boton="Ver solicitudes",
+                destinatarios=lideres,
+            )
+
+    def notificar_cambio_gestor(
+        self,
+        solicitud: SolicitudGestion,
+        actor: User,
+        nuevo_gestor: User,
+        comentario: str = "",
+    ) -> None:
+        if not (nuevo_gestor.email or "").strip() or nuevo_gestor.id == actor.id:
+            return
+        codigo = solicitud.codigo or ""
+        extra = f"<p><strong>Comentario:</strong> {escape(comentario)}</p>" if comentario else ""
+        self._enviar_evento(
+            solicitud,
+            asunto=f"[JURICOM] {codigo} — Te asignaron una solicitud",
+            titulo="Nueva solicitud asignada",
+            mensaje=(
+                f"<strong>{escape(actor.username or '')}</strong> te asignó la solicitud "
+                f"<strong>{codigo}</strong> como gestor.{extra}"
+            ),
+            url=self._url_panel(),
+            boton="Ir al panel",
+            destinatarios=[nuevo_gestor.email.strip()],
+        )
 
     def notificar_solicitud_en_revision(
         self,

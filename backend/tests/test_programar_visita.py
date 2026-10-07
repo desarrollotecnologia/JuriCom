@@ -92,8 +92,10 @@ def test_normal_toma_gestion_va_a_programar_visita():
     repo = FakeRepo(_srv(EstadoSolicitudGestion.PRIMERA_APROBACION))
     compras = _user(Role.COMPRAS, 7, "compras")
     res = GestionarSolicitudPanel(repo).execute(compras, 1)
-    assert res.estado == EstadoSolicitudGestion.PROGRAMACION_VISITA
+    assert res.estado == EstadoSolicitudGestion.EN_GESTION
     assert res.gestor_id == 7
+    res = GestionarSolicitudPanel(repo).pasar_a_cotizacion(compras, 1)
+    assert res.estado == EstadoSolicitudGestion.PROGRAMACION_VISITA
 
 
 def test_normal_confirmar_visita_pasa_a_cotizacion():

@@ -1,0 +1,39 @@
+---
+description: Registrar cada cambio en docs/BITACORA.md y el manual antes de pasarlo a master
+alwaysApply: true
+---
+
+# Bitácora de versiones JURICOM
+
+Cada vez que el usuario pida pasar cambios a la rama principal ("cambia a la rama
+principal", "sube a master", etc.), ANTES del merge:
+
+1. Agregar una entrada al inicio de `docs/BITACORA.md`:
+   - Encabezado `## JURICOM X.Y — DD/MM/AAAA`.
+   - Subir la versión menor (1.2 → 1.3) por cada paso a master con funcionalidad
+     nueva; subir el parche (1.2 → 1.2.1) si solo son correcciones.
+   - Si la versión en curso dice "en desarrollo", ponerle la fecha en vez de crear otra.
+   - Cambios en lenguaje de usuario (qué ve y qué puede hacer), no en términos técnicos.
+   - Línea final `**Roles afectados:** ...`.
+   - No registrar cambios que se revirtieron antes de llegar a master.
+2. Si el cambio altera lo que hace un rol, actualizar ese capítulo en el Word maestro
+   `docs/manual-usuario/Manual-de-Usuario-JURICOM.docx` editándolo con python-docx
+   (nunca regenerarlo desde cero: tiene imágenes pegadas a mano) y agregar la misma
+   entrada en su capítulo "Bitácora de versiones".
+3. Regenerar los manuales por rol con `python docs/manual-usuario/_split_roles.py`.
+4. Si cambia un flujo, actualizar el diagrama Mermaid en `docs/flujos/`.
+5. Incluir la bitácora y los manuales en el mismo commit del cambio.
+
+No reenviar manuales por correo (`enviar_manuales.py --enviar`) sin confirmación
+explícita del usuario.
+
+## Ejemplo de entrada
+
+```markdown
+## JURICOM 1.3 — 15/10/2026
+
+**Panel de solicitudes (Compras)**
+- Nuevo filtro por prioridad en el panel.
+
+**Roles afectados:** Compras.
+```

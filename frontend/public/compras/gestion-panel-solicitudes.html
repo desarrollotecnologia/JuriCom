@@ -69,6 +69,9 @@
                         <select id="panel-filter-estado">
                             <option value="">Todos los estados</option>
                         </select>
+                        <select id="panel-filter-gestor" aria-label="Filtrar por gestor">
+                            <option value="">Todos los gestores</option>
+                        </select>
                         <span class="info" id="panel-result-count"></span>
                     </div>
 
@@ -80,13 +83,14 @@
                                     <th>Solicitante</th>
                                     <th>Tipo de Solicitud</th>
                                     <th>Estado</th>
+                                    <th>Gestor</th>
                                     <th>Fecha de Registro</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="panel-tbody">
                                 <tr>
-                                    <td colspan="6" class="muted text-center">Cargando...</td>
+                                    <td colspan="7" class="muted text-center">Cargando...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -102,6 +106,14 @@
                     <div id="panel-detail-content"></div>
                 </div>
                 <div class="modal-actions" id="panel-modal-actions-gestion" hidden>
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        id="btn-panel-pasar-cotizacion"
+                        hidden
+                    >
+                        Pasar a cotización
+                    </button>
                     <button
                         type="button"
                         class="btn btn-secondary"
@@ -248,8 +260,58 @@
                     </button>
                 </div>
                 <div class="modal-actions">
+                    <button type="button" class="btn btn-danger" id="btn-panel-anular" hidden>
+                        Anular solicitud
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="btn-panel-cambiar-gestor" hidden>
+                        Cambiar gestor
+                    </button>
                     <button class="btn btn-secondary" id="btn-panel-detail-close">
                         Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="modal-panel-anular">
+            <div class="modal">
+                <h2>Anular solicitud <span id="panel-anular-codigo"></span></h2>
+                <p class="muted">
+                    La solicitud quedará Cancelada y se avisará por correo al supervisor y al
+                    líder. Esta acción no se puede deshacer.
+                </p>
+                <div class="field">
+                    <label for="panel-anular-motivo">Motivo <span class="required">*</span></label>
+                    <textarea id="panel-anular-motivo" rows="4" required></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-panel-anular-cancelar">
+                        Volver
+                    </button>
+                    <button type="button" class="btn btn-danger" id="btn-panel-anular-confirmar">
+                        Anular solicitud
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" id="modal-panel-cambiar-gestor">
+            <div class="modal">
+                <h2>Cambiar gestor <span id="panel-cambiar-gestor-codigo"></span></h2>
+                <div class="field">
+                    <label for="panel-nuevo-gestor">Nuevo gestor (usuarios de Compras)</label>
+                    <select id="panel-nuevo-gestor"></select>
+                </div>
+                <div class="field">
+                    <label for="panel-cambiar-gestor-comentario">Comentario (opcional)</label>
+                    <textarea id="panel-cambiar-gestor-comentario" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-panel-cambiar-gestor-cancelar">
+                        Volver
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btn-panel-cambiar-gestor-confirmar">
+                        Asignar
                     </button>
                 </div>
             </div>
@@ -293,7 +355,7 @@
         <script type="module">
             import { requireSessionRole } from "/static/js/auth/bootstrap.js?v=2";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=71";
+            import { initPanelSolicitudesGestion } from "/static/js/compras/panel-solicitudes-gestion.js?v=72";
 
             const user = await requireSessionRole(["compras", "admin"]);
             if (user) {
@@ -303,7 +365,7 @@
                 const tbody = document.getElementById("panel-tbody");
                 if (tbody) {
                     tbody.innerHTML =
-                        '<tr><td colspan="6" class="muted text-center">Redirigiendo...</td></tr>';
+                        '<tr><td colspan="7" class="muted text-center">Redirigiendo...</td></tr>';
                 }
             }
         </script>

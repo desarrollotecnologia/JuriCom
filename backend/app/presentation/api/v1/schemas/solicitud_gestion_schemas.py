@@ -224,6 +224,11 @@ class RechazarSolicitudGestionBody(BaseModel):
     motivo: str = ""
 
 
+class CambiarGestorBody(BaseModel):
+    gestor_id: int
+    comentario: str = ""
+
+
 class SolicitudGestionResponse(BaseModel):
     id: int
     codigo: str

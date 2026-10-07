@@ -19,6 +19,7 @@ from app.domain.value_objects.estado_solicitud_gestion import (
 # Estados desde los que Compras puede devolver una compra directa a aprobación.
 _ETAPAS_ENVIABLES = (
     EstadoSolicitudGestion.PRIMERA_APROBACION,
+    EstadoSolicitudGestion.EN_GESTION,
     EstadoSolicitudGestion.COTIZACION,
 )
 

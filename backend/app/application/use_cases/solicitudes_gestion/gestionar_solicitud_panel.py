@@ -37,6 +37,7 @@ class GestionarSolicitudPanel:
             return self._gestionar_salidas_almacen(actor, solicitud_id, solicitud, estado)
 
         if estado in (
+            EstadoSolicitudGestion.EN_GESTION,
             EstadoSolicitudGestion.PROGRAMACION_VISITA,
             EstadoSolicitudGestion.COTIZACION,
         ):
@@ -96,7 +97,7 @@ class GestionarSolicitudPanel:
 
         if estado != EstadoSolicitudGestion.PRIMERA_APROBACION:
             raise ValueError(
-                "Sólo se pueden gestionar solicitudes en Primera Aprobación, Cotización, "
+                "Sólo se pueden gestionar solicitudes en Primera Aprobación, En gestión, Cotización, "
                 "Gestionando servicio, Tramitando OC, Ítems en camino, Recepción de Insumos, "
                 "Tramitada OC o Entrega parcial realizada."
             )
@@ -113,7 +114,26 @@ class GestionarSolicitudPanel:
             raise UnauthorizedError("Esta solicitud ya fue tomada por otro gestor.")
 
         solicitud.gestor_id = actor.id
-        # Servicios con "requiere visita": antes de cotizar hay que agendar la visita.
+        solicitud.estado = EstadoSolicitudGestion.EN_GESTION
+        actualizada = self._solicitudes.update(solicitud)
+        self._solicitudes.registrar_historial(
+            solicitud_id,
+            EstadoSolicitudGestion.EN_GESTION,
+            usuario_id=actor.id,
+            comentario=f"Gestión iniciada por {actor.username}",
+        )
+        return actualizada
+
+    def pasar_a_cotizacion(self, actor: User, solicitud_id: int) -> SolicitudGestion:
+        """En gestión → Cotización (o Programar visita si el servicio la requiere)."""
+        if not (actor.is_admin() or actor.is_compras()):
+            raise UnauthorizedError("Sólo Compras o Admin pueden gestionar solicitudes.")
+        solicitud = self._solicitudes.get_by_id(solicitud_id)
+        if solicitud is None:
+            raise ContratoNotFoundError(f"No existe la solicitud {solicitud_id}.")
+        if normalizar_estado(solicitud.estado) != EstadoSolicitudGestion.EN_GESTION:
+            raise ValueError("La solicitud debe estar En gestión para pasar a cotización.")
+
         requiere_visita = es_flujo_servicios(solicitud.tipo) and bool(
             getattr(solicitud, "requiere_visita", False)
         )
@@ -122,18 +142,19 @@ class GestionarSolicitudPanel:
             if requiere_visita
             else EstadoSolicitudGestion.COTIZACION
         )
+        if not solicitud.gestor_id:
+            solicitud.gestor_id = actor.id
         solicitud.estado = destino
         actualizada = self._solicitudes.update(solicitud)
-        comentario = (
-            f"Programación de visita iniciada por {actor.username}"
-            if requiere_visita
-            else f"Gestión iniciada por {actor.username}"
-        )
         self._solicitudes.registrar_historial(
             solicitud_id,
             destino,
             usuario_id=actor.id,
-            comentario=comentario,
+            comentario=(
+                f"Programación de visita iniciada por {actor.username}"
+                if requiere_visita
+                else f"Pasa a cotización ({actor.username})"
+            ),
         )
         return actualizada
 

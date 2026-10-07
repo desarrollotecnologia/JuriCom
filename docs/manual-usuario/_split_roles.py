@@ -31,6 +31,8 @@ ROLES = [
 
 # Todos los textos que marcan inicio de capítulo (para delimitar secciones).
 BOUNDARIES_ROLE = {t for t, _, _ in ROLES}
+# Capítulo final que se agrega a todos los manuales por rol.
+BITACORA = "Bitácora de versiones"
 
 
 def p_text(el):
@@ -44,7 +46,7 @@ def es_boundary(txt):
         return False
     if txt in BOUNDARIES_ROLE:
         return True
-    if txt == "Trazabilidad del proceso":
+    if txt in ("Trazabilidad del proceso", BITACORA):
         return True
     if txt.startswith("Manual de Usuario") and "JURICOM" in txt:
         return True
@@ -155,6 +157,11 @@ def main():
         if not cap_els:
             dst.add_paragraph(f"(No se encontró el capítulo '{titulo}' en el Word origen.)")
         for el in cap_els:
+            cop.copy_into(dst, src, el)
+        bitacora_els = rango(BITACORA)
+        if bitacora_els:
+            dst.add_page_break()
+        for el in bitacora_els:
             cop.copy_into(dst, src, el)
         # Reaplica estilo de título al encabezado del rol (algunos quedaron 'normal').
         path = os.path.join(OUT_DIR, archivo)

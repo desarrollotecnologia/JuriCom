@@ -165,7 +165,15 @@ class EnviarCotizacionSolicitud:
         if es_entrega_directa(solicitud.tipo):
             raise ValueError("Este tipo de solicitud no requiere cotización.")
 
-        if normalizar_estado(solicitud.estado) != EstadoSolicitudGestion.COTIZACION:
+        estado_actual = normalizar_estado(solicitud.estado)
+        # Menor cuantía puede ir directo a OC desde En gestión, sin cotizar.
+        menor_cuantia_directa = bool(directo_oc) and bool(
+            getattr(solicitud, "directa_compras", False)
+        )
+        if not (
+            estado_actual == EstadoSolicitudGestion.COTIZACION
+            or (menor_cuantia_directa and estado_actual == EstadoSolicitudGestion.EN_GESTION)
+        ):
             raise ValueError("La solicitud debe estar en estado Cotización.")
 
         if solicitud.gestor_id != actor.id and not actor.puede_gestionar_panel_compras():

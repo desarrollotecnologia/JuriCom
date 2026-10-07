@@ -7,6 +7,8 @@ class EstadoSolicitudGestion(str, Enum):
     SOLICITUD = "solicitud"
     REVISION = "revision"
     PRIMERA_APROBACION = "primera_aprobacion"
+    # Compras ya tomó la solicitud (tiene gestor) y la revisa antes de cotizar.
+    EN_GESTION = "en_gestion"
     # Comité técnico: tras la 1.ª aprobación, Proyectos revisa y puede reescribir
     # la solicitud antes de cotizar.
     REVISION_PROYECTOS = "revision_proyectos"
@@ -73,6 +75,7 @@ LABELS: dict[EstadoSolicitudGestion, str] = {
     EstadoSolicitudGestion.SOLICITUD: "Solicitud",
     EstadoSolicitudGestion.REVISION: "En revisión (ajustes al solicitante)",
     EstadoSolicitudGestion.PRIMERA_APROBACION: "Primera Aprobación",
+    EstadoSolicitudGestion.EN_GESTION: "En gestión",
     EstadoSolicitudGestion.REVISION_PROYECTOS: "Revisión de solicitud (Proyectos)",
     EstadoSolicitudGestion.PROGRAMACION_VISITA: "Programar visita",
     EstadoSolicitudGestion.COTIZACION_PROYECTOS: "Cotización (Proyectos)",
@@ -126,6 +129,7 @@ FLUJO_ORDEN: list[EstadoSolicitudGestion] = [
 FLUJO_HISTORIAL: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.SOLICITUD,
     EstadoSolicitudGestion.PRIMERA_APROBACION,
+    EstadoSolicitudGestion.EN_GESTION,
     EstadoSolicitudGestion.REVISION_PROYECTOS,
     EstadoSolicitudGestion.PROGRAMACION_VISITA,
     EstadoSolicitudGestion.COTIZACION_PROYECTOS,
@@ -184,6 +188,7 @@ ETAPAS_GESTION_ANTICIPO: list[EstadoSolicitudGestion] = [
 # Las completadas (entregado/facturada/contrato finalizado) van a ETAPAS_PANEL_REALIZADAS.
 ETAPAS_PANEL_GESTION: list[EstadoSolicitudGestion] = [
     EstadoSolicitudGestion.PRIMERA_APROBACION,
+    EstadoSolicitudGestion.EN_GESTION,
     EstadoSolicitudGestion.PROGRAMACION_VISITA,
     EstadoSolicitudGestion.COTIZACION,
     EstadoSolicitudGestion.GESTIONANDO_SERVICIO,
@@ -347,12 +352,20 @@ ETAPAS_PRE_GERENCIA: set[EstadoSolicitudGestion] = {
     EstadoSolicitudGestion.SOLICITUD,
     EstadoSolicitudGestion.REVISION,
     EstadoSolicitudGestion.PRIMERA_APROBACION,
+    EstadoSolicitudGestion.EN_GESTION,
     EstadoSolicitudGestion.PROGRAMACION_VISITA,
     EstadoSolicitudGestion.COTIZACION_PROYECTOS,
     EstadoSolicitudGestion.COTIZACION,
     EstadoSolicitudGestion.EN_APROBACION,
     EstadoSolicitudGestion.CANCELADO,
 }
+
+# Compras (gestor asignado o Admin) puede anular la solicitud antes de la OC.
+ETAPAS_ANULABLES_COMPRAS: tuple[EstadoSolicitudGestion, ...] = (
+    EstadoSolicitudGestion.EN_GESTION,
+    EstadoSolicitudGestion.PROGRAMACION_VISITA,
+    EstadoSolicitudGestion.COTIZACION,
+)
 
 
 def aprobada_por_gerencia(estado: EstadoSolicitudGestion | str) -> bool:

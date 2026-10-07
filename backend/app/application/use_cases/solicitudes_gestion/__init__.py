@@ -1,5 +1,9 @@
 from .agregar_observacion_solicitud import AgregarObservacionSolicitud
 
+from .anular_solicitud_gestion import AnularSolicitudGestion
+
+from .cambiar_gestor_solicitud import CambiarGestorSolicitud
+
 from .enviar_cotizacion_solicitud import EnviarCotizacionSolicitud
 
 from .enviar_cotizacion_proyectos import EnviarCotizacionProyectos
