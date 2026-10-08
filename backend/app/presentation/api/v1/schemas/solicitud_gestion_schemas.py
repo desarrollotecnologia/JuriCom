@@ -229,6 +229,15 @@ class CambiarGestorBody(BaseModel):
     comentario: str = ""
 
 
+class AprobacionRealizadaItem(BaseModel):
+    solicitud: SolicitudGestionListItem
+    etapa: str
+    decision: str
+    fecha: Optional[datetime] = None
+    aprobador: str = ""
+    comentario: str = ""
+
+
 class SolicitudGestionResponse(BaseModel):
     id: int
     codigo: str

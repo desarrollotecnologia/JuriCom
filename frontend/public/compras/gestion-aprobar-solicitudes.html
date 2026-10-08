@@ -69,6 +69,42 @@
                         </table>
                     </div>
                 </div>
+
+                <div class="card" style="margin-top: 1rem">
+                    <h2 class="card-title">Solicitudes que ya revisaste</h2>
+                    <p class="muted">
+                        Consulta lo que aprobaste, rechazaste o devolviste, y revisa su estado actual.
+                    </p>
+                    <div class="search-bar">
+                        <input
+                            type="text"
+                            id="revisadas-search"
+                            placeholder="Buscar por consecutivo, título o solicitante..."
+                            autocomplete="off"
+                        />
+                        <span class="info" id="revisadas-result-count"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table-gestion-solicitudes">
+                            <thead>
+                                <tr>
+                                    <th>Consecutivo</th>
+                                    <th>Título</th>
+                                    <th>Decisión</th>
+                                    <th id="revisadas-th-aprobador" hidden>Aprobador</th>
+                                    <th>Fecha de la decisión</th>
+                                    <th>Estado actual</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="revisadas-tbody">
+                                <tr>
+                                    <td colspan="7" class="muted text-center">Cargando...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </main>
         </div>
 
@@ -155,10 +191,24 @@
             </div>
         </div>
 
+        <div class="modal-overlay" id="modal-revisada-detail">
+            <div class="modal modal-wide modal-detail-solicitud">
+                <h2 id="revisada-detail-title">Detalle de la solicitud</h2>
+                <div class="sg-modal-detail-body">
+                    <div id="revisada-detail-content"></div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-revisada-detail-close">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=32";
+            import { initAprobarSolicitudesGestion } from "/static/js/compras/aprobar-solicitudes-gestion.js?v=33";
 
             session.requireAuth();
             session.requireRole(["admin", "lider_aprobador"]);

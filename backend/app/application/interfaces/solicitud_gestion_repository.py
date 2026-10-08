@@ -169,6 +169,14 @@ class SolicitudGestionRepository(ABC):
         ...
 
     @abstractmethod
+    def historial_de_participante(
+        self, usuario_id: Optional[int]
+    ) -> dict[int, list[SolicitudGestionHistorialEstado]]:
+        """Historial completo (en orden) de las solicitudes donde participó el usuario.
+        Con usuario_id=None devuelve el de todas."""
+        ...
+
+    @abstractmethod
     def contrato_fecha_por_solicitudes(
         self, solicitud_ids: list[int]
     ) -> dict[int, "datetime"]:

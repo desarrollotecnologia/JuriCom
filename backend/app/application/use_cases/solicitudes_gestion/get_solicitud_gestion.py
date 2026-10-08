@@ -52,6 +52,17 @@ class GetSolicitudGestion:
         if actor.is_lider_aprobador() and not actor.is_admin():
             if actor.solicitud_asignada_a_lider(solicitud):
                 return solicitud
+            # Consulta de lo que ya aprobó o rechazó.
+            from app.application.use_cases.solicitudes_gestion.listar_aprobaciones_realizadas import (
+                decisiones_de_historial,
+            )
+
+            decisiones = decisiones_de_historial(
+                self._solicitudes.get_historial(solicitud_id),
+                solicitud.creado_por_id,
+            )
+            if any(h.usuario_id == actor.id for h, _, _ in decisiones):
+                return solicitud
             raise UnauthorizedError("No tienes permiso para ver esta solicitud.")
         return solicitud
 

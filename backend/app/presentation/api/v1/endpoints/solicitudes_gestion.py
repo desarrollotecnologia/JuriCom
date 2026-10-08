@@ -92,7 +92,11 @@ from app.presentation.api.v1.dependencies import (
     get_solicitud_gestion_repository,
     get_user_repository,
 )
+from app.application.use_cases.solicitudes_gestion.listar_aprobaciones_realizadas import (
+    ListarAprobacionesRealizadas,
+)
 from app.presentation.api.v1.schemas.solicitud_gestion_schemas import (
+    AprobacionRealizadaItem,
     DashboardTiemposResponse,
     IndicadoresComprasResponse,
     RechazarAnticipoBody,
@@ -539,6 +543,28 @@ def listar_pendientes_aprobacion(
     except UnauthorizedError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     return [_to_list_item(s, current) for s in items]
+
+
+@router.get("/aprobaciones-realizadas", response_model=list[AprobacionRealizadaItem])
+def listar_aprobaciones_realizadas(
+    current: User = Depends(get_current_user),
+    repo: SolicitudGestionRepository = Depends(get_solicitud_gestion_repository),
+) -> list[AprobacionRealizadaItem]:
+    try:
+        items = ListarAprobacionesRealizadas(repo).execute(current)
+    except UnauthorizedError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    return [
+        AprobacionRealizadaItem(
+            solicitud=_to_list_item(a.solicitud, current),
+            etapa=a.etapa.value,
+            decision=a.decision,
+            fecha=a.fecha,
+            aprobador=a.aprobador,
+            comentario=a.comentario,
+        )
+        for a in items
+    ]
 
 
 @router.get("/pendientes-aprobacion-anticipo", response_model=list[SolicitudGestionListItem])

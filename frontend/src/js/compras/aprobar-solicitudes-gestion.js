@@ -491,6 +491,7 @@ export function initAprobarSolicitudesGestion() {
             populateEstadoOptions();
 
             renderTable();
+            loadRevisadas();
 
         } catch (err) {
 
@@ -1121,7 +1122,116 @@ export function initAprobarSolicitudesGestion() {
 
     });
 
+    // --- Solicitudes que ya revisaste (solo consulta) ---
+    const revTbody = document.getElementById("revisadas-tbody");
+    const revSearch = document.getElementById("revisadas-search");
+    const revCount = document.getElementById("revisadas-result-count");
+    const revModal = document.getElementById("modal-revisada-detail");
+    const revContent = document.getElementById("revisada-detail-content");
+    const esAdmin = session.hasRole("admin");
+    let revisadas = [];
+    if (esAdmin) document.getElementById("revisadas-th-aprobador")?.removeAttribute("hidden");
 
+    const ETAPA_DECISION = {
+        solicitud: "1.ª aprobación",
+        en_aprobacion: "2.ª aprobación",
+        aprobacion_anticipo: "Anticipo",
+    };
+
+    function badgeDecision(d) {
+        const cls = d.startsWith("Aprobó")
+            ? "badge-sg-aprobado"
+            : d.startsWith("Rechazó")
+              ? "badge-sg-rechazado"
+              : "badge-sg-pendiente";
+        return `<span class="badge ${cls}">${escapeHtml(d)}</span>`;
+    }
+
+    function renderRevisadas() {
+        if (!revTbody) return;
+        const q = (revSearch?.value || "").trim().toLowerCase();
+        const visibles = revisadas.filter((a) => {
+            if (!q) return true;
+            const s = a.solicitud;
+            return [s.codigo, s.titulo, s.creado_por_username, a.decision, a.aprobador, TIPO_LABEL[s.tipo]]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(q);
+        });
+        revCount.textContent = `${visibles.length} decisión${visibles.length === 1 ? "" : "es"}`;
+        if (!visibles.length) {
+            revTbody.innerHTML = `<tr><td colspan="7" class="muted text-center">${
+                revisadas.length ? "Ninguna coincide con la búsqueda." : "Aún no has revisado solicitudes."
+            }</td></tr>`;
+            return;
+        }
+        revTbody.innerHTML = visibles
+            .map(
+                (a) => `
+            <tr>
+                <td data-label="Consecutivo"><span class="codigo-solicitud">${escapeHtml(a.solicitud.codigo)}</span></td>
+                <td data-label="Título">${escapeHtml(a.solicitud.titulo)}</td>
+                <td data-label="Decisión">${badgeDecision(a.decision)}<div class="muted">${escapeHtml(ETAPA_DECISION[a.etapa] || "")}</div></td>
+                ${esAdmin ? `<td data-label="Aprobador">${escapeHtml(a.aprobador || "—")}</td>` : ""}
+                <td data-label="Fecha de la decisión">${formatDate(a.fecha)}</td>
+                <td data-label="Estado actual">${badgeEstado(a.solicitud.estado)}</td>
+                <td data-label="Acciones" class="col-actions">
+                    <button type="button" class="btn btn-secondary btn-icon-view btn-ver-revisada" data-id="${a.solicitud.id}" title="Ver detalle">
+                        ${EYE_ICON}<span>Ver</span>
+                    </button>
+                </td>
+            </tr>`
+            )
+            .join("");
+        revTbody.querySelectorAll(".btn-ver-revisada").forEach((btn) => {
+            btn.addEventListener("click", () => openRevisada(Number(btn.dataset.id)));
+        });
+    }
+
+    async function loadRevisadas() {
+        if (!revTbody) return;
+        try {
+            const data = await api.get("/solicitudes-gestion/aprobaciones-realizadas");
+            revisadas = Array.isArray(data) ? data : [];
+            renderRevisadas();
+        } catch (err) {
+            revTbody.innerHTML = `<tr><td colspan="7" class="muted text-center">${escapeHtml(
+                err instanceof ApiError ? err.message : "No se pudieron cargar las solicitudes revisadas."
+            )}</td></tr>`;
+        }
+    }
+
+    async function openRevisada(id) {
+        try {
+            const s = await api.get(`/solicitudes-gestion/${id}`);
+            const esServicios = esSolicitudServicios(s);
+            document.getElementById("revisada-detail-title").textContent =
+                `${s.codigo} · ${TIPO_LABEL[s.tipo] || s.tipo} · ${ESTADO_LABEL[normalizarEstado(s.estado)] || s.estado}`;
+            revContent.innerHTML = renderDetalleSolicitudHtml(s, {
+                showAprobacionParcialAlert: false,
+                productosOptions: {
+                    showEstado: Boolean(s.aprobacion_parcial) && !esServicios,
+                    cantidadEditable: false,
+                },
+            });
+            await hydrateInlineObservacionImages(revContent, s.id);
+            revModal.classList.add("show");
+        } catch (err) {
+            showError(err instanceof ApiError ? err.message : "No se pudo cargar el detalle.");
+        }
+    }
+
+    attachGestionDownloadHandlers(revContent, showError);
+    document.getElementById("btn-revisada-detail-close")?.addEventListener("click", () => revModal.classList.remove("show"));
+    revModal?.addEventListener("click", (e) => {
+        if (e.target === revModal) revModal.classList.remove("show");
+    });
+    let revDebounce;
+    revSearch?.addEventListener("input", () => {
+        clearTimeout(revDebounce);
+        revDebounce = setTimeout(renderRevisadas, 200);
+    });
 
     load();
 

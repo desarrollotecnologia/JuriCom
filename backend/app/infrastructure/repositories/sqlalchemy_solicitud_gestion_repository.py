@@ -329,6 +329,7 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             self._db.query(
                 SolicitudGestionModel,
                 UserModel.username,
+                GestorUser.nombre,
                 GestorUser.username,
                 GestorAnticipoUser.username,
             )
@@ -351,11 +352,11 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         )
         if not row:
             return None
-        model, username, gestor_username, gestor_anticipo_username = row
+        model, username, gestor_nombre, gestor_username, gestor_anticipo_username = row
         return self._to_entity(
             model,
             username,
-            gestor_username or "",
+            (gestor_nombre or "").strip() or gestor_username or "",
             gestor_anticipo_username or "",
         )
 
@@ -369,9 +370,16 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
         estados: Optional[list[EstadoSolicitudGestion]] = None,
         query: Optional[str] = None,
     ) -> list[SolicitudGestion]:
+        GestorUser = aliased(UserModel)
         q = (
-            self._db.query(SolicitudGestionModel, UserModel.username)
+            self._db.query(
+                SolicitudGestionModel,
+                UserModel.username,
+                GestorUser.nombre,
+                GestorUser.username,
+            )
             .join(UserModel, SolicitudGestionModel.creado_por_id == UserModel.id)
+            .outerjoin(GestorUser, SolicitudGestionModel.gestor_id == GestorUser.id)
             .options(
                 selectinload(SolicitudGestionModel.productos),
                 selectinload(SolicitudGestionModel.archivos),
@@ -409,7 +417,14 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             )
 
         rows = q.order_by(SolicitudGestionModel.id.desc()).all()
-        return [self._to_entity(model, username) for model, username in rows]
+        return [
+            self._to_entity(
+                model,
+                username,
+                (gestor_nombre or "").strip() or gestor_username or "",
+            )
+            for model, username, gestor_nombre, gestor_username in rows
+        ]
 
     def update(self, solicitud: SolicitudGestion) -> SolicitudGestion:
         if solicitud.id is None:
@@ -786,6 +801,21 @@ class SqlAlchemySolicitudGestionRepository(SolicitudGestionRepository):
             .all()
         )
         return [self._historial_to_entity(model, username or "") for model, username in rows]
+
+    def historial_de_participante(
+        self, usuario_id: Optional[int]
+    ) -> dict[int, list[SolicitudGestionHistorialEstado]]:
+        H = SolicitudGestionHistorialEstadoModel
+        q = self._db.query(H, UserModel.username).outerjoin(UserModel, H.usuario_id == UserModel.id)
+        if usuario_id is not None:
+            participadas = self._db.query(H.solicitud_id).filter(H.usuario_id == usuario_id)
+            q = q.filter(H.solicitud_id.in_(participadas))
+        resultado: dict[int, list[SolicitudGestionHistorialEstado]] = {}
+        for model, username in q.order_by(H.solicitud_id.asc(), H.id.asc()).all():
+            resultado.setdefault(model.solicitud_id, []).append(
+                self._historial_to_entity(model, username or "")
+            )
+        return resultado
 
     def historial_por_solicitudes(
         self, solicitud_ids: list[int]
