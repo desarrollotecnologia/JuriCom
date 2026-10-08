@@ -5,6 +5,21 @@ Los diagramas de cada proceso están en [`docs/flujos/`](flujos/).
 
 ---
 
+## JURICOM 1.3 — 08/10/2026
+
+**Aprobaciones**
+- En **Aprobar solicitudes**, cada aprobador puede consultar las solicitudes que ya revisó.
+- La consulta muestra la decisión tomada, su fecha, el estado actual y el detalle de la solicitud.
+- El Administrador puede consultar las decisiones de todos y el nombre de quien decidió.
+
+**Panel de solicitudes (Compras)**
+- La columna **Gestor** muestra el nombre registrado de la persona en lugar de su número interno.
+  Si el usuario no tiene nombre registrado, se muestra su correo.
+
+**Roles afectados:** Líder aprobador, Administrador, Compras.
+
+---
+
 ## JURICOM 1.2 — 07/10/2026
 
 **Panel de solicitudes (Compras)**
