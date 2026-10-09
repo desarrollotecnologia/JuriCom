@@ -1,5 +1,8 @@
 import { LIDERES_AREA } from "./mock-catalogos.js?v=2";
-import { centrosCostosItems } from "../catalogos/centros-costos.js";
+import {
+    centrosCostosItems,
+    opcionesCentrosCostosHtml,
+} from "../catalogos/centros-costos.js";
 import { consumiblesItems } from "../catalogos/consumibles.js";
 import { api, ApiError } from "../api/client.js";
 import { createObservacionConAdjuntos } from "../components/observacion-editor.js?v=2";
@@ -42,11 +45,13 @@ export function initSalidaConsumiblesForm() {
     });
     // La prioridad solo aplica para centros de costo de mantenimiento.
     centroCostoSelect.hiddenInput.addEventListener("change", () => {
-        if (!prioridadRow) return;
         const label = centroCostoSelect.getSelectedItem()?.label || "";
         const esMantenimiento = /mantenimiento/i.test(label);
-        prioridadRow.hidden = !esMantenimiento;
+        if (prioridadRow) prioridadRow.hidden = !esMantenimiento;
         if (!esMantenimiento && form.prioridad) form.prioridad.value = "media";
+        tbody.querySelectorAll('select[name^="centro_costo_"]').forEach((select) => {
+            if (!select.value) select.value = centroCostoSelect.getValue();
+        });
     });
 
     const liderSelect = createSearchableSelect({
@@ -106,6 +111,11 @@ export function initSalidaConsumiblesForm() {
                     aria-label="Unidad"
                 />
             </td>
+            <td>
+                <select class="input-table" name="centro_costo_${rowId}" required>
+                    ${opcionesCentrosCostosHtml("Centro de costo")}
+                </select>
+            </td>
             <td class="table-actions cell-accion">
                 <button
                     type="button"
@@ -134,6 +144,8 @@ export function initSalidaConsumiblesForm() {
             const item = control.getSelectedItem();
             unidadInput.value = item?.unidad || "";
         });
+        tr.querySelector('select[name^="centro_costo_"]').value =
+            centroCostoSelect.getValue();
         tr._consumibleControl = control;
 
         tbody.appendChild(tr);
@@ -168,12 +180,15 @@ export function initSalidaConsumiblesForm() {
             const control = row._consumibleControl;
             const seleccion = control?.getSelectedItem();
             const cantidadRaw = row.querySelector('input[name^="cantidad_"]')?.value ?? "1";
+            const centroCosto =
+                row.querySelector('select[name^="centro_costo_"]')?.value || "";
             if (!seleccion) continue;
             items.push({
                 codigo_siimed: seleccion.codigo || "",
                 descripcion: seleccion.descripcion || "",
                 unidad: seleccion.unidad || "",
                 cantidad: cantidadRaw,
+                centro_costo: centroCosto,
             });
         }
         return items;
@@ -185,6 +200,10 @@ export function initSalidaConsumiblesForm() {
             return false;
         }
         for (let i = 0; i < items.length; i += 1) {
+            if (!items[i].centro_costo) {
+                showError(`La fila ${i + 1} requiere centro de costo.`);
+                return false;
+            }
             const cantidad = Number(items[i].cantidad);
             if (!Number.isFinite(cantidad) || cantidad <= 0) {
                 showError(`La fila ${i + 1} requiere una cantidad mayor a cero.`);

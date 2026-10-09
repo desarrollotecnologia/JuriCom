@@ -5,6 +5,17 @@ Los diagramas de cada proceso están en [`docs/flujos/`](flujos/).
 
 ---
 
+## JURICOM 1.4 — 09/10/2026
+
+**Salida de Consumibles**
+- Cada consumible debe indicar su **centro de costo**.
+- El formulario propone inicialmente el centro de costo general, pero permite cambiarlo
+  individualmente para cada consumible.
+
+**Roles afectados:** Supervisor.
+
+---
+
 ## JURICOM 1.3 — 08/10/2026
 
 **Aprobaciones**

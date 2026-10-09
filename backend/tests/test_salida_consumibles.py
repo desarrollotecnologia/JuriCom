@@ -72,7 +72,13 @@ def _actor():
 def _productos_json():
     return json.dumps(
         [
-            {"codigo_siimed": "1001", "descripcion": "GUANTES", "unidad": "CAJA", "cantidad": "3"},
+            {
+                "codigo_siimed": "1001",
+                "descripcion": "GUANTES",
+                "unidad": "CAJA",
+                "cantidad": "3",
+                "centro_costo": "307-1 PRODUCCION BENEFICIO",
+            },
             {"codigo_siimed": "1002", "descripcion": "TAPABOCAS", "unidad": "CAJA", "cantidad": 2},
         ]
     )
@@ -104,6 +110,11 @@ def test_nace_lista_para_entrega_sin_aprobacion():
     assert repo.recibidas == {1: Decimal("3"), 2: Decimal("2")}
     # El área del solicitante se aplica a cada ítem.
     assert all(p.area_consumo == "212-7 TIC'S" for p in res.productos)
+    # Cada fila puede indicar su centro; clientes anteriores conservan el centro general.
+    assert [p.centro_costo for p in res.productos] == [
+        "307-1 PRODUCCION BENEFICIO",
+        "212-7 TIC'S",
+    ]
     # Entrega directa: sin OC ni recepción física.
     assert es_entrega_directa(res.tipo) is True
     assert res.tiene_tramite_oc_registrado is True

@@ -92,13 +92,14 @@ class RegistrarSolicitudSalidaConsumibles:
                 raise ValueError(f"Ítem {i}: cantidad inválida.") from e
             if cantidad <= 0:
                 raise ValueError(f"Ítem {i}: la cantidad debe ser mayor a cero.")
+            centro_costo = str(item.get("centro_costo") or "").strip() or centro_costo_area
             productos.append(
                 SolicitudGestionProducto(
                     codigo_siimed=str(item.get("codigo_siimed") or "").strip(),
                     unidad=unidad,
                     descripcion=descripcion,
                     area_consumo=area_consumo,
-                    centro_costo=centro_costo_area,
+                    centro_costo=centro_costo,
                     cantidad=cantidad,
                     # Sin aprobación: el consumible queda listo para entrega directa.
                     estado_aprobacion=EstadoAprobacionProducto.APROBADO,

@@ -110,6 +110,7 @@
                                     <col />
                                     <col class="col-cantidad" />
                                     <col class="col-unidad" />
+                                    <col />
                                     <col class="col-accion" />
                                 </colgroup>
                                 <thead>
@@ -117,6 +118,7 @@
                                         <th>Consumible</th>
                                         <th>Cantidad</th>
                                         <th>Unidad</th>
+                                        <th>Centro de costo</th>
                                         <th>Acción</th>
                                     </tr>
                                 </thead>
@@ -160,7 +162,7 @@
         <script type="module">
             import { session } from "/static/js/auth/session.js";
             import { renderSidebar } from "/static/js/components/sidebar.js";
-            import { initSalidaConsumiblesForm } from "/static/js/compras/salida-consumibles-form.js?v=4";
+            import { initSalidaConsumiblesForm } from "/static/js/compras/salida-consumibles-form.js?v=5";
 
             session.requireAuth();
             session.requireRole(["compras", "admin", "solicitante", "proyectos"]);

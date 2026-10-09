@@ -5,7 +5,7 @@ para entregar. Termina en **Entregado** y no lleva factura.
 
 ```mermaid
 flowchart TD
-    A([Supervisor crea la salida de consumibles<br/>título, centro de costo, área de consumo,<br/>prioridad y líder del área<br/>Elige los consumibles del catálogo y la cantidad]) --> B["Se registra y salta la aprobación<br/>todos los ítems quedan aprobados"]
+    A([Supervisor crea la salida de consumibles<br/>título, centro de costo general, área de consumo,<br/>prioridad y líder del área<br/>Elige cada consumible, cantidad y centro de costo]) --> B["Se registra y salta la aprobación<br/>todos los ítems quedan aprobados"]
 
     B --> C1["Correo al supervisor:<br/>confirmación del registro"]
     B --> C2["Correo al líder:<br/>solo aviso, no tiene que aprobar"]
